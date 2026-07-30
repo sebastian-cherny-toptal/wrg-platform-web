@@ -14,6 +14,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { WorkforceLogoWhite } from '../components/branding/workforce-logo-white'
 import { routeMap, routeMetadata } from './metadata'
+import { PageViewLogger } from './page-view-logger'
 import { hasEntitlement, hasPermission, useAppStore } from '../store/app-store'
 import { Button, cn } from '../components/ui'
 
@@ -197,10 +198,19 @@ export function AppShell() {
     await navigate(routeMap.adminProjects)
   }
 
-  if (!session) return <Outlet />
+  if (!session) {
+    return (
+      <>
+        <PageViewLogger />
+        <Outlet />
+      </>
+    )
+  }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#f7f7f8] text-zinc-900 lg:flex">
+    <>
+      <PageViewLogger />
+      <div className="h-screen overflow-hidden bg-[#f7f7f8] text-zinc-900 lg:flex">
       {session.impersonation ? (
         <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-amber-300 px-4 py-2 text-sm font-semibold text-amber-950">
           Viewing as {session.user.displayName}; verified administrator: {session.impersonation.actorDisplayName}
@@ -297,6 +307,7 @@ export function AppShell() {
           )}
         </footer>
       </main>
-    </div>
+      </div>
+    </>
   )
 }
