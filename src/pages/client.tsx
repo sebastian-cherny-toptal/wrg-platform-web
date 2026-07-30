@@ -5,17 +5,20 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
   Download,
   FileChartColumn,
   FileText,
+  LineChart,
   MessageSquareText,
   PackageCheck,
+  PieChart,
   ShoppingCart,
+  SlidersVertical,
   Trash2,
-  TrendingUp,
   Users,
+  X,
 } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { routeMap } from '../app/metadata'
@@ -28,82 +31,151 @@ const reportCards = [
   {
     entitlement: 'WFR_Access',
     title: 'Workforce Feedback Results',
-    description: 'Quantitative survey perceptions, both system-wide and segmented within respondent demographics.',
+    description: 'This quantitative report reflects the perceptions of respondents to each question on the employee survey, both system-wide and segmented within various demographics of the population.',
     path: routeMap.wfr,
-    icon: BarChart3,
+    icon: PieChart,
   },
   {
     entitlement: 'EV_Access',
     title: 'Employee Verbatims',
-    description: 'Responses to open-ended survey questions, organized for review.',
+    description: 'Any responses to open-ended survey questions are contained in this report.',
     path: routeMap.employeeVerbatims,
-    icon: MessageSquareText,
+    icon: BarChart3,
   },
   {
     entitlement: 'WBC_Access',
     title: 'Workforce Benchmark Comparisons',
-    description: 'Compare positive response averages with participating award winners and non-winners.',
+    description: 'This report averages the percentage of employees’ positive responses to each survey question from all participating organizations, presented in aggregate by all competitors that did and did not make the list.',
     path: routeMap.benchmarkData,
-    icon: TrendingUp,
+    icon: SlidersVertical,
   },
   {
     entitlement: 'BBP_Access',
     title: 'Benefits & Best Practices',
-    description: 'See which employee benefits and workplace practices are offered across benchmark groups.',
+    description: 'This report provides the percentage of winning and non-winning organizations that offer various employee benefits and workplace practices.',
     path: routeMap.benefitsBestPractices,
-    icon: FileChartColumn,
+    icon: LineChart,
   },
 ] as const
 
-function DashboardBars() {
+const dashboardData = {
+  2025: {
+    positive: 82,
+    negative: 6,
+    completed: 198,
+    sent: 406,
+    rate: 49,
+    dates: 'between 07.18.2025 and 08.08.2025',
+    top: [
+      ['I am willing to go above and beyond for this organization', 95],
+      ['I understand how my work contributes to our success', 94],
+      ["I would recommend this organization's services", 93],
+    ],
+    bottom: [
+      ['I understand the available paths for career advancement', 61],
+      ['I receive sufficient ongoing training', 66],
+      ['Leaders act on employee suggestions', 69],
+    ],
+  },
+  2024: {
+    positive: 83,
+    negative: 6,
+    completed: 174,
+    sent: 403,
+    rate: 39,
+    dates: 'between 07.19.2024 and 08.09.2024',
+    top: [
+      ['This organization is committed to high-quality service', 97],
+      ['I am willing to go above and beyond for this organization', 95],
+      ['I understand how my work contributes to our success', 94],
+    ],
+    bottom: [
+      ['I receive sufficient ongoing training', 60],
+      ['Leaders act on employee suggestions', 65],
+      ['I understand the available paths for career advancement', 67],
+    ],
+  },
+} as const
+
+function downloadDashboardData(filename: string, rows: (string | number)[][]) {
+  const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
+  const href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = href
+  link.download = filename
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(href), 1000)
+}
+
+function DashboardBars({ positive, negative }: { positive: number; negative: number }) {
+  const bars = [
+    { label: 'Average Positive Response', value: positive, color: '#7c3aed' },
+    { label: 'Average Negative Response', value: negative, color: '#a99bea' },
+  ]
   return (
-    <div className="mt-5 grid grid-cols-2 gap-6">
-      {[
-        { label: 'Average Positive Response', value: 78, color: 'bg-violet-600' },
-        { label: 'Average Negative Response', value: 12, color: 'bg-violet-300' },
-      ].map((item) => (
-        <div className="grid grid-rows-[250px_auto] gap-3 text-center" key={item.label}>
-          <div className="flex items-end justify-center border-b border-l border-zinc-200 px-4">
-            <div className={cn('relative w-16 rounded-t-xl', item.color)} style={{ height: `${item.value * 2.3}px` }}>
-              <strong className="absolute -top-7 inset-x-0 text-sm text-zinc-800">{item.value}%</strong>
+    <div className="mt-[35px]">
+      <div className="relative ml-[38px] mr-[9px] h-[313px] border-b border-zinc-200">
+        {[100, 80, 60, 40, 20].map((value, index) => (
+          <div className="absolute inset-x-0 border-t border-zinc-200" key={value} style={{ top: `${index * 20}%` }}>
+            <span className="absolute -left-8 -top-[10px] w-6 text-right text-[12px] text-zinc-500">{value}</span>
+          </div>
+        ))}
+        <div className="absolute inset-x-0 bottom-0 flex h-full items-end justify-around">
+          {bars.map((bar) => (
+            <div className="relative flex h-full w-[92px] items-end justify-center" key={bar.label}>
+              <div className="relative w-[67px] rounded-t-[11px]" style={{ height: `${bar.value}%`, background: bar.color }}>
+                <strong className="absolute inset-x-0 -top-6 text-center text-[14px] font-semibold text-zinc-900">{bar.value}%</strong>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start justify-center gap-2 text-xs text-zinc-500">
-            <span className={cn('mt-1 size-2.5 shrink-0 rounded-sm', item.color)} />{item.label}
-          </div>
+          ))}
         </div>
-      ))}
+      </div>
+      <div className="mt-4 grid gap-2 text-[13px] text-zinc-500">
+        {bars.map((bar) => (
+          <div className="flex items-center gap-2" key={bar.label}>
+            <span className="size-[10px] rounded-[2px]" style={{ background: bar.color }} />
+            {bar.label}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
 export function DashboardPage() {
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [cartOpen, setCartOpen] = useState(false)
   const session = useAppStore((state) => state.session)
   const program = useSelectedProgram()
   const programs = session?.user.programs ?? []
   const selectProgram = useAppStore((state) => state.selectProgram)
-  const cartCount = useAppStore((state) => state.cart.reduce((total, item) => total + item.quantity, 0))
   const visibleReports = reportCards.filter((report) => program?.entitlements[report.entitlement] === 'yes')
+  const selectedYear = program?.year === 2024 ? 2024 : 2025
+  const data = dashboardData[selectedYear]
 
   return (
-    <div className="bg-white">
-      <div className="flex items-start justify-between gap-4 px-5 pb-5 pt-6 lg:px-6">
+    <div className="mr-2 min-h-full bg-white">
+      <div className="flex h-[104px] items-start justify-between gap-4 px-6 pt-6">
         <div>
-          <h1 aria-label={`Welcome, ${session?.user.displayName ?? 'client'}`} className="text-[30px] font-bold leading-tight text-zinc-950">{program?.name ?? 'Dashboard'}</h1>
-          <p className="mt-1 text-sm text-zinc-500">Welcome, {program?.organizationName ?? session?.user.displayName}!</p>
+          <h1 aria-label={`Welcome, ${session?.user.displayName ?? 'client'}`} className="text-[30px] font-bold leading-[36px] text-[#111111]">{program?.name ?? 'Dashboard'}</h1>
+          <p className="mt-0.5 text-[16px] leading-6 text-zinc-500">Welcome, {program?.organizationName ?? session?.user.displayName}!</p>
         </div>
-        <Link className="hidden h-10 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-900 lg:inline-flex" to={routeMap.cart}>
+        <button className="hidden h-10 w-[89px] items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-900 hover:bg-zinc-50 lg:inline-flex" onClick={() => setCartOpen(true)}>
           <ShoppingCart className="size-4" /> Cart
-          {cartCount ? <span className="grid min-w-5 place-items-center rounded-full bg-violet-600 px-1.5 text-[11px] text-white">{cartCount}</span> : null}
-        </Link>
+        </button>
       </div>
 
-      <div className="mx-5 flex items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 p-3 lg:mx-6">
+      <div className="mx-6 flex h-[70px] items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 p-3">
         <button className="grid size-10 shrink-0 place-items-center text-zinc-400" disabled aria-label="Previous program"><ChevronLeft /></button>
-        <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mx-0.5 grid flex-1 grid-cols-2 gap-6">
           {programs.map((item) => (
             <button
-              className={cn('h-10 rounded-xl border px-4 text-sm font-medium', item.id === program?.id ? 'border-violet-200 bg-violet-200 text-zinc-900' : 'border-zinc-300 bg-white')}
+              className={cn(
+                'h-10 rounded-xl border px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-400',
+                item.id === program?.id ? 'border-violet-200 bg-violet-200 text-zinc-900' : 'border-zinc-300 bg-white',
+              )}
               key={item.id}
               onClick={() => selectProgram(item.id)}
             >
@@ -114,53 +186,130 @@ export function DashboardPage() {
         <button className="grid size-10 shrink-0 place-items-center text-zinc-400" disabled aria-label="Next program"><ChevronRight /></button>
       </div>
 
-      <div className="mt-6 border-t border-zinc-200 bg-[#fbfbfb] p-5 lg:p-6">
+      <div className="mt-6 border-t border-zinc-200 bg-[#fbfbfb] px-6 pb-6 pt-3">
         <div className="grid gap-4 xl:grid-cols-[430px_minmax(0,1fr)]">
-          <Card className="relative p-5">
-            <h2 className="max-w-[85%] font-semibold">Average Positive and Average Negative Response</h2>
-            <p className="mt-2 text-sm leading-5 text-zinc-500">Survey data collected via paper and online methods during the selected program.</p>
-            <button className="absolute right-4 top-4 rounded-md p-2 text-zinc-500 hover:bg-zinc-100" aria-label="Download response chart"><Download className="size-4" /></button>
-            <DashboardBars />
-            <button className="absolute bottom-4 right-4 grid size-6 place-items-center rounded-full border-2 border-violet-500 text-xs font-semibold text-violet-600" aria-label="About this chart"><CircleHelp className="size-4" /></button>
+          <Card className="relative h-[727px] p-4">
+            <h2 className="max-w-[317px] pr-8 text-[16px] font-semibold leading-6">Average Positive and Average Negative Response</h2>
+            <p className="mt-2 text-[14px] leading-5 text-zinc-500">Survey data collected via paper and online methods {data.dates}</p>
+            <button
+              className="absolute right-4 top-4 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100"
+              aria-label="Download response chart"
+              onClick={() => downloadDashboardData(`response-chart-${selectedYear}.csv`, [['Response', 'Percent'], ['Average Positive Response', data.positive], ['Average Negative Response', data.negative]])}
+            >
+              <Download className="size-[18px]" />
+            </button>
+            <DashboardBars positive={data.positive} negative={data.negative} />
+            <button
+              className="absolute bottom-4 right-4 grid size-6 place-items-center rounded-full border-2 border-violet-500 text-xs font-semibold text-violet-600"
+              aria-label="Help"
+              aria-expanded={helpOpen}
+              onClick={() => setHelpOpen((open) => !open)}
+            >
+              ?
+            </button>
+            {helpOpen ? (
+              <div className="absolute bottom-12 right-4 z-10 w-[360px] rounded-lg border border-zinc-200 bg-white p-4 text-[12px] leading-5 text-zinc-600 shadow-xl" role="tooltip">
+                <p>The Average Positive Response is the average percentage of agreement among your survey population. It averages each survey question to arrive at an overall average percentage for the entire survey.</p>
+                <p className="mt-2">The Average Negative Response is the average percentage of disagreement among your population.</p>
+                <p className="mt-2"><strong>Note:</strong> These percentages will not always add to 100 as they do not account for respondents who selected a neutral response.</p>
+              </div>
+            ) : null}
           </Card>
 
-          <div className="grid gap-4">
-            <section className="rounded-[20px] bg-slate-100 p-5">
-              <h2 className="font-semibold">Response Rate Overview</h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                {[['# of Surveys Completed', '263'], ['# of Surveys Sent', '318'], ['Response Rate', '83%']].map(([label, value], index) => (
-                  <div className={cn('rounded-xl bg-white p-4', index === 2 && 'bg-violet-600 text-white')} key={label}>
-                    <strong className="text-2xl">{value}</strong><p className={cn('mt-1 text-xs text-zinc-500', index === 2 && 'text-violet-100')}>{label}</p>
+          <div className="grid gap-3">
+            <section className="relative h-[166px] rounded-[20px] bg-slate-100 p-3">
+              <h2 className="text-[16px] font-semibold">Response Rate Overview</h2>
+              <button
+                className="absolute right-3 top-3 rounded-md p-1 text-zinc-500 hover:bg-white"
+                aria-label="Download response rate overview"
+                onClick={() => downloadDashboardData(`response-rate-${selectedYear}.csv`, [['Metric', 'Value'], ['# of Surveys Completed', data.completed], ['# of Surveys Sent', data.sent], ['Response Rate', `${data.rate}%`]])}
+              >
+                <Download className="size-[18px]" />
+              </button>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {[
+                  ['# of Surveys Completed', String(data.completed)],
+                  ['# of Surveys Sent', String(data.sent)],
+                  ['Response Rate', `${data.rate}%`],
+                ].map(([label, value], index) => (
+                  <div className={cn('flex h-[106px] flex-col items-center justify-center rounded-xl border border-zinc-200 bg-white p-2 text-center', index === 2 && 'border-violet-100 bg-violet-100')} key={label}>
+                    <p className="order-1 text-[12px] font-semibold leading-4 text-zinc-900">{label}</p>
+                    <strong className="order-2 mt-1 text-[36px] leading-10 text-violet-600">{value}</strong>
                   </div>
                 ))}
               </div>
             </section>
-            <Card className="p-5">
-              <h2 className="font-semibold">What are your employees saying?</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-600">Highest scoring</p><p className="text-sm text-zinc-700">“I understand how my role contributes to the success of the organization.”</p><strong className="mt-2 block text-emerald-600">89% Agree</strong></div>
-                <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-600">Opportunity</p><p className="text-sm text-zinc-700">“I receive useful feedback about my performance.”</p><strong className="mt-2 block text-rose-600">67% Agree</strong></div>
+            <Card className="relative h-[549px] p-4">
+              <h2 className="pr-8 text-[15px] font-semibold">What are your employees saying?</h2>
+              <button
+                className="absolute right-3 top-3 rounded-md p-1 text-zinc-500 hover:bg-zinc-100"
+                aria-label="Download employee statements"
+                onClick={() => downloadDashboardData(`employee-statements-${selectedYear}.csv`, [['Rating', 'Statement', 'Agreement'], ...data.top.map((item) => ['Top', item[0], `${item[1]}%`]), ...data.bottom.map((item) => ['Bottom', item[0], `${item[1]}%`])])}
+              >
+                <Download className="size-[18px]" />
+              </button>
+              <div className="mt-2 grid grid-cols-2 gap-3 text-center text-[12px] text-zinc-700">
+                <p className="whitespace-nowrap">Top Three Rated Survey Statements</p>
+                <p className="whitespace-nowrap">Bottom Three Rated Survey Statements</p>
+              </div>
+              <div className="mt-[14px] grid grid-cols-2 gap-3">
+                <div className="grid gap-3">
+                  {data.top.map(([statement, agreement]) => (
+                    <div className="flex min-h-[118px] flex-col items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-center" key={statement}>
+                      <p className="text-[13px] leading-[18px] text-emerald-950">{statement}</p>
+                      <span className="mt-2 rounded-lg bg-emerald-100 px-2 py-1 text-[13px] text-emerald-700">({agreement}% Agree)</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-3">
+                  {data.bottom.map(([statement, agreement]) => (
+                    <div className="flex min-h-[118px] flex-col items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-center" key={statement}>
+                      <p className="text-[13px] leading-[18px] text-orange-950">{statement}</p>
+                      <span className="mt-2 rounded-lg bg-orange-100 px-2 py-1 text-[13px] text-orange-600">({agreement}% Agree)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-center text-[9px] leading-[13px] text-zinc-500">
+                <p>If your organization has a tie of four or more highest rated statements, the top three are selected in the order they appear on the survey</p>
+                <p>If your organization has a tie of four or more lowest rated statements, the bottom three are selected in the order they appear on the survey</p>
               </div>
             </Card>
           </div>
         </div>
 
         {visibleReports.length ? (
-          <section className="mt-5 rounded-[20px] border border-zinc-200 bg-slate-50 p-4 md:p-6">
-            <h2 className="text-xl font-bold">My Reports</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <section className="mt-3 rounded-[20px] border border-zinc-200 bg-slate-50 p-6">
+            <h2 className="text-xl font-bold leading-[25px]">My Reports</h2>
+            <div className="mt-4 grid gap-5 md:grid-cols-2">
               {visibleReports.map(({ icon: Icon, ...report }) => (
-                <Card className="flex min-h-60 flex-col p-5" key={report.path}>
-                  <span className="grid size-12 place-items-center rounded-xl bg-violet-100 text-violet-700"><Icon className="size-6" /></span>
-                  <h3 className="mt-4 font-medium">{report.title}</h3>
-                  <p className="mt-2 flex-1 text-sm leading-5 text-zinc-500">{report.description}</p>
-                  <Link className="mt-4 inline-flex items-center text-sm font-medium text-violet-600" to={report.path}>View Report <ArrowRight className="ml-1 size-4" /></Link>
+                <Card className="flex h-[257px] flex-col p-5" key={report.path}>
+                  <span className="grid size-12 place-items-center rounded-xl bg-violet-100 text-violet-600"><Icon className="size-6" /></span>
+                  <h3 className="mt-4 text-[16px] font-medium">{report.title}</h3>
+                  <p className="mt-1 flex-1 text-[14px] leading-5 text-zinc-500">{report.description}</p>
+                  <Link className="mt-3 inline-flex items-center text-[14px] font-medium text-violet-600" to={report.path}>View Report <ArrowRight className="ml-1 size-4" /></Link>
                 </Card>
               ))}
             </div>
           </section>
         ) : null}
       </div>
+
+      {cartOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/45" role="presentation" onClick={() => setCartOpen(false)}>
+          <aside className="absolute inset-y-0 right-0 flex w-[340px] flex-col bg-white" aria-label="Cart" onClick={(event) => event.stopPropagation()}>
+            <button className="absolute right-5 top-5 text-zinc-500 hover:text-zinc-900" aria-label="close" onClick={() => setCartOpen(false)}>
+              <X className="size-5" />
+            </button>
+            <h2 className="px-5 pt-12 text-[20px] font-semibold">Cart</h2>
+            <div className="flex-1" />
+            <div className="border-t border-zinc-200 px-5 py-5">
+              <div className="flex items-center justify-between text-[16px]"><span>Total:</span><span>$ 0</span></div>
+            </div>
+            <button className="mx-5 mb-5 h-9 bg-zinc-200 text-[14px] font-medium text-white" disabled aria-label="Total Amount is 0">Total Amount is 0</button>
+          </aside>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -214,31 +363,39 @@ export function WorkforceFeedbackPage() {
         ) : report.data.length === 0 ? (
           <StatePanel kind="empty" title="No responses yet" message="This program does not have demographic response data." />
         ) : (
-          <Card className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-5">
-              <div><h2 className="font-semibold">Completed surveys by demographic</h2><p className="mt-1 text-sm text-zinc-500">263 total responses</p></div>
-              <Button className="gap-2" variant="secondary"><Download className="size-4" /> Download Chart</Button>
+          <>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">Total Number of Survey Responses by Demographic Category</h2>
+              <Button
+                className="gap-2"
+                onClick={() => downloadDashboardData(
+                  'employee-response-breakdown-demo.csv',
+                  [['Demographic', 'Value', 'Responses'], ...report.data.flatMap((item) => item.values.map((value) => [item.category, value.label, value.count]))],
+                )}
+              >
+                <Download className="size-4" /> Download Report
+              </Button>
             </div>
-            <div className="grid gap-6 p-5 md:grid-cols-2">
+            <div className="grid gap-8">
               {(['personal', 'workplace'] as const).map((group) => (
                 <section key={group}>
-                  <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-violet-600">{group} demographics</h2>
-                  <div className="grid gap-3">
+                  <h2 className="mb-4 text-base font-semibold capitalize">{group} Demographics</h2>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {report.data.filter((item) => item.group === group).map((item) => (
-                      <details className="group rounded-xl border border-zinc-200 bg-white" key={item.category} open>
-                        <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
-                          <span className="grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><Users className="size-4" /></span>
-                          <h3 className="flex-1 font-medium">{item.category}</h3>
-                          <ChevronRight className="size-4 transition group-open:rotate-90" />
+                      <details className="group rounded-xl bg-zinc-100" key={item.category}>
+                        <summary className="flex min-h-[88px] cursor-pointer list-none items-center gap-3 p-4">
+                          <span className="grid size-11 place-items-center rounded-full bg-violet-100 text-violet-600"><Users className="size-5" /></span>
+                          <h3 className="flex-1 text-sm font-semibold">{item.category}</h3>
+                          <span className="grid size-8 place-items-center rounded-full border border-zinc-300 bg-white"><ChevronRight className="size-4 transition group-open:rotate-90" /></span>
                         </summary>
-                        <dl className="divide-y divide-zinc-100 border-t border-zinc-100 px-4">{item.values.map((value) => <div className="flex justify-between py-3 text-sm" key={value.label}><dt className="text-zinc-600">{value.label}</dt><dd className="font-semibold">{value.count}</dd></div>)}</dl>
+                        <dl className="divide-y divide-zinc-200 border-t border-zinc-200 px-4">{item.values.map((value) => <div className="flex justify-between py-3 text-sm" key={value.label}><dt className="text-zinc-600">{value.label}</dt><dd className="font-semibold">{value.count}</dd></div>)}</dl>
                       </details>
                     ))}
                   </div>
                 </section>
               ))}
             </div>
-          </Card>
+          </>
         )}
       </div>
     </>
@@ -249,36 +406,79 @@ export function CatalogPage() {
   const catalog = useQuery({ queryKey: ['report-catalog'], queryFn: api.reports.catalog })
   const addToCart = useAppStore((state) => state.addToCart)
   const cart = useAppStore((state) => state.cart)
+  const [verbatimFilter, setVerbatimFilter] = useState('')
+  const products = catalog.data ?? []
+  const sortedVerbatims = products.find((product) => product.id === 'report-verbatims-sorted')
+  const keyImpact = products.find((product) => product.id === 'report-kia')
+  const resorted = products.find((product) => product.id === 'report-resort')
   return (
     <>
-      <PageHeader breadcrumbs={[{ label: 'My Reports', path: routeMap.dashboard }, { label: 'Reports Store' }]} title="Reports Store" description="Purchase additional reports and data segmented by demographics to gain deeper insights into your workforce." />
+      <PageHeader
+        actions={<Link to={routeMap.cart}><Button className="gap-2" variant="secondary"><ShoppingCart className="size-4" /> Cart</Button></Link>}
+        breadcrumbs={[{ label: 'My Reports', path: routeMap.dashboard }, { label: 'Reports Store' }]}
+        title="Reports Store"
+        description="Purchase additional reports and data segmented by demographics to gain deeper insights into your workforce."
+      />
       <div className="p-5 lg:p-6">
         {catalog.isPending ? <StatePanel kind="loading" title="Loading catalog" message="Checking currently available reports." /> : null}
         {catalog.isError ? <StatePanel kind="error" title="Catalog unavailable" message={catalog.error.message} /> : null}
-        <div className="grid gap-5 md:grid-cols-2">
-          {catalog.data?.map((product, index) => {
-            const inCart = cart.some((item) => item.productId === product.id)
-            return (
-              <Card className={cn('flex flex-col p-5', index === 0 && 'md:col-span-2')} key={product.id}>
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <span className="grid size-12 place-items-center rounded-full bg-violet-100 text-violet-700">{index === 0 ? <PackageCheck /> : index === 1 ? <MessageSquareText /> : <FileChartColumn />}</span>
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm">{product.priceCents ? <>Price <strong className="text-red-600">{money.format(product.priceCents / 100)}</strong></> : <strong className="text-red-600">Pricing varies</strong>}</p>
-                    {product.available && product.priceCents ? <Button disabled={inCart} onClick={() => addToCart({ productId: product.id, name: product.name, priceCents: product.priceCents })}>{inCart ? 'Added to Cart' : 'Add to Cart'}</Button> : null}
-                  </div>
+        {catalog.data ? (
+          <div className="grid gap-5 md:grid-cols-2">
+            {sortedVerbatims ? (
+              <Card className="flex min-h-[360px] flex-col p-6 shadow-none">
+                <div className="flex items-start justify-between gap-4">
+                  <span className="grid size-14 place-items-center rounded-full bg-violet-100 text-violet-700"><MessageSquareText /></span>
+                  <strong className="text-xl text-red-600">$425</strong>
                 </div>
-                <h2 className="mt-4 font-bold">{product.name}</h2>
-                <p className="mt-2 flex-1 text-sm leading-5 text-zinc-500">{product.description}</p>
-                {index === 0 ? (
-                  <ul className="mt-4 grid gap-2 text-sm text-zinc-600 md:grid-cols-2">
-                    {['30-minute Survey Specialist phone call', 'Online data dashboard', 'Workforce Feedback Results', 'Employee Verbatims', 'Workforce Benchmark Comparisons', 'Benefits & Best Practices'].map((item) => <li className="flex gap-2" key={item}><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-violet-600" />{item}</li>)}
-                  </ul>
-                ) : null}
-                {!product.priceCents ? <a className="mt-5 text-sm font-semibold text-red-600" href="mailto:SurveyPro@workforcerg.com">Contact Sales →</a> : null}
+                <h2 className="mt-5 text-lg font-semibold">Sorted Employee Verbatims</h2>
+                <p className="mt-2 text-sm leading-6 text-zinc-500">{sortedVerbatims.description}</p>
+                <select className="mt-5 h-11 rounded-lg border border-zinc-300 bg-white px-3 text-sm" onChange={(event) => setVerbatimFilter(event.target.value)} value={verbatimFilter}>
+                  <option value="">Select filtering report</option><option>Age Generation</option><option>Department</option><option>Job Level</option>
+                </select>
+                <Button
+                  className="mt-3 bg-red-600 hover:bg-red-700"
+                  disabled={!verbatimFilter || cart.some((item) => item.productId === sortedVerbatims.id)}
+                  onClick={() => addToCart({ productId: sortedVerbatims.id, name: sortedVerbatims.name, priceCents: sortedVerbatims.priceCents })}
+                >
+                  {cart.some((item) => item.productId === sortedVerbatims.id) ? 'Added to Cart' : 'Add to Cart'}
+                </Button>
+                <p className="mt-3 text-xs text-zinc-500">Instant access after purchase.</p>
               </Card>
-            )
-          })}
-        </div>
+            ) : null}
+            {keyImpact ? (
+              <Card className="flex min-h-[360px] flex-col p-6 shadow-none">
+                <div className="flex items-start justify-between gap-4">
+                  <span className="grid size-14 place-items-center rounded-full bg-violet-100 text-violet-700"><FileChartColumn /></span>
+                  <strong className="text-xl text-red-600">$820</strong>
+                </div>
+                <h2 className="mt-5 text-lg font-semibold">Key Impact Analysis</h2>
+                <p className="mt-2 text-sm leading-6 text-zinc-500">{keyImpact.description}</p>
+                <p className="mt-4 text-xs font-medium text-zinc-600">A minimum of 100 survey responses is required. Delivery in 7–10 business days.</p>
+                <div className="mt-auto flex items-center justify-between gap-3 pt-5">
+                  <Link className="text-sm font-semibold text-red-600" to={routeMap.keyImpactAnalysis}>View Report →</Link>
+                  <Button
+                    className="bg-red-600 hover:bg-red-700"
+                    disabled={cart.some((item) => item.productId === keyImpact.id)}
+                    onClick={() => addToCart({ productId: keyImpact.id, name: keyImpact.name, priceCents: keyImpact.priceCents })}
+                  >
+                    {cart.some((item) => item.productId === keyImpact.id) ? 'Added to Cart' : 'Add to Cart'}
+                  </Button>
+                </div>
+              </Card>
+            ) : null}
+            {resorted ? (
+              <Card className="flex min-h-[230px] flex-col p-6 shadow-none md:col-span-2 md:flex-row md:items-start md:gap-6">
+                <span className="grid size-14 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-700"><PackageCheck /></span>
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold">Re-Sorted Workforce Feedback Report</h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">{resorted.description}</p>
+                  <a className="mt-5 inline-block text-sm font-semibold text-red-600" href="mailto:SurveyPro@workforcerg.com">Contact a Survey Professional →</a>
+                </div>
+                <strong className="text-sm text-red-600">Pricing: VARIES</strong>
+              </Card>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </>
   )

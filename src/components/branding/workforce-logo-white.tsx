@@ -2,9 +2,9 @@ export function WorkforceLogoWhite({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 160 25" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Workforce Research Group">
       <g clipPath="url(#wrg-logo-clip)">
-        <path d="M32.6235 11.895H32.6124L20.439 24.7998H20.4556H23.9854L36.1532 11.895H32.6235Z" fill="url(#wrg-logo-grad0)" />
-        <path d="M34.6526 6.17395H34.6359H31.1117H31.0951L13.3574 24.8002H13.3741H16.8983H16.915L34.6526 6.17395Z" fill="url(#wrg-logo-grad1)" />
-        <path d="M7.75416 9.02637H4.22998L12.7347 18.014L14.519 16.1602L7.75416 9.02637Z" fill="url(#wrg-logo-grad2)" style={{ mixBlendMode: 'multiply' }} />
+        <path d="M32.6235 11.895H32.6124L20.439 24.7998H20.4556H23.9854L36.1532 11.895H32.6235Z" fill="#E85A2A" />
+        <path d="M34.6526 6.17395H34.6359H31.1117H31.0951L13.3574 24.8002H13.3741H16.8983H16.915L34.6526 6.17395Z" fill="#E85A2A" />
+        <path d="M7.75416 9.02637H4.22998L12.7347 18.014L14.519 16.1602L7.75416 9.02637Z" fill="#BB4412" style={{ mixBlendMode: 'multiply' }} />
         <path d="M11.9846 5.9975H8.46045L16.3204 14.2844L18.0991 12.4306L11.9846 5.9975Z" fill="#BB4412" />
         <path d="M33.5798 0H30.0389L10.9339 19.8952L3.52418 12.0497H0L9.15509 21.7435L9.14397 21.7545L10.9172 23.6359L10.9227 23.6414L33.5909 0H33.5798Z" fill="#FF5625" />
         <g style={{ mixBlendMode: 'multiply' }}>

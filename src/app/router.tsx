@@ -81,7 +81,7 @@ export const router = createBrowserRouter([
             element: <Guard role="client" entitlement="WFR_Access" />,
             children: [
               { path: routeMap.wfr, element: <WorkforceFeedbackPage /> },
-              { path: '/employee-response-breakdown', element: <Navigate replace to={routeMap.wfr} /> },
+              { path: '/reports/workforce-feedback', element: <Navigate replace to={routeMap.wfr} /> },
               { path: routeMap.detailedResults, element: <DetailedResultsPage /> },
               { path: routeMap.responsePatterns, element: <ResponsePatternsPage /> },
               { path: routeMap.annualTrends, element: <AnnualTrendsPage /> },
@@ -118,7 +118,7 @@ export const router = createBrowserRouter([
             ],
           },
           { path: routeMap.catalog, element: <CatalogPage /> },
-          { path: '/reports-store', element: <Navigate replace to={routeMap.catalog} /> },
+          { path: '/reports/catalog', element: <Navigate replace to={routeMap.catalog} /> },
           { path: routeMap.cart, element: <CartPage /> },
           { path: routeMap.checkout, element: <CheckoutPage /> },
         ],

@@ -1,13 +1,11 @@
 import {
   ChevronDown,
-  ChevronRight,
-  FileText,
+  Gauge,
   Home,
-  LogOut,
   Menu,
   MoreHorizontal,
-  ShoppingBag,
   ShoppingCart,
+  Store,
   UserRoundX,
   X,
 } from 'lucide-react'
@@ -64,8 +62,8 @@ function SidebarLink({
       className={({ isActive }) =>
         cn(
           'flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white',
-          nested && 'min-h-8 py-1.5 pl-3 text-[13px] font-normal text-zinc-400',
-          isActive && 'bg-violet-600 text-white hover:bg-violet-600',
+          nested && 'min-h-8 py-1.5 pl-1 text-[13px] font-normal text-zinc-400',
+          isActive && 'rounded-md bg-violet-600 text-white hover:bg-violet-600',
         )
       }
     >
@@ -89,7 +87,7 @@ function ReportGroup({
   if (!visibleLinks.length) return null
   const active = visibleLinks.some((link) => locationPath === link.path)
   return (
-    <details className="group" open={active || title === 'Workforce Feedback Results'}>
+    <details className="group/report" open={active}>
       <summary
         className={cn(
           'flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-lg px-1 text-sm text-zinc-400 hover:text-white',
@@ -97,8 +95,8 @@ function ReportGroup({
         )}
       >
         <span className="flex size-4 items-center justify-center text-lg font-light">
-          <span className="group-open:hidden">+</span>
-          <span className="hidden group-open:block">−</span>
+          <span className="group-open/report:hidden">+</span>
+          <span className="hidden group-open/report:block">−</span>
         </span>
         <span className="min-w-0 flex-1 truncate">{title}</span>
       </summary>
@@ -120,17 +118,16 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
     { title: 'Benefits & Best Practices', path: routeMap.benefitsBestPractices, entitlement: 'BBP_Access' },
   ]
   return (
-    <nav className="grid gap-1" aria-label="Primary navigation">
+    <nav className="grid gap-0" aria-label="Primary navigation">
       <SidebarLink onNavigate={onNavigate} to={routeMap.dashboard}>
         <Home className="size-4" /> Dashboard
       </SidebarLink>
 
-      <details className="group mt-1" open>
-        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800">
-          <FileText className="size-4" />
+      <details className="group/nav mt-3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800">
+          <Gauge className="size-4" />
           <span className="flex-1">My Reports</span>
-          <ChevronDown className="hidden size-4 group-open:block" />
-          <ChevronRight className="size-4 group-open:hidden" />
+          <ChevronDown className="size-4 transition-transform group-open/nav:rotate-180" />
         </summary>
         <div className="ml-4 mt-1 grid gap-1">
           <p className="mb-1 mt-2 px-2 text-xs font-medium tracking-wide text-violet-400">BASIC PACKAGE</p>
@@ -164,9 +161,11 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
         </div>
       </details>
 
-      <SidebarLink onNavigate={onNavigate} to={routeMap.catalog}>
-        <ShoppingBag className="size-4" /> Reports Store
-      </SidebarLink>
+      <div className="mt-2">
+        <SidebarLink onNavigate={onNavigate} to={routeMap.catalog}>
+          <Store className="size-4" /> Reports Store
+        </SidebarLink>
+      </div>
     </nav>
   )
 }
@@ -177,6 +176,7 @@ export function AppShell() {
   const navigate = useNavigate()
   const session = useAppStore((state) => state.session)
   const setSession = useAppStore((state) => state.setSession)
+  const selectedProgramId = useAppStore((state) => state.selectedProgramId)
   const cartCount = useAppStore((state) => state.cart.reduce((total, item) => total + item.quantity, 0))
   const navKind = session?.user.role
   const adminNavItems = routeMetadata.filter(
@@ -200,7 +200,7 @@ export function AppShell() {
   if (!session) return <Outlet />
 
   return (
-    <div className="min-h-screen bg-[#f7f7f8] text-zinc-900 lg:flex">
+    <div className="h-screen overflow-hidden bg-[#f7f7f8] text-zinc-900 lg:flex">
       {session.impersonation ? (
         <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-amber-300 px-4 py-2 text-sm font-semibold text-amber-950">
           Viewing as {session.user.displayName}; verified administrator: {session.impersonation.actorDisplayName}
@@ -231,7 +231,7 @@ export function AppShell() {
           menuOpen ? 'flex' : 'hidden',
         )}
       >
-        <div className="flex h-[72px] items-center border-b border-zinc-800 px-5">
+        <div className="flex h-[72px] items-center border-b border-zinc-800 px-2.5">
           <NavLink to={navKind === 'admin' ? routeMap.adminProjects : routeMap.dashboard} onClick={() => setMenuOpen(false)}>
             <WorkforceLogoWhite className="w-48" />
           </NavLink>
@@ -240,7 +240,7 @@ export function AppShell() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
           {navKind === 'client' ? (
-            <ClientSidebar onNavigate={() => setMenuOpen(false)} />
+            <ClientSidebar key={selectedProgramId} onNavigate={() => setMenuOpen(false)} />
           ) : (
             <nav className="grid gap-1" aria-label="Primary navigation">
               {adminNavItems.map(({ id, path, title, icon: Icon }) => (
@@ -252,16 +252,19 @@ export function AppShell() {
           )}
         </div>
 
-        <div className="relative border-t border-zinc-800 p-3">
+        <div className="relative p-[10px]">
           {profileOpen ? (
-            <div className="absolute bottom-[72px] left-3 right-3 rounded-lg border border-zinc-700 bg-zinc-900 p-1 shadow-xl">
-              <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white" onClick={() => void logout()}>
-                <LogOut className="size-4" /> Logout
+            <div className="absolute bottom-[47px] right-[18px] w-[142px] overflow-hidden rounded-[3px] bg-white py-1 text-zinc-900 shadow-xl" role="menu">
+              <button className="flex w-full items-center whitespace-nowrap px-4 py-2 text-left text-sm hover:bg-zinc-100" role="menuitem" onClick={() => window.location.reload()}>
+                Use Clear Cache
+              </button>
+              <button className="flex w-full items-center px-4 py-2 text-left text-sm hover:bg-zinc-100" role="menuitem" onClick={() => void logout()}>
+                Logout
               </button>
             </div>
           ) : null}
           <div className="flex items-center gap-2 rounded-lg p-2">
-            <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-sm font-semibold">
+            <div className="grid size-[38px] shrink-0 place-items-center rounded-lg bg-zinc-800 text-sm font-semibold">
               {session.user.displayName.slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
@@ -275,10 +278,23 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 bg-[#f7f7f8]">
-        <Outlet />
-        <footer className="border-t border-zinc-200 bg-white px-6 py-3 text-xs text-zinc-500">
-          © Workforce Research Group · Feedback Data Dashboard
+      <main className="flex h-full min-w-0 flex-1 flex-col bg-[#f7f7f8]">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <Outlet />
+        </div>
+        <footer className="flex h-11 shrink-0 items-center justify-between border-t border-zinc-200 bg-white pl-4 pr-5 text-[12px] text-zinc-500">
+          {navKind === 'client' ? (
+            <>
+              <div className="flex items-center gap-3">
+                <span>Workforce Research Group 2026 ©</span>
+                <span>|</span>
+                <a className="hover:text-violet-600" href="https://workforcerg.com/privacy-policy" target="_blank" rel="noreferrer">WRG Privacy Policy</a>
+              </div>
+              <span>(281) 602-5004 | answers@workforcerg.com</span>
+            </>
+          ) : (
+            <span>© Workforce Research Group · Feedback Data Dashboard</span>
+          )}
         </footer>
       </main>
     </div>

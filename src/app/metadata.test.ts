@@ -12,6 +12,6 @@ describe('platform metadata', () => {
   it('defines unique route identifiers and paths', () => {
     expect(new Set(routeMetadata.map((route) => route.id)).size).toBe(routeMetadata.length)
     expect(routeMap.adminProjects).toBe('/admin/projects')
-    expect(routeMap.wfr).toBe('/reports/workforce-feedback')
+    expect(routeMap.wfr).toBe('/employee-response-breakdown')
   })
 })
