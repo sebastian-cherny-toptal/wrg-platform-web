@@ -87,7 +87,7 @@ async function downloadElement(
     backgroundColor: "#ffffff",
     skipFonts: true,
     filter: (node: HTMLElement) =>
-      node === element || (!node.classList || !node.classList.contains("download-exclude")),
+      node === element || !node.classList.contains("download-exclude"),
   };
   const dataUrl =
     format === "svg"
