@@ -8,7 +8,7 @@ test('client can enter the fixture reporting workspace', async ({ page }) => {
   await page.getByLabel('Email').fill('client@example.invalid')
   await page.getByRole('button', { name: 'Continue Log In' }).click()
 
-  await expect(page.getByRole('heading', { name: /Welcome, Demo Client/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Welcome, Demo User/ })).toBeVisible()
   if ((page.viewportSize()?.width ?? 0) < 1024) {
     await page.getByRole('button', { name: 'Toggle navigation' }).click()
   }
