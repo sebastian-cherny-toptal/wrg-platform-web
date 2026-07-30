@@ -51,6 +51,24 @@ export const demographicSchema = z.object({
   ),
 });
 
+export const demographicResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.array(
+    z.object({
+      QuestionId: z.union([z.number().int(), z.string()]),
+      category: z.string(),
+      categoryLabel: z.string(),
+      options: z.array(
+        z.object({
+          Caption: z.string(),
+          Count: z.number().int().nonnegative(),
+        }),
+      ),
+    }),
+  ),
+});
+
 const sectionResponseSchema = z.object({
   ResponseCaption: z.enum(["Agree", "Neutral", "Disagree"]),
   numberOfResponses: z.number().int().nonnegative(),

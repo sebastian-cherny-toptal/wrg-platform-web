@@ -1,7 +1,7 @@
 import { z, type ZodType } from "zod";
 import {
   adminUserSchema,
-  demographicSchema,
+  demographicResponseSchema,
   employeeResponseBreakdownSchema,
   employeeResponseBreakdownBySectionSchema,
   loginResultSchema,
@@ -17,7 +17,6 @@ import {
   adminSession,
   adminUsers,
   clientSession,
-  demographics,
   products,
   projects,
   roles,
@@ -136,6 +135,27 @@ async function fixture<T>(value: T): Promise<T> {
   return structuredClone(value);
 }
 
+async function responseCountByDemographic(programId: string) {
+  const response = await request(
+    `/client/responseCountByDemographicCategory?selectedProgramId=${encodeURIComponent(programId)}`,
+    {
+      schema: demographicResponseSchema,
+      legacy: true,
+    },
+  );
+
+  return response.data.map((item) => ({
+    category: item.categoryLabel,
+    group: item.category.toLowerCase().startsWith("personal")
+      ? ("personal" as const)
+      : ("workplace" as const),
+    values: item.options.map((option) => ({
+      label: option.Caption,
+      count: option.Count,
+    })),
+  }));
+}
+
 function fixtureSession(kind: "client" | "admin"): LoginResult {
   return {
     status: "authenticated",
@@ -224,15 +244,7 @@ export const api = {
           }),
   },
   reports: {
-    demographics: (programId: string) =>
-      env.fixturesEnabled
-        ? fixture(demographics)
-        : request(
-            `/programs/${encodeURIComponent(programId)}/reports/wfr/demographics`,
-            {
-              schema: z.array(demographicSchema),
-            },
-          ),
+    demographics: (programId: string) => responseCountByDemographic(programId),
     catalog: () =>
       env.fixturesEnabled
         ? fixture(products)
@@ -277,12 +289,6 @@ export const api = {
         : request("/admin/sync-jobs", { schema: z.array(syncJobSchema) }),
   },
   legacy: {
-    responseCountByDemographic: (programId: string) =>
-      request("/client/responseCountByDemographicCategory", {
-        method: "POST",
-        body: { selectedProgramId: programId },
-        schema: z.array(demographicSchema),
-        legacy: true,
-      }),
+    responseCountByDemographic,
   },
 };

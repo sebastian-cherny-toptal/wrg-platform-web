@@ -1,11 +1,29 @@
 import { http, HttpResponse } from 'msw'
-import { clientSession, demographics, products } from '../fixtures/data'
+import { clientSession, products } from '../fixtures/data'
 
 export const handlers = [
   http.get('/v1/session', () => HttpResponse.json(null)),
   http.post('/v1/auth/client/login', () =>
     HttpResponse.json({ status: 'authenticated', session: clientSession }),
   ),
-  http.get('/v1/programs/:programId/reports/wfr/demographics', () => HttpResponse.json(demographics)),
+  http.get(/\/(?:api\/)?client\/responseCountByDemographicCategory$/, () =>
+    HttpResponse.json({
+      success: true,
+      message: 'success',
+      data: [
+        {
+          QuestionId: 214,
+          category: 'Personal Demographics',
+          categoryLabel: 'Gender',
+          options: [
+            { Caption: 'Female', Count: 81 },
+            { Caption: 'Male', Count: 118 },
+            { Caption: 'Non-Binary', Count: 0 },
+            { Caption: 'Prefer not to answer', Count: 0 },
+          ],
+        },
+      ],
+    }),
+  ),
   http.get('/v1/reports/catalog', () => HttpResponse.json(products)),
 ]
