@@ -42,6 +42,8 @@ Client fixture login matches the legacy pattern: username `demo-client` → orga
 
 The frontend does not accept tokens from query strings or local storage. Backend authentication should use `Secure`, `HttpOnly`, `SameSite` cookies and enforce the same authorization rules server-side.
 
+When fixture mode is enabled, the synthetic session is stored locally so refreshing the page exercises the same startup rehydration flow. This storage is only used for local fixture sessions; real sessions continue to come from the cookie-backed API.
+
 ## Deployment
 
 The multi-stage `Dockerfile` builds static assets and serves them using the SPA-aware Nginx configuration in `deploy/nginx.conf` on port 8080. Runtime API routing should proxy `/v1` to the backend at the ingress/load-balancer layer.
