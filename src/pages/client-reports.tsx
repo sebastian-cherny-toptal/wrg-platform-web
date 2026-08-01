@@ -86,8 +86,16 @@ async function downloadElement(
     pixelRatio: 2,
     backgroundColor: "#ffffff",
     skipFonts: true,
-    filter: (node: HTMLElement) =>
-      node === element || !node.classList.contains("download-exclude"),
+    // html-to-image types filter nodes as HTMLElement, but it walks childNodes
+    // and also passes Text/Comment nodes that have no classList.
+    filter: (node: HTMLElement) => {
+      if (node === element) return true;
+      const domNode: Node = node;
+      return !(
+        domNode instanceof Element &&
+        domNode.classList.contains("download-exclude")
+      );
+    },
   };
   const dataUrl =
     format === "svg"
