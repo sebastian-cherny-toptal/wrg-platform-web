@@ -368,7 +368,8 @@ export function ClientLoginPage() {
                 type="button"
                 loading={login.isPending}
                 disabled={username.trim() === '' || (
-                  import.meta.env.TEST_USERNAME_ENABLED === 'true' && username.trim().toLowerCase() != import.meta.env.TEST_USERNAME
+                  import.meta.env.VITE_TEST_USERNAME_ENABLED === 'true' &&
+                  username.trim().toLowerCase() !== import.meta.env.VITE_TEST_USERNAME?.toLowerCase()
                 )}
                 onClick={openOrgStep}
               >
