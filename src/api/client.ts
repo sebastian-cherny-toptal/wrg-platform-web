@@ -140,7 +140,7 @@ async function responseCountByDemographic(programId: string) {
     `/client/responseCountByDemographicCategory?selectedProgramId=${encodeURIComponent(programId)}`,
     {
       schema: demographicResponseSchema,
-      legacy: true,
+      legacy: false,
     },
   );
 
@@ -256,7 +256,7 @@ export const api = {
           method: "POST",
           body: {},
           schema: employeeResponseBreakdownBySectionSchema,
-          legacy: true,
+          legacy: false,
         },
       ),
     responseBreakdown: (programId: string, questionRange: string[]) =>
@@ -266,7 +266,7 @@ export const api = {
           method: "POST",
           body: { questionRange },
           schema: employeeResponseBreakdownSchema,
-          legacy: true,
+          legacy: false,
         },
       ),
   },
