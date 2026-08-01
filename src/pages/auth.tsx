@@ -367,7 +367,7 @@ export function ClientLoginPage() {
               <PrimaryButton
                 type="button"
                 loading={login.isPending}
-                disabled={username.trim() != 'TEST_USERNAME_JUST_FOR_NOW_AND_NOT_FOR_REAL'}
+                disabled={username.trim().toLowerCase() != 'test.elle.temp'}
                 onClick={openOrgStep}
               >
                 {login.isPending ? 'Authenticating' : 'Log In'}
