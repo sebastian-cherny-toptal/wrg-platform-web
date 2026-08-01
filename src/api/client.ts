@@ -25,8 +25,6 @@ import {
 
 const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "/v1",
-  legacyBaseUrl: import.meta.env.VITE_LEGACY_API_BASE_URL ?? "/api",
-  legacyEnabled: import.meta.env.VITE_ENABLE_LEGACY_API === "true",
   fixturesEnabled: import.meta.env.VITE_USE_API_FIXTURES !== "false",
 };
 
@@ -80,22 +78,13 @@ type RequestOptions<T> = {
   body?: unknown;
   schema: ZodType<T>;
   signal?: AbortSignal;
-  legacy?: boolean;
 };
 
 async function request<T>(
   path: string,
   options: RequestOptions<T>,
 ): Promise<T> {
-  if (options.legacy && !env.legacyEnabled) {
-    throw new ApiError(
-      "This legacy capability is disabled.",
-      501,
-      "legacy_disabled",
-    );
-  }
-  const baseUrl = options.legacy ? env.legacyBaseUrl : env.apiBaseUrl;
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetch(`${env.apiBaseUrl}${path}`, {
     method: options.method ?? "GET",
     credentials: "include",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -140,7 +129,6 @@ async function responseCountByDemographic(programId: string) {
     `/client/responseCountByDemographicCategory?selectedProgramId=${encodeURIComponent(programId)}`,
     {
       schema: demographicResponseSchema,
-      legacy: false,
     },
   );
 
@@ -256,7 +244,6 @@ export const api = {
           method: "POST",
           body: {},
           schema: employeeResponseBreakdownBySectionSchema,
-          legacy: false,
         },
       ),
     responseBreakdown: (programId: string, questionRange: string[]) =>
@@ -266,7 +253,6 @@ export const api = {
           method: "POST",
           body: { questionRange },
           schema: employeeResponseBreakdownSchema,
-          legacy: false,
         },
       ),
   },
@@ -287,8 +273,5 @@ export const api = {
       env.fixturesEnabled
         ? fixture(syncJobs)
         : request("/admin/sync-jobs", { schema: z.array(syncJobSchema) }),
-  },
-  legacy: {
-    responseCountByDemographic,
   },
 };

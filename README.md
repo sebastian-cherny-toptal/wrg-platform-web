@@ -30,7 +30,7 @@ Client fixture login matches the legacy pattern: username `demo-client` → orga
 ## Architecture
 
 - `src/app/metadata.ts`: canonical typed route map, legacy aliases, client access flags, and admin permission shortcodes.
-- `src/api/client.ts`: fetch abstraction, Zod response validation, cookie-based session requests, normalized API errors, `/v1` endpoints, and explicitly gated legacy endpoints.
+- `src/api/client.ts`: fetch abstraction, Zod response validation, cookie-based session requests, normalized API errors, and `/v1` endpoints.
 - `src/store/app-store.ts`: UI/session selection and cart state. Session tokens are never stored by JavaScript; the API is expected to use secure HTTP-only cookies.
 - `src/app/router.tsx`: role, entitlement, and permission guards.
 - `src/fixtures`: deterministic development and visual fixture data without real PII.
@@ -47,5 +47,3 @@ When fixture mode is enabled, the synthetic session is stored locally so refresh
 ## Deployment
 
 The multi-stage `Dockerfile` builds static assets and serves them using the SPA-aware Nginx configuration in `deploy/nginx.conf` on port 8080. Runtime API routing should proxy `/v1` to the backend at the ingress/load-balancer layer.
-
-Legacy API access defaults off. Enabling `VITE_ENABLE_LEGACY_API` only permits calls declared with `legacy: true`; it does not silently fall back from `/v1`.
