@@ -326,6 +326,12 @@ export function ClientLoginPage() {
 
   const openOrgStep = () => {
     if (username.trim().length === 0) return
+    if (import.meta.env.VITE_TEST_USERNAME_ENABLED === 'true' &&
+      username.trim().toLowerCase() !== import.meta.env.VITE_TEST_USERNAME?.toLowerCase()
+    ) {
+      setError({ title: 'Invalid Username', message: 'Please enter a valid username' })
+      return
+    }
     setError(null)
     setUsernameError(false)
     setOrgOpen(true)

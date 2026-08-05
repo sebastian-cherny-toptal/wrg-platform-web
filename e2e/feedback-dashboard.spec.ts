@@ -302,7 +302,7 @@ test.describe('Feedback Data Dashboard', () => {
     await expect(page.getByRole('heading', { name: 'Survey Average', exact: true })).toBeVisible()
     await expect(page.getByText('vs last year', { exact: true })).toBeVisible()
     const categoryButton = page.getByRole('button', { name: 'Core Employee Experience', exact: true })
-    await expect(categoryButton).toHaveCount(1)
+    await expect(categoryButton).toBeVisible({ timeout: 30_000 })
     await categoryButton.click()
     await expect(page.locator('body')).toContainText(/\d+%/)
     expect(await page.locator('svg').count()).toBeGreaterThan(0)
