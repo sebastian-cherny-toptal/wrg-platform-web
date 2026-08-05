@@ -12,9 +12,9 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { toPng, toSvg } from "html-to-image";
+import { toJpeg, toPng, toSvg } from "html-to-image";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { routeMap } from "../app/metadata";
@@ -73,7 +73,7 @@ function useCategoryResults() {
   };
 }
 
-type DownloadFormat = "png" | "svg";
+type DownloadFormat = "jpg" | "png" | "svg";
 
 async function downloadElement(
   element: HTMLElement | null,
@@ -100,7 +100,9 @@ async function downloadElement(
   const dataUrl =
     format === "svg"
       ? await toSvg(element, options)
-      : await toPng(element, options);
+      : format === "jpg"
+        ? await toJpeg(element, { ...options, quality: 0.95 })
+        : await toPng(element, options);
   const anchor = document.createElement("a");
   anchor.download = `${filename}.${format}`;
   anchor.href = dataUrl;
@@ -110,15 +112,15 @@ async function downloadElement(
 }
 
 const responseQuestions = [
-  "The culture of this organization allows me to do my best work.",
-  "I am willing to go above and beyond to help this organization succeed.",
-  "I would endorse this organization’s products and services.",
-  "I feel enthusiastic about the work I do.",
-  "Overall, I am satisfied with this organization.",
-  "I intend to remain with this organization for the foreseeable future.",
-  "I am proud to tell others I work for this organization.",
-  "I would recommend this organization as a great place to work.",
-  "I find purpose in the work I do.",
+  "This organization's culture allows me to do my best work",
+  "I typically go above and beyond for this organization",
+  "I would endorse this organization's products/services",
+  "I am typically enthusiastic about my work",
+  "I feel satisfied with this organization",
+  "I intend to remain at this organization for the foreseeable future",
+  "I feel pride in saying I work for this organization",
+  "I would endorse this organization as an employer",
+  "I find purpose in my work",
 ];
 
 function downloadText(filename: string, lines: string[]) {
@@ -244,21 +246,32 @@ function ReportHeader({
 function DownloadReportButton({
   label = "Download Report",
   filename = "demo-report.txt",
+  onDownload,
 }: {
   label?: string;
   filename?: string;
+  onDownload?: () => Promise<void> | void;
 }) {
+  const [downloading, setDownloading] = useState(false);
   return (
     <Button
       className="gap-2 rounded-md"
-      onClick={() =>
-        downloadText(filename, [
-          "Demo User",
-          "Sanitized demonstration report data",
-        ])
-      }
+      disabled={downloading}
+      onClick={async () => {
+        setDownloading(true);
+        try {
+          if (onDownload) await onDownload();
+          else
+            downloadText(filename, [
+              "Demo User",
+              "Sanitized demonstration report data",
+            ]);
+        } finally {
+          setDownloading(false);
+        }
+      }}
     >
-      <Download className="size-4" /> {label}
+      <Download className="size-4" /> {downloading ? "Preparing…" : label}
     </Button>
   );
 }
@@ -269,12 +282,14 @@ function ImageDownloadMenu({
   label = "Download Report",
   iconOnly = false,
   disabled = false,
+  onDownloadXlsx,
 }: {
   targetRef: { current: HTMLElement | null };
   name: string;
   label?: string;
   iconOnly?: boolean;
   disabled?: boolean;
+  onDownloadXlsx?: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -324,11 +339,31 @@ function ImageDownloadMenu({
           </button>
           <button
             className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-100"
+            onClick={() => void download("jpg")}
+            type="button"
+          >
+            Download as JPG
+          </button>
+          <button
+            className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-100"
             onClick={() => void download("svg")}
             type="button"
           >
             Download as SVG
           </button>
+          {onDownloadXlsx ? (
+            <button
+              className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-100"
+              onClick={() => {
+                setOpen(false);
+                setDownloading(true);
+                void onDownloadXlsx().finally(() => setDownloading(false));
+              }}
+              type="button"
+            >
+              Download report as XLSX
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -575,6 +610,9 @@ export function DetailedResultsPage() {
           <ImageDownloadMenu
             disabled={!report.data || report.isPending}
             name={`detailed-results-${report.programId ?? "demo"}`}
+            onDownloadXlsx={() =>
+              api.reports.downloadDetailedWorkbook(report.programId ?? "")
+            }
             targetRef={reportRef}
           />
         </div>
@@ -660,13 +698,43 @@ const patternConfigs = [
   },
 ];
 
+function parsePercentageRange(value: string): [number, number] | null {
+  const matches = value.match(/\d+(?:\.\d+)?/gu)?.map(Number) ?? [];
+  if (matches.length !== 2) return null;
+  const [minimum, maximum] = matches;
+  if (
+    minimum === undefined ||
+    maximum === undefined ||
+    minimum < 0 ||
+    maximum > 100 ||
+    minimum > maximum
+  ) {
+    return null;
+  }
+  return [minimum, maximum];
+}
+
 export function ResponsePatternsPage() {
+  const report = useCategoryResults();
   const [enabled, setEnabled] = useState<boolean[]>([false, false, false]);
   const [ranges, setRanges] = useState(["", "", ""]);
   const [preview, setPreview] = useState(false);
+  const parsedRanges = ranges.map(parsePercentageRange);
   const valid =
     enabled.some(Boolean) &&
-    enabled.every((value, index) => !value || ranges[index]?.trim());
+    enabled.every((value, index) => !value || parsedRanges[index] !== null);
+  const previewRows = useMemo(
+    () =>
+      report.categoryResults.filter((result) =>
+        enabled.some((isEnabled, index) => {
+          const range = parsedRanges[index];
+          if (!isEnabled || !range) return false;
+          const value = index === 2 ? result.disagreement : result.agreement;
+          return value >= range[0] && value <= range[1];
+        }),
+      ),
+    [enabled, parsedRanges, report.categoryResults],
+  );
   return (
     <>
       <ReportHeader
@@ -731,8 +799,22 @@ export function ResponsePatternsPage() {
           <div className="mt-5 flex justify-end gap-3">
             <Button
               className="gap-2"
-              disabled={!valid}
-              onClick={() => downloadText("response-patterns-demo.txt", ranges)}
+              disabled={!valid || !report.programId}
+              onClick={() =>
+                void api.reports.downloadResponsePatternsWorkbook(
+                  report.programId ?? "",
+                  enabled.flatMap((isEnabled, index) => {
+                    const range = parsedRanges[index];
+                    return isEnabled && range
+                      ? [{
+                          metric: index === 2 ? "disagreement" as const : "agreement" as const,
+                          minimum: range[0],
+                          maximum: range[1],
+                        }]
+                      : [];
+                  }),
+                )
+              }
               variant="secondary"
             >
               <Download className="size-4" /> Download Report
@@ -748,30 +830,30 @@ export function ResponsePatternsPage() {
               <h2 className="font-semibold">Response Pattern Preview</h2>
             </div>
             <div className="divide-y divide-zinc-100">
-              {responseQuestions.slice(0, 5).map((question, index) => (
+              {previewRows.length ? previewRows.map((result) => (
                 <div
                   className="flex items-center justify-between gap-4 p-4 text-sm"
-                  key={question}
+                  key={result.title}
                 >
-                  <span>{question}</span>
+                  <span>{result.title}</span>
                   <span
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-semibold",
-                      index < 2
+                      result.agreement >= 80
                         ? "bg-emerald-100 text-emerald-700"
-                        : index < 4
+                        : result.agreement >= 60
                           ? "bg-amber-100 text-amber-700"
                           : "bg-red-100 text-red-700",
                     )}
                   >
-                    {index < 2
-                      ? "High agreement"
-                      : index < 4
-                        ? "Moderate agreement"
-                        : "High disagreement"}
+                    {result.agreement}% agreement · {result.disagreement}% disagreement
                   </span>
                 </div>
-              ))}
+              )) : (
+                <p className="p-5 text-sm text-zinc-500">
+                  No categories fall within the selected ranges.
+                </p>
+              )}
             </div>
           </Card>
         ) : null}
@@ -814,6 +896,58 @@ function DonutScore({
 }
 
 export function AnnualTrendsPage() {
+  const program = useSelectedProgram();
+  const [selectedCategory, setSelectedCategory] = useState(
+    "Core Employee Experience",
+  );
+  const [metric, setMetric] = useState<"Agree" | "Neutral" | "Disagree">(
+    "Agree",
+  );
+  const averages = useQuery({
+    queryKey: ["annual-response-rate", program?.id],
+    queryFn: () => api.reports.annualResponseRate(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const categories = useQuery({
+    queryKey: ["annual-categories", program?.id],
+    queryFn: () => api.reports.annualCategories(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const currentYear = String(program?.year ?? 2025);
+  const previousYear = String((program?.year ?? 2025) - 1);
+  const category = categories.data?.data.find(
+    (item) => item.category.category === selectedCategory,
+  );
+  const snapshot = (year: string) => {
+    const value = (category as Record<string, unknown> | undefined)?.[year];
+    if (!value || typeof value !== "object" || !("data" in value)) return null;
+    return value as {
+      data: { ResponseCaption: string; percentage: number }[];
+      questionIds: string[];
+    };
+  };
+  const currentSnapshot = snapshot(currentYear);
+  const previousSnapshot = snapshot(previousYear);
+  const details = useQuery({
+    queryKey: ["annual-details", program?.id, selectedCategory],
+    queryFn: () =>
+      api.reports.annualDetails(
+        program?.id ?? "",
+        selectedCategory,
+        currentSnapshot?.questionIds ?? [],
+        previousSnapshot?.questionIds ?? [],
+      ),
+    enabled: Boolean(program && currentSnapshot),
+  });
+  const averageData = averages.data?.data?.[0] ?? {};
+  const currentAverage = Number(averageData[currentYear] ?? 0);
+  const previousAverage = Number(averageData[previousYear] ?? 0);
+  const percentage = (
+    yearSnapshot: typeof currentSnapshot,
+    caption: string,
+  ) =>
+    yearSnapshot?.data.find((item) => item.ResponseCaption === caption)
+      ?.percentage ?? 0;
   return (
     <>
       <ReportHeader
@@ -821,28 +955,131 @@ export function AnnualTrendsPage() {
         title="Annual Trends"
       />
       <div className="p-6">
-        <DownloadReportButton filename="annual-trends-demo.txt" />
+        <Button
+          className="gap-2"
+          disabled={!program}
+          onClick={() =>
+            void api.reports.downloadAnnualWorkbook(program?.id ?? "")
+          }
+        >
+          <Download className="size-4" /> Download Report
+        </Button>
         <Card className="relative mt-6 overflow-hidden p-5 shadow-none">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Survey Average</h2>
             <button
               aria-label="Download survey average"
               className="p-1 text-zinc-500"
-              onClick={() =>
-                downloadText("survey-average-demo.txt", [
-                  "2025 82%",
-                  "2024 83%",
-                ])
-              }
+              onClick={() => void api.reports.downloadAnnualWorkbook(program?.id ?? "")}
             >
               <Download className="size-4" />
             </button>
           </div>
           <div className="mt-3 grid lg:grid-cols-2 lg:divide-x lg:divide-zinc-200">
-            <DonutScore delta={-1} value={82} year={2025} />
-            <DonutScore value={83} year={2024} />
+            <DonutScore
+              delta={currentAverage - previousAverage}
+              value={currentAverage}
+              year={Number(currentYear)}
+            />
+            <DonutScore value={previousAverage} year={Number(previousYear)} />
           </div>
         </Card>
+        {categories.isPending ? (
+          <StatePanel
+            kind="loading"
+            title="Loading annual trends"
+            message="Comparing the current and previous survey years."
+          />
+        ) : categories.isError ? (
+          <StatePanel
+            kind="error"
+            title="Annual trends unavailable"
+            message={categories.error.message}
+          />
+        ) : (
+          <>
+            <div className="mt-6 flex gap-2 overflow-x-auto rounded-xl bg-violet-50 p-2">
+              {categories.data.data.map((item) => (
+                <button
+                  className={cn(
+                    "whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium",
+                    selectedCategory === item.category.category
+                      ? "bg-violet-600 text-white"
+                      : "bg-white text-zinc-700",
+                  )}
+                  key={item.category.category}
+                  onClick={() => setSelectedCategory(item.category.category)}
+                  type="button"
+                >
+                  {item.category.category}
+                </button>
+              ))}
+            </div>
+            <Card className="mt-4 p-5 shadow-none">
+              <h2 className="font-semibold">{selectedCategory}</h2>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {[currentSnapshot, previousSnapshot].map((yearSnapshot, index) => {
+                  const year = index === 0 ? currentYear : previousYear;
+                  return (
+                    <div className="rounded-xl bg-zinc-50 p-5" key={year}>
+                      <h3 className="font-semibold">{year}</h3>
+                      <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                        <span>{percentage(yearSnapshot, "Agree")}% Agreement</span>
+                        <span>{percentage(yearSnapshot, "Neutral")}% Neutral</span>
+                        <span>{percentage(yearSnapshot, "Disagree")}% Disagreement</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+            <Card className="mt-4 overflow-hidden shadow-none">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-5">
+                <h2 className="font-semibold">Question trends</h2>
+                <div className="flex gap-2">
+                  {(["Agree", "Neutral", "Disagree"] as const).map((item) => (
+                    <button
+                      className={cn(
+                        "rounded-full px-3 py-1 text-xs font-semibold",
+                        metric === item
+                          ? "bg-violet-600 text-white"
+                          : "bg-zinc-100 text-zinc-600",
+                      )}
+                      key={item}
+                      onClick={() => setMetric(item)}
+                      type="button"
+                    >
+                      {item === "Agree" ? "Agreement" : item === "Disagree" ? "Disagreement" : item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {details.isPending ? (
+                <p className="p-5 text-sm text-zinc-500">Loading question trends…</p>
+              ) : details.data?.data.length ? (
+                <div className="divide-y divide-zinc-100">
+                  {details.data.data.map((question) => {
+                    const valueFor = (year: string) => {
+                      const yearData = (question as Record<string, unknown>)[year];
+                      if (!yearData || typeof yearData !== "object" || !("responses" in yearData)) return null;
+                      const responses = (yearData as { responses: { ResponseCaption: string; percentage: number }[] }).responses;
+                      return responses.find((response) => response.ResponseCaption === metric)?.percentage ?? 0;
+                    };
+                    return (
+                      <div className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_80px_80px]" key={question.questionId}>
+                        <span>{question.question}</span>
+                        <span className="font-semibold">{valueFor(currentYear)}%</span>
+                        <span className="font-semibold text-zinc-500">{valueFor(previousYear) ?? "—"}{valueFor(previousYear) === null ? "" : "%"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="p-5 text-sm text-zinc-500">No question-level comparison is available for this category.</p>
+              )}
+            </Card>
+          </>
+        )}
       </div>
     </>
   );
@@ -850,6 +1087,8 @@ export function AnnualTrendsPage() {
 
 export function EmployeeVerbatimsPage() {
   const [filter, setFilter] = useState("");
+  const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
+  const program = useSelectedProgram();
   const addToCart = useAppStore((state) => state.addToCart);
   const inCart = useAppStore((state) =>
     state.cart.some((item) => item.productId === "report-verbatims-sorted"),
@@ -858,6 +1097,57 @@ export function EmployeeVerbatimsPage() {
     "What are the top two or three reasons people like working for this organization? (2000 character limit)",
     "What two or three things can this organization add or change to improve employee engagement and success? (2000 character limit)",
   ];
+  const responses = [
+    [
+      "The people, the collaborative culture, and the opportunity to do meaningful work.",
+      "Supportive colleagues and managers who trust employees to do their jobs.",
+      "The benefits, flexibility, and strong reputation of the organization.",
+      "I appreciate the intelligent people I work with and the variety of projects.",
+      "The organization is stable, professional, and focused on its clients.",
+      "My team communicates well and is willing to help when priorities change.",
+    ],
+    [
+      "Continue improving communication between departments and offices.",
+      "Provide clearer career paths and more visibility into advancement opportunities.",
+      "Reduce unnecessary processes so teams can make decisions more quickly.",
+      "Invest in modern tools and make training easier to access.",
+      "Create more opportunities for employees to connect across the organization.",
+      "Keep workloads sustainable during the busiest parts of the year.",
+    ],
+  ];
+  if (selectedQuestion !== null) {
+    const question = questions[selectedQuestion] ?? questions[0];
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={[
+            { label: "My Reports", path: routeMap.dashboard },
+            { label: `Employee Verbatims ${program?.year ?? ""}`, path: routeMap.employeeVerbatims },
+            { label: "Question Details" },
+          ]}
+          title="Question Details"
+        />
+        <div className="p-6">
+          <button className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-violet-700" onClick={() => setSelectedQuestion(null)}>
+            <ChevronLeft className="size-4" /> Back to Employee Verbatims
+          </button>
+          <Card className="overflow-hidden shadow-none">
+            <div className="border-b border-zinc-200 p-5">
+              <h2 className="text-base font-semibold leading-6">{question}</h2>
+            </div>
+            <div className="grid gap-3 bg-zinc-50 p-5">
+              {(responses[selectedQuestion] ?? responses[0] ?? []).map((response, index) => (
+                <blockquote className="rounded-xl border border-zinc-200 bg-white p-5 text-sm leading-6 text-zinc-700" key={response}>
+                  <span className="mr-2 text-xl leading-none text-violet-500">“</span>{response}
+                  <footer className="mt-3 text-xs font-medium text-zinc-400">Employee response {index + 1}</footer>
+                </blockquote>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <ReportHeader
@@ -871,14 +1161,12 @@ export function EmployeeVerbatimsPage() {
           </div>
           <div>
             <h2 className="text-2xl font-semibold">Sorting your report</h2>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-violet-100">
-              Sorting the employees&apos; open-ended responses by a demographic
-              will allow you to better identify where the comments originated
-            </p>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-violet-100">Sorting the employees&apos; open-ended responses by a demographic will allow you to better identify where the comments originated.</p>
           </div>
           <div className="rounded-xl bg-white p-4 text-zinc-900">
             <p className="text-[13px] text-zinc-500">Price</p>
             <strong className="text-2xl">$ 425</strong>
+            <p className="mt-3 text-xs font-medium text-zinc-700">Select one of these options</p>
             <select
               className="mt-3 h-10 w-full rounded-md border border-zinc-300 px-3 text-sm"
               onChange={(event) => setFilter(event.target.value)}
@@ -907,21 +1195,14 @@ export function EmployeeVerbatimsPage() {
         <Card className="mt-6 overflow-hidden shadow-none">
           <div className="flex items-center justify-between border-b border-zinc-200 p-5">
             <h2 className="font-semibold">Question Details</h2>
-            <DownloadReportButton filename="employee-verbatims-demo.txt" />
+            <DownloadReportButton onDownload={() => api.reports.downloadVerbatimsWorkbook(program?.id ?? "")} />
           </div>
           <div className="grid gap-3 p-5">
             {questions.map((question, index) => (
-              <details className="group rounded-xl bg-zinc-100" key={question}>
-                <summary className="flex cursor-pointer items-center gap-4 p-5 text-sm font-medium">
-                  <span className="flex-1">{question}</span>
-                  <ChevronRight className="size-5 transition group-open:rotate-90" />
-                </summary>
-                <div className="border-t border-zinc-200 px-5 py-4 text-sm leading-6 text-zinc-600">
-                  {index === 0
-                    ? "The supportive team, flexible working options, and meaningful projects make this a rewarding place to work."
-                    : "Continue improving cross-team communication and make career-development paths easier to understand."}
-                </div>
-              </details>
+              <button className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-left text-sm font-medium transition hover:border-violet-300 hover:bg-violet-50" key={question} onClick={() => setSelectedQuestion(index)}>
+                <span className="flex-1 truncate">{question}</span>
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white shadow-sm"><ChevronRight className="size-4" /></span>
+              </button>
             ))}
           </div>
         </Card>
@@ -931,72 +1212,209 @@ export function EmployeeVerbatimsPage() {
 }
 
 const benchmarks = [
-  ["All Size Categories", 87],
-  ["Small Employers", 92],
-  ["Medium Employers", 90],
-  ["Large Employers", 88],
-  ["Major Employers", 86],
-  ["Super Employers", 84],
+  ["All Size Categories", 88],
+  ["Small Employers", 93],
+  ["Medium Employers", 91],
+  ["Large Employers", 89],
+  ["Major Employers", 87],
+  ["Super Employers", 85],
 ] as const;
 
-function BenchmarkCategoryCard({
-  title,
-  base,
-}: {
+const benchmarkCategoryValues: Record<string, number[]> = {
+  "Core Employee Experience": [91, 96, 94, 92, 90, 88],
+  "Your Job": [89, 94, 92, 89, 87, 85],
+  "Communication and Workplace Culture": [87, 93, 90, 87, 85, 84],
+  "Relationship With Your Manager": [93, 96, 94, 93, 92, 91],
+  "Training, Technology and Professional Development": [85, 91, 88, 86, 83, 79],
+  "Diversity and Inclusion": [92, 94, 91, 92, 91, 91],
+  "Leadership of this Organization": [87, 93, 91, 88, 84, 81],
+  Leadership: [87, 93, 91, 88, 84, 81],
+  "Employee Benefits": [86, 92, 89, 87, 84, 82],
+  "Work-Life Balance": [85, 91, 88, 86, 83, 81],
+  "Supplementary Questions": [84, 90, 87, 85, 82, 80],
+};
+
+type BenchmarkDetailRow = {
+  id?: string | number | undefined;
   title: string;
-  base: number;
+  dataValues: (number | string)[];
+};
+
+type BenchmarkCategory = {
+  title: string;
+  dataValues: (number | string)[];
+  nestedData: BenchmarkDetailRow[];
+};
+
+const benchmarkEmployerLabels = [
+  "All Employers",
+  "Small Employers",
+  "Medium Employers",
+  "Large Employers",
+  "Major Employers",
+  "Super Employers",
+] as const;
+
+function winnerValues(category: BenchmarkCategory): number[] {
+  const pairedValues = category.dataValues.filter((_, index) => index % 2 === 0);
+  const source = pairedValues.length >= 6
+    ? pairedValues
+    : benchmarkCategoryValues[category.title] ?? [88, 93, 91, 89, 87, 85];
+  return source.slice(0, 6).map((value) =>
+    typeof value === "number" ? value : Number.parseFloat(value) || 0,
+  );
+}
+
+function BenchmarkCategoryCard({
+  category,
+  selected,
+  onSelect,
+}: {
+  category: BenchmarkCategory;
+  selected: boolean;
+  onSelect: () => void;
 }) {
-  const values = [base, base + 5, base + 3, base + 1, base - 1, base - 3];
+  const values = winnerValues(category);
   return (
-    <Card className="relative min-h-[390px] p-5 shadow-none">
+    <section
+      aria-expanded={selected}
+      className={cn(
+        "relative flex min-h-[390px] cursor-pointer flex-col rounded-2xl border p-5 shadow-none transition",
+        selected
+          ? "border-violet-300 bg-violet-50"
+          : "border-zinc-200 bg-white hover:border-violet-200 hover:bg-violet-50/30",
+      )}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
       <div className="flex items-start justify-between gap-4">
-        <h2 className="max-w-[350px] text-[15px] font-semibold">{title}</h2>
+        <h2 className="max-w-[350px] text-[15px] font-semibold">{category.title}</h2>
         <button
-          aria-label={`Download ${title}`}
-          className="text-zinc-500"
-          onClick={() =>
-            downloadText(
-              `${title}-benchmark-demo.txt`,
-              values.map((value) => `${value}%`),
-            )
-          }
+          aria-label={`Download ${category.title}`}
+          className="download-exclude rounded p-1 text-zinc-500 hover:bg-white"
+          onClick={(event) => {
+            event.stopPropagation();
+            downloadText(`${category.title}-benchmark.txt`, values.map((value, index) => `${benchmarkEmployerLabels[index]} Winners: ${value}%`));
+          }}
         >
           <Download className="size-4" />
         </button>
       </div>
-      <div className="mt-8 flex h-[250px] items-end justify-around border-b border-zinc-200 px-2">
+      <div className="mt-6 flex flex-1 items-end gap-2">
         {values.map((value, index) => (
-          <div
-            className="flex h-full w-12 flex-col justify-end text-center"
-            key={`${value}-${index}`}
-          >
-            <span className="mb-1 text-xs font-semibold">{value}%</span>
-            <div
-              className="w-full rounded-t-lg bg-violet-600"
-              style={{ height: `${value}%` }}
-            />
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-2" key={`${value}-${index}`}>
+            <div className="flex h-[180px] items-end gap-1.5">
+              <div className="flex h-full flex-col items-center justify-end gap-1">
+                <span className="shrink-0 whitespace-nowrap text-xs">{value}%</span>
+                <div
+                  className="w-7 shrink-0 rounded-t-lg bg-violet-900"
+                  style={{ height: `${Math.round((value / 100) * 160)}px` }}
+                />
+              </div>
+              <div className="flex h-full flex-col items-center justify-end gap-1">
+                <span className="shrink-0 text-xs">x</span>
+                <div className="h-0 w-7 shrink-0 rounded-t-lg bg-violet-400" />
+              </div>
+            </div>
+            <span className="min-h-6 text-center text-[10px] leading-3 text-zinc-600">
+              {benchmarkEmployerLabels[index]}
+            </span>
           </div>
         ))}
       </div>
-      <div className="mt-3 grid grid-cols-6 text-center text-[9px] leading-3 text-zinc-500">
-        {["All", "Small", "Medium", "Large", "Major", "Super"].map((label) => (
-          <span key={label}>{label}</span>
-        ))}
+      <div className="mt-5 flex justify-center gap-6 text-xs text-zinc-700">
+        <span className="flex items-center gap-1.5"><i className="size-2 rounded-sm bg-violet-900" />Winners</span>
+        <span className="flex items-center gap-1.5"><i className="size-2 rounded-sm bg-violet-400" />Non-Winners</span>
       </div>
-    </Card>
+    </section>
+  );
+}
+
+function BenchmarkDetailsTable({
+  category,
+  onClose,
+}: {
+  category: BenchmarkCategory;
+  onClose: () => void;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-violet-300 bg-violet-50 shadow-sm">
+      <div className="flex items-center justify-between px-6 py-5">
+        <h2 className="font-semibold">{category.title}</h2>
+        <button aria-label="Close" className="grid size-8 place-items-center rounded-full hover:bg-white" onClick={onClose}>
+          <X className="size-4" />
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1120px] border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="w-[300px] px-6 py-3 text-left" rowSpan={2}>Question</th>
+              {benchmarkEmployerLabels.map((label) => (
+                <th className="px-2 py-3 text-center" colSpan={2} key={label}>{label}</th>
+              ))}
+            </tr>
+            <tr>
+              {benchmarkEmployerLabels.flatMap((label) => [
+                <th className="whitespace-nowrap px-2 py-3 font-medium" key={`${label}-winner`}><span className="inline-flex items-center gap-1"><i className="size-2 rounded-sm bg-violet-900" />Winners</span></th>,
+                <th className="whitespace-nowrap px-2 py-3 font-medium" key={`${label}-non-winner`}><span className="inline-flex items-center gap-1"><i className="size-2 rounded-sm bg-violet-400" />Non-Winners</span></th>,
+              ])}
+            </tr>
+          </thead>
+          <tbody>
+            {category.nestedData.map((row, rowIndex) => (
+              <tr className={cn("border-t border-violet-200", rowIndex % 2 === 0 && "bg-white/45")} key={row.id ?? row.title}>
+                <td className="px-6 py-4 leading-5 text-zinc-600">{row.title}</td>
+                {benchmarkEmployerLabels.flatMap((label, groupIndex) => {
+                  const winners = row.dataValues[groupIndex * 2];
+                  const nonWinners = row.dataValues[groupIndex * 2 + 1];
+                  return [
+                    <td className="px-2 py-4 text-center font-semibold" key={`${label}-winner`}>{typeof winners === "number" ? `${winners}%` : winners ?? "x"}</td>,
+                    <td className="border-r border-violet-200 px-2 py-4 text-center font-semibold last:border-r-0" key={`${label}-non-winner`}>{typeof nonWinners === "number" ? `${nonWinners}%` : nonWinners ?? "x"}</td>,
+                  ];
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
 export function BenchmarkDataPage() {
   const { categoryResults } = useCategoryResults();
+  const program = useSelectedProgram();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const comparison = useQuery({
+    queryKey: ["workforce-comparison", program?.id],
+    queryFn: () => api.reports.workforceComparison(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const categories: BenchmarkCategory[] = comparison.data?.data.data ?? categoryResults.map((item) => ({
+    title: item.title,
+    dataValues: (benchmarkCategoryValues[item.title] ?? [88, 93, 91, 89, 87, 85]).flatMap((value) => [value, "x"]),
+    nestedData: [],
+  }));
+  const categoryRows = Array.from(
+    { length: Math.ceil(categories.length / 2) },
+    (_, index) => categories.slice(index * 2, index * 2 + 2),
+  );
   return (
     <>
       <ReportHeader
-        description="Compare your organization’s survey results to workplace award winners across employer size categories."
+        description="Compare your organization’s results against benchmark groups across key workplace categories."
         title="Benchmark Data"
       />
       <div className="p-6">
-        <DownloadReportButton filename="benchmark-data-demo.txt" />
+        <div className="flex justify-end"><DownloadReportButton onDownload={() => api.reports.downloadBenchmarkWorkbook(program?.id ?? "")} /></div>
         <Card className="mt-6 p-5 shadow-none">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
             {benchmarks.map(([label, value]) => (
@@ -1019,14 +1437,25 @@ export function BenchmarkDataPage() {
             ))}
           </div>
         </Card>
-        <div className="mt-6 grid gap-5 lg:grid-cols-2">
-          {categoryResults.map((item, index) => (
-            <BenchmarkCategoryCard
-              base={Math.max(72, 89 - index)}
-              key={item.title}
-              title={item.title}
-            />
-          ))}
+        <div className="mt-6 grid gap-5">
+          {categoryRows.map((row) => {
+            const selected = row.find((category) => category.title === selectedCategory);
+            return (
+              <div className="grid gap-5" key={row.map(({ title }) => title).join("-")}>
+                <div className="grid gap-5 lg:grid-cols-2">
+                  {row.map((category) => (
+                    <BenchmarkCategoryCard
+                      category={category}
+                      key={category.title}
+                      onSelect={() => setSelectedCategory((current) => current === category.title ? null : category.title)}
+                      selected={selectedCategory === category.title}
+                    />
+                  ))}
+                </div>
+                {selected ? <BenchmarkDetailsTable category={selected} onClose={() => setSelectedCategory(null)} /> : null}
+              </div>
+            );
+          })}
         </div>
         <p className="mt-4 text-xs text-zinc-500">
           x – Insufficient data to provide meaningful feedback.
@@ -1044,17 +1473,135 @@ const comparisonTabs = [
   "Major Winners",
   "Super Winners",
 ];
+const comparisonCohortKeys = [
+  "AllYes",
+  "SmallYes",
+  "MediumYes",
+  "LargeYes",
+  "MajorYes",
+  "SuperYes",
+] as const;
+
+const cohenComparisonValues: Record<string, number> = {
+  "Core Employee Experience": 87,
+  "Your Job": 83,
+  "Communication and Workplace Culture": 83,
+  "Relationship With Your Manager": 89,
+  "Training, Technology and Professional Development": 81,
+  "Diversity and Inclusion": 88,
+  "Leadership of this Organization": 81,
+  Leadership: 81,
+  "Employee Benefits": 79,
+  "Work-Life Balance": 77,
+  "Supplementary Questions": 0,
+};
+
+function AgreementDonut({ value, label }: { value: number | string; label: string }) {
+  const numeric = typeof value === "number" ? value : 0;
+  return (
+    <div className="grid justify-items-center gap-3">
+      <div className="relative grid size-44 place-items-center rounded-full" style={{ background: `conic-gradient(#7c3aed ${numeric * 3.6}deg, #ede9fe 0deg)` }}>
+        <div className="grid size-32 place-items-center rounded-full bg-white text-center shadow-inner">
+          <div><strong className="block text-3xl">{typeof value === "number" && value > 0 ? `${value}%` : "x"}</strong><span className="text-[11px] text-zinc-500">Agreement</span></div>
+        </div>
+      </div>
+      <span className="text-sm font-semibold text-zinc-700">{label}</span>
+    </div>
+  );
+}
+
+function ComparisonQuestionDetails({
+  title,
+  compareLabel,
+  rows,
+  loading,
+  onClose,
+}: {
+  title: string;
+  compareLabel: string;
+  rows: { question: string; currentOrg: number; otherOrg: number }[];
+  loading: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <section className="border-t border-zinc-200 bg-white">
+      <div className="flex items-center justify-between gap-4 px-5 py-5">
+        <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-zinc-700">
+          <span className="flex items-center gap-2"><i className="size-2.5 rounded-sm bg-violet-900" />Your Results</span>
+          <span className="flex items-center gap-2"><i className="size-2.5 rounded-sm bg-violet-400" />{compareLabel}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            aria-label={`Download ${title} comparison details`}
+            className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+            onClick={() => downloadText(`${title}-comparison-details.txt`, rows.flatMap((row) => [row.question, `Your Results: ${row.currentOrg}%`, `${compareLabel}: ${row.otherOrg}%`, ""]))}
+          >
+            <Download className="size-4" />
+          </button>
+          <button aria-label="Close chart" className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" onClick={onClose}>
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
+      {loading ? (
+        <div className="grid gap-4 border-t border-zinc-200 p-5">
+          {Array.from({ length: 3 }, (_, index) => <div className="h-24 animate-pulse rounded-xl bg-zinc-100" key={index} />)}
+        </div>
+      ) : (
+        <div className="divide-y divide-zinc-200 border-t border-zinc-200">
+          {rows.map((row) => (
+            <div className="grid md:grid-cols-[380px_1fr]" key={row.question}>
+              <p className="flex items-center border-b border-zinc-100 px-5 py-5 text-sm leading-6 text-zinc-600 md:border-b-0 md:border-r md:border-zinc-200">
+                {row.question}
+              </p>
+              <div className="grid gap-3 p-5 md:px-10 md:py-6">
+                {[
+                  [row.currentOrg, "bg-violet-900", "Your Results"],
+                  [row.otherOrg, "bg-violet-400", compareLabel],
+                ].map(([value, color, label]) => {
+                  const numericValue = Number(value);
+                  return (
+                    <div aria-label={`${label}: ${numericValue}%`} className="h-9 overflow-hidden rounded-xl bg-zinc-50" key={String(label)}>
+                      {numericValue > 0 ? (
+                        <div className={cn("flex h-full items-center rounded-r-xl px-3 text-[11px] font-semibold text-white", String(color))} style={{ width: `${numericValue}%` }}>
+                          {numericValue}%
+                        </div>
+                      ) : <span className="flex h-full items-center px-3 text-xs text-zinc-500">x</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export function ComparisonDataPage() {
   const [active, setActive] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const { categoryResults } = useCategoryResults();
+  const program = useSelectedProgram();
+  const categories = (categoryResults.length ? categoryResults.map(({ title }) => title) : Object.keys(cohenComparisonValues)).filter((title) => title !== "Supplementary Questions");
+  const details = useQuery({
+    queryKey: ["comparison-question-details", program?.id, selectedCategory, active],
+    queryFn: () => api.reports.comparisonQuestions(
+      program?.id ?? "",
+      selectedCategory ?? "",
+      comparisonCohortKeys[active] ?? "AllYes",
+    ),
+    enabled: Boolean(program && selectedCategory),
+  });
   return (
     <>
       <ReportHeader
-        description="Compare your organization’s results against benchmark groups by employer size."
+        description="Compare your survey results against other organizations in your industry and size."
         title="Comparison Data"
       />
       <div className="p-6">
-        <DownloadReportButton filename="comparison-data-demo.txt" />
+        <div className="flex justify-end"><DownloadReportButton onDownload={() => api.reports.downloadBenchmarkWorkbook(program?.id ?? "")} /></div>
         <div className="mt-6 flex items-center gap-2 rounded-xl bg-violet-50 p-3">
           <button
             aria-label="Previous comparison group"
@@ -1091,81 +1638,105 @@ export function ComparisonDataPage() {
             <ChevronRight className="size-4" />
           </button>
         </div>
-        <div className="mt-6 grid grid-cols-6 gap-3">
-          {comparisonTabs.map((tab) => (
-            <div
-              className="h-9 animate-pulse rounded-full bg-zinc-200"
-              key={tab}
-            />
-          ))}
+        <div className="mt-6 grid gap-5">
+          {categories.map((title) => {
+            const benchmark = benchmarkCategoryValues[title]?.[active] ?? (title === "Supplementary Questions" ? 0 : 88 - active);
+            const selected = selectedCategory === title;
+            return (
+              <Card className={cn("overflow-hidden shadow-none transition", selected && "border-violet-300 shadow-md")} key={title}>
+                <div
+                  aria-expanded={selected}
+                  className={cn("cursor-pointer transition", selected && "bg-violet-50")}
+                  onClick={() => setSelectedCategory((current) => current === title ? null : title)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedCategory((current) => current === title ? null : title);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+                    <h2 className="font-semibold">{title}</h2>
+                    <button
+                      aria-label={`Download ${title}`}
+                      className="rounded p-1 text-zinc-400 hover:bg-white"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        downloadText(`${title}-comparison.txt`, [`Your Results: ${cohenComparisonValues[title] ?? 0}%`, `${comparisonTabs[active] ?? "All Winners"}: ${benchmark}%`]);
+                      }}
+                    >
+                      <Download className="size-4" />
+                    </button>
+                  </div>
+                  <div className="grid gap-8 p-7 md:grid-cols-2 md:divide-x md:divide-zinc-200">
+                    <AgreementDonut label="Your Results" value={cohenComparisonValues[title] ?? 0} />
+                    <div className="md:pl-8"><AgreementDonut label={comparisonTabs[active] ?? "All Winners"} value={benchmark} /></div>
+                  </div>
+                </div>
+                {selected ? (
+                  <ComparisonQuestionDetails
+                    compareLabel={comparisonTabs[active] ?? "All Winners"}
+                    loading={details.isLoading}
+                    onClose={() => setSelectedCategory(null)}
+                    rows={details.data?.data.questionResponse ?? []}
+                    title={title}
+                  />
+                ) : null}
+              </Card>
+            );
+          })}
         </div>
-        <Card className="mt-6 min-h-[430px] p-6 shadow-none">
-          <div className="h-6 w-52 animate-pulse rounded bg-zinc-200" />
-          <div className="mt-12 grid gap-10 md:grid-cols-2 md:divide-x md:divide-zinc-200">
-            {[0, 1].map((item) => (
-              <div className="grid place-items-center" key={item}>
-                <div className="size-56 animate-pulse rounded-full bg-zinc-200" />
-              </div>
-            ))}
-          </div>
-        </Card>
+        <p className="mt-4 text-xs text-zinc-500">x – Insufficient data to provide meaningful feedback.</p>
       </div>
     </>
   );
 }
 
 const practiceQuestions = [
-  ["Does your organization coordinate “Fun” activities?", 86, 61],
-  [
-    "Does your organization have a structured system for recognizing achievements, attendance, or safety goals?",
-    78,
-    53,
-  ],
-  [
-    "Does your organization formally recognize individual employee milestones?",
-    91,
-    72,
-  ],
-  ["Do you have a strategy to recruit and retain a diverse workforce?", 84, 65],
-  [
-    "Does your organization offer flexible or hybrid work arrangements?",
-    89,
-    74,
-  ],
-  [
-    "Does your organization provide paid time for volunteer activities?",
-    57,
-    34,
-  ],
-  [
-    "Does your organization offer tuition or professional certification assistance?",
-    73,
-    49,
-  ],
-  [
-    "Does your organization provide a formal employee wellness program?",
-    81,
-    58,
-  ],
+  ["Does your organization coordinate “Fun” activities?", "Yes", [100, 100, 100, 100, 100, 100]],
+  ["Does your organization have a structured system for recognizing achievements, attendance, or safety goals?", "Yes", [86, 83, 80, 88, 89, 100]],
+  ["Does your organization formally recognize individual employee milestones?", "Yes", [97, 96, 100, 95, 100, 100]],
+  ["Do you have a strategy to recruit and retain a diverse workforce?", "Yes", [89, 91, 84, 91, 100, 80]],
+  ["Do you have a strategy specifically focused on recruiting and retaining Generation Z employees?", "Yes", [69, 57, 48, 79, 100, 80]],
+  ["Does your organization conduct preemployment screening?", "Yes", [96, 96, 92, 98, 100, 100]],
+  ["Which preemployment tools does your organization use?", "Credit history", [61, 32, 74, 63, 78, 80]],
+  ["Which preemployment tools does your organization use?", "Criminal background", [99, 95, 100, 100, 100, 100]],
+  ["Which preemployment tools does your organization use?", "Driving records", [22, 23, 17, 23, 22, 40]],
+  ["Which preemployment tools does your organization use?", "Drug testing", [16, 5, 9, 20, 33, 40]],
+  ["Which preemployment tools does your organization use?", "Education verification", [88, 73, 87, 93, 100, 100]],
+  ["Which preemployment tools does your organization use?", "Personality/behavioral assessment", [26, 23, 26, 23, 44, 40]],
+  ["Which preemployment tools does your organization use?", "Professional reference", [84, 77, 91, 85, 89, 60]],
+  ["Which preemployment tools does your organization use?", "Skills assessment", [63, 45, 65, 75, 56, 40]],
+  ["Which preemployment tools does your organization use?", "Social media", [19, 27, 26, 13, 22, 0]],
+  ["Which preemployment tools does your organization use?", "Work sample", [42, 41, 48, 43, 56, 0]],
 ] as const;
 
 const metricTabs = [
   "All Winners",
   "All Non-Winners",
-  "Small Winners (20–49)",
-  "Medium Winners (50–99)",
-  "Large Winners (100–499)",
-  "Major Winners (500–999)",
-  "Super Winners (1000+)",
+  "Small Winners (20–49 US Employees)",
+  "Small Non-Winners",
+  "Medium Winners (50–99 US Employees)",
+  "Medium Non-Winners",
+  "Large Winners (100–499 US Employees)",
+  "Large Non-Winners",
+  "Major Winners (500–999 US Employees)",
+  "Major Non-Winners",
+  "Super Winners (1,000 or more US Employees)",
+  "Super Non-Winners",
 ];
 
 export function BenefitsBestPracticesPage() {
   const [active, setActive] = useState(0);
+  const program = useSelectedProgram();
+  const showNonWinners = active % 2 === 1;
   return (
     <>
       <ReportHeader title="Benefits & Best Practices" />
       <div className="p-6">
-        <DownloadReportButton filename="benefits-best-practices-demo.txt" />
+        <div className="flex justify-end"><DownloadReportButton onDownload={() => api.reports.downloadBenefitsWorkbook(program?.id ?? "")} /></div>
         <Card className="mt-6 overflow-hidden shadow-none">
           <div className="border-b border-zinc-200 p-5">
             <p className="mb-3 text-[11px] font-semibold tracking-wider text-zinc-500">
@@ -1193,62 +1764,47 @@ export function BenefitsBestPracticesPage() {
               ))}
             </div>
           </div>
-          <div className="grid gap-3 p-5">
-            {practiceQuestions.map(([question, winner, nonWinner]) => (
-              <details className="group rounded-xl bg-zinc-100" key={question}>
-                <summary className="flex cursor-pointer items-center gap-4 p-5 text-sm font-medium">
-                  <span className="flex-1">{question}</span>
-                  <ChevronDown className="size-5 transition group-open:rotate-180" />
-                </summary>
-                <div className="grid gap-3 border-t border-zinc-200 bg-white p-5 sm:grid-cols-2">
-                  <div className="rounded-lg bg-emerald-50 p-4">
-                    <span className="text-xs text-zinc-500">
-                      Winning organizations
-                    </span>
-                    <strong className="mt-1 block text-2xl text-emerald-700">
-                      {winner}%
-                    </strong>
-                  </div>
-                  <div className="rounded-lg bg-zinc-100 p-4">
-                    <span className="text-xs text-zinc-500">
-                      Non-winning organizations
-                    </span>
-                    <strong className="mt-1 block text-2xl">
-                      {nonWinner}%
-                    </strong>
-                  </div>
-                </div>
-              </details>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="min-w-[1050px] w-full text-left text-xs">
+              <thead className="bg-zinc-100 text-zinc-600"><tr><th className="w-[390px] px-5 py-4">Question / Response</th>{["All Employers", "Small", "Medium", "Large", "Major", "Super"].map((label) => <th className="px-3 py-4 text-center" key={label}>{label}</th>)}</tr></thead>
+              <tbody>
+                {practiceQuestions.map(([question, answer, values], index) => (
+                  <tr className={cn("border-t border-zinc-100", index % 2 === 1 && "bg-zinc-50/60")} key={`${question}-${answer}`}>
+                    <td className="px-5 py-4"><span className="block font-medium leading-5 text-zinc-800">{question}</span><span className="mt-1 block text-zinc-500">{answer}</span></td>
+                    {values.map((value, valueIndex) => <td className="px-3 py-4 text-center font-semibold" key={valueIndex}>{showNonWinners ? <span className="text-zinc-400">x</span> : `${value}%`}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
+        {showNonWinners ? <p className="mt-4 text-xs text-zinc-500">x – Insufficient non-winner data to provide meaningful feedback.</p> : null}
       </div>
     </>
   );
 }
 
-function DistributionChart() {
-  const values = [3, 4, 7, 12, 29, 45];
+function ResponseDetailTable({ seed = 0 }: { seed?: number }) {
+  const labels = ["Strongly Agree", "Agree", "Slightly Agree", "Slightly Disagree", "Disagree", "Strongly Disagree"];
+  const groups = ["Gen Z", "Millennial", "Gen X", "Baby Boomer"];
   return (
-    <div className="grid grid-cols-6 gap-3 pt-4 text-center">
-      {values.map((value, index) => (
-        <div key={value}>
-          <div className="flex h-36 items-end rounded-lg bg-zinc-100 p-1">
-            <div
-              className="w-full rounded-md bg-violet-500"
-              style={{ height: `${Math.max(value * 2, 8)}%` }}
-            />
-          </div>
-          <strong className="mt-2 block text-sm">{value}%</strong>
-          <span className="text-[10px] text-zinc-500">{index + 1}</span>
-        </div>
-      ))}
+    <div className="overflow-x-auto py-2">
+      <table className="min-w-[690px] w-full text-xs">
+        <thead><tr className="bg-zinc-100 text-zinc-600"><th className="px-3 py-3 text-left">Response</th>{groups.map((group) => <th className="px-3 py-3 text-center" key={group}>{group}</th>)}</tr></thead>
+        <tbody>
+          {labels.map((label, row) => (
+            <tr className="border-t border-zinc-100" key={label}><td className="px-3 py-3 font-medium">{label}</td>{groups.map((group, column) => { const value = Math.max(1, ([45, 31, 12, 6, 4, 2][row] ?? 0) + ((seed + column * 2 + row) % 5) - 2); return <td className="px-3 py-3 text-center" key={group}><strong>{value}%</strong><span className="ml-1 text-zinc-400">({Math.max(5, Math.round(value * 1.9))})</span></td>; })}</tr>
+          ))}
+          <tr className="border-t-2 border-zinc-200 bg-violet-50"><td className="px-3 py-3 font-semibold">Question Total</td>{groups.map((group, index) => <td className="px-3 py-3 text-center font-semibold text-violet-700" key={group}>{[92, 91, 94, 93][index]}%</td>)}</tr>
+        </tbody>
+      </table>
     </div>
   );
 }
 
 export function ResponseDetailPage() {
   const { categoryResults } = useCategoryResults();
+  const program = useSelectedProgram();
   return (
     <>
       <ReportHeader
@@ -1258,7 +1814,7 @@ export function ResponseDetailPage() {
       <div className="p-6">
         <div className="flex items-center justify-between gap-3">
           <FilterButton />
-          <DownloadReportButton filename="response-detail-demo.txt" />
+          <DownloadReportButton onDownload={() => api.reports.downloadResponseDetailWorkbook(program?.id ?? "")} />
         </div>
         <span className="mt-4 inline-flex rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">
           Filter: Age Generation
@@ -1289,7 +1845,7 @@ export function ResponseDetailPage() {
                       <ChevronRight className="size-4 transition group-open/question:rotate-90" />
                     </summary>
                     <div className="border-t border-zinc-100 px-4 pb-5">
-                      <DistributionChart />
+                      <ResponseDetailTable seed={areaIndex} />
                     </div>
                   </details>
                 ))}
@@ -1321,6 +1877,7 @@ export function KeyImpactAnalysisPage() {
 }
 
 export function CustomReportsPage() {
+  const program = useSelectedProgram();
   return (
     <>
       <PageHeader
@@ -1351,19 +1908,15 @@ export function CustomReportsPage() {
             <span>Action</span>
           </div>
           <div className="grid grid-cols-[1fr_1.4fr_130px_100px] items-center gap-4 p-4 text-sm">
-            <strong>Demo Organization - Response Detail Report</strong>
+            <strong>Cohen &amp; Steers - Response Detail Report</strong>
             <span className="leading-5 text-zinc-500">
-              Response Detail Report using sanitized employee survey data from
-              the Demo Workplace 2025 program.
+              RDR for Cohen &amp; Steers, using employee survey data from the Best
+              Places Money Management 2025 program.
             </span>
-            <span className="text-zinc-500">05/12/2025</span>
+            <span className="text-zinc-500">05/11/2025</span>
             <button
               className="h-9 rounded bg-red-600 px-3 text-xs font-semibold text-white"
-              onClick={() =>
-                downloadText("demo-custom-report.txt", [
-                  "Sanitized Demo Organization response detail report",
-                ])
-              }
+              onClick={() => api.reports.downloadResponseDetailWorkbook(program?.id ?? "")}
             >
               DOWNLOAD
             </button>

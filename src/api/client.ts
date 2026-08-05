@@ -1,6 +1,10 @@
 import { z, type ZodType } from "zod";
 import {
   adminUserSchema,
+  annualCategoriesSchema,
+  annualDetailsSchema,
+  annualResponseRateSchema,
+  comparisonQuestionsSchema,
   demographicResponseSchema,
   employeeResponseBreakdownSchema,
   employeeResponseBreakdownBySectionSchema,
@@ -10,6 +14,7 @@ import {
   roleSchema,
   sessionSchema,
   syncJobSchema,
+  workforceComparisonSchema,
   type LoginResult,
   type Session,
 } from "./schemas";
@@ -114,6 +119,31 @@ async function request<T>(
     );
   }
   return options.schema.parse(payload);
+}
+
+async function downloadRequest(
+  path: string,
+  filename: string,
+  method: "GET" | "POST" = "GET",
+): Promise<void> {
+  const response = await fetch(`${env.apiBaseUrl}${path}`, {
+    method,
+    credentials: "include",
+    headers: {
+      Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(method === "POST" ? { body: "{}" } : {}),
+  });
+  if (!response.ok) throw new ApiError("Report download failed", response.status, "report_download_failed");
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 const pause = async () =>
@@ -254,6 +284,92 @@ export const api = {
           body: { questionRange },
           schema: employeeResponseBreakdownSchema,
         },
+      ),
+    workforceComparison: (programId: string) =>
+      request(
+        `/client/v2/employeeComparisonReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        { schema: workforceComparisonSchema },
+      ),
+    comparisonQuestions: (
+      programId: string,
+      category: string,
+      selectedCategoryOption: string,
+    ) =>
+      request(
+        `/client/employeeSectionQuestionsComparisonWithMeReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        {
+          method: "POST",
+          body: { category, selectedCategoryOption },
+          schema: comparisonQuestionsSchema,
+        },
+      ),
+    annualResponseRate: (programId: string) =>
+      request(
+        `/client/surveyResponseRateAnuualTrend?selectedProgramId=${encodeURIComponent(programId)}`,
+        { schema: annualResponseRateSchema },
+      ),
+    annualCategories: (programId: string) =>
+      request(
+        `/client/employeeAnnualTrendsCategory?selectedProgramId=${encodeURIComponent(programId)}`,
+        { schema: annualCategoriesSchema },
+      ),
+    annualDetails: (
+      programId: string,
+      category: string,
+      currentQuestionIds: string[],
+      previousQuestionIds: string[],
+    ) =>
+      request(
+        `/client/employeeAnnualTrendsDetail?selectedProgramId=${encodeURIComponent(programId)}`,
+        {
+          method: "POST",
+          body: {
+            category,
+            curruntYear: currentQuestionIds,
+            prevYear: previousQuestionIds,
+          },
+          schema: annualDetailsSchema,
+        },
+      ),
+    downloadDetailedWorkbook: (programId: string) =>
+      downloadRequest(
+        `/client/generateHeatMapDetailed?selectedProgramId=${encodeURIComponent(programId)}`,
+        "Employee_Feedback_Detailed.xlsx",
+      ),
+    downloadResponsePatternsWorkbook: (
+      programId: string,
+      responsePatterns: { metric: "agreement" | "disagreement"; minimum: number; maximum: number }[],
+    ) =>
+      downloadRequest(
+        `/client/generateHeatMap?selectedProgramId=${encodeURIComponent(programId)}&queryFilter=${encodeURIComponent(JSON.stringify({ responsePatterns }))}`,
+        "Response_Patterns.xlsx",
+      ),
+    downloadAnnualWorkbook: (programId: string) =>
+      downloadRequest(
+        `/client/annualTrensReportDownload?selectedProgramId=${encodeURIComponent(programId)}`,
+        "Annual_Trends_Report.xlsx",
+        "POST",
+      ),
+    downloadVerbatimsWorkbook: (programId: string) =>
+      downloadRequest(
+        `/client/getOpenResponsesAnswersReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        "Employee_Verbatims_Report.xlsx",
+        "POST",
+      ),
+    downloadBenchmarkWorkbook: (programId: string) =>
+      downloadRequest(
+        `/client/v2/generateBenchmarkReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        "Workforce_Benchmark_Report.xlsx",
+      ),
+    downloadBenefitsWorkbook: (programId: string) =>
+      downloadRequest(
+        `/client/employerBenchmarkReportExcel?selectedProgramId=${encodeURIComponent(programId)}`,
+        "Benefits_&_Best_Practices.xlsx",
+      ),
+    downloadResponseDetailWorkbook: (programId: string) =>
+      downloadRequest(
+        `/client/responseDetailReportExcel?selectedProgramId=${encodeURIComponent(programId)}`,
+        "Response_Detail_Report.xlsx",
       ),
   },
   admin: {

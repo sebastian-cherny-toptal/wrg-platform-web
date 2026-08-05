@@ -117,6 +117,98 @@ export const employeeResponseBreakdownSchema = z.object({
   ),
 });
 
+const benchmarkValueSchema = z.union([z.number(), z.string()]);
+
+export const workforceComparisonSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    tableHeaders: z.array(
+      z.object({
+        title: z.string(),
+        type: z.string(),
+        color: z.string(),
+      }),
+    ),
+    data: z.array(
+      z.object({
+        title: z.string(),
+        dataValues: z.array(benchmarkValueSchema),
+        nestedData: z.array(
+          z.object({
+            id: z.union([z.string(), z.number()]).optional(),
+            title: z.string(),
+            dataValues: z.array(benchmarkValueSchema),
+          }),
+        ),
+        legends: z.array(
+          z.object({ color: z.string(), title: z.string() }),
+        ),
+      }),
+    ),
+    surveyAverage: z.array(z.record(z.string(), z.unknown())),
+  }),
+});
+
+export const comparisonQuestionsSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    questionResponse: z.array(
+      z.object({
+        question: z.string(),
+        currentOrg: z.number().min(0).max(100),
+        otherOrg: z.number().min(0).max(100),
+      }),
+    ),
+  }),
+});
+
+const annualDistributionSchema = z.object({
+  ResponseCaption: z.enum(["Agree", "Neutral", "Disagree"]),
+  numberOfResponses: z.number().int().nonnegative(),
+  percent: z.number().min(0).max(1),
+  percentage: z.number().int().min(0).max(100),
+  colorCode: z.string(),
+});
+
+const annualSnapshotSchema = z.object({
+  data: z.array(annualDistributionSchema),
+  questionIds: z.array(z.string()),
+});
+
+export const annualResponseRateSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.array(z.record(z.string(), z.string())).nullable(),
+});
+
+export const annualCategoriesSchema = z.object({
+  success: z.literal(true),
+  data: z.array(
+    z.object({ category: z.object({ category: z.string() }) }).catchall(
+      z.union([annualSnapshotSchema, z.object({ category: z.string() })]),
+    ),
+  ),
+});
+
+const annualQuestionYearSchema = z.object({
+  question: z.string(),
+  questionId: z.string(),
+  responses: z.array(annualDistributionSchema),
+});
+
+export const annualDetailsSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  category: z.string(),
+  data: z.array(
+    z.object({ question: z.string(), questionId: z.string() }).catchall(
+      z.union([z.string(), annualQuestionYearSchema]),
+    ),
+  ),
+});
+
 export const reportProductSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -164,6 +256,8 @@ export type EmployeeResponseBreakdownBySection = z.infer<
 export type EmployeeResponseBreakdown = z.infer<
   typeof employeeResponseBreakdownSchema
 >;
+export type WorkforceComparison = z.infer<typeof workforceComparisonSchema>;
+export type AnnualCategories = z.infer<typeof annualCategoriesSchema>;
 export type ReportProduct = z.infer<typeof reportProductSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type AdminUser = z.infer<typeof adminUserSchema>;

@@ -13,7 +13,7 @@ export const programs: Program[] = [
     id: 'demo-workplace-2025',
     name: 'Best Places to Work in Money Management 2025',
     year: 2025,
-    organizationName: 'Demo Organization',
+    organizationName: 'Cohen & Steers',
     entitlements: {
       WFR_Access: 'yes',
       EV_Access: 'yes',
@@ -28,7 +28,7 @@ export const programs: Program[] = [
     id: 'demo-workplace-2024',
     name: 'Best Places to Work in Money Management 2024',
     year: 2024,
-    organizationName: 'Demo Organization',
+    organizationName: 'Cohen & Steers',
     entitlements: {
       WFR_Access: 'yes',
       EV_Access: 'yes',

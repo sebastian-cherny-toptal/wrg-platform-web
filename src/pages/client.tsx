@@ -2,19 +2,27 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
   BarChart3,
+  BriefcaseBusiness,
+  Building2,
+  Cake,
   CheckCircle2,
+  Clock3,
   ChevronLeft,
   ChevronRight,
   Download,
   FileChartColumn,
   FileText,
+  Globe2,
   LineChart,
   MessageSquareText,
+  MapPin,
+  Network,
   PackageCheck,
   PieChart,
   ShoppingCart,
   SlidersVertical,
   Trash2,
+  Tags,
   Users,
   X,
 } from 'lucide-react'
@@ -26,6 +34,19 @@ import { Badge, Button, Card, PageHeader, StatePanel, cn } from '../components/u
 import { useAppStore, useSelectedProgram } from '../store/app-store'
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+
+const demographicIcons = {
+  Gender: Users,
+  'Age Generation': Cake,
+  'Race/Ethnicity': Globe2,
+  'Employment Length': Clock3,
+  'Job Status': BriefcaseBusiness,
+  'Workplace Setting': Building2,
+  'Job Level': Tags,
+  Department: Network,
+  'Functional Title': BriefcaseBusiness,
+  Location: MapPin,
+} as const
 
 const reportCards = [
   {
@@ -60,39 +81,39 @@ const reportCards = [
 
 const dashboardData = {
   2025: {
-    positive: 82,
+    positive: 83,
     negative: 6,
-    completed: 198,
-    sent: 406,
+    completed: 199,
+    sent: 410,
     rate: 49,
     dates: 'between 07.18.2025 and 08.08.2025',
     top: [
-      ['I am willing to go above and beyond for this organization', 95],
-      ['I understand how my work contributes to our success', 94],
-      ["I would recommend this organization's services", 93],
+      ['I typically go above and beyond for this organization', 96],
+      ['I understand how my work impacts organizational success', 95],
+      ["I would endorse this organization's products/services", 94],
     ],
     bottom: [
-      ['I understand the available paths for career advancement', 61],
-      ['I receive sufficient ongoing training', 66],
-      ['Leaders act on employee suggestions', 69],
+      ['I am paid fairly for the work I perform', 62],
+      ['I receive sufficient ongoing training', 67],
+      ['Organizational leaders act on employee suggestions', 68],
     ],
   },
   2024: {
-    positive: 83,
-    negative: 6,
-    completed: 174,
-    sent: 403,
+    positive: 84,
+    negative: 5,
+    completed: 160,
+    sent: 412,
     rate: 39,
     dates: 'between 07.19.2024 and 08.09.2024',
     top: [
-      ['This organization is committed to high-quality service', 97],
-      ['I am willing to go above and beyond for this organization', 95],
-      ['I understand how my work contributes to our success', 94],
+      ['This organization is committed to producing high-quality products/services', 98],
+      ['I typically go above and beyond for this organization', 96],
+      ["I am kept aware of this organization's financial status", 96],
     ],
     bottom: [
-      ['I receive sufficient ongoing training', 60],
-      ['Leaders act on employee suggestions', 65],
-      ['I understand the available paths for career advancement', 67],
+      ['I receive sufficient ongoing training', 59],
+      ['Organizational leaders act on employee suggestions', 66],
+      ['I believe my compensation is fair', 67],
     ],
   },
 } as const
@@ -381,16 +402,21 @@ export function WorkforceFeedbackPage() {
                 <section key={group}>
                   <h2 className="mb-4 text-base font-semibold capitalize">{group} Demographics</h2>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {report.data.filter((item) => item.group === group).map((item) => (
-                      <details className="group rounded-xl bg-zinc-100" key={item.category}>
-                        <summary className="flex min-h-[88px] cursor-pointer list-none items-center gap-3 p-4">
-                          <span className="grid size-11 place-items-center rounded-full bg-violet-100 text-violet-600"><Users className="size-5" /></span>
-                          <h3 className="flex-1 text-sm font-semibold">{item.category}</h3>
-                          <span className="grid size-8 place-items-center rounded-full border border-zinc-300 bg-white"><ChevronRight className="size-4 transition group-open:rotate-90" /></span>
-                        </summary>
-                        <dl className="divide-y divide-zinc-200 border-t border-zinc-200 px-4">{item.values.map((value) => <div className="flex justify-between py-3 text-sm" key={value.label}><dt className="text-zinc-600">{value.label}</dt><dd className="font-semibold">{value.count}</dd></div>)}</dl>
-                      </details>
-                    ))}
+                    {report.data.filter((item) => item.group === group).map((item) => {
+                      const DemographicIcon = item.category in demographicIcons
+                        ? demographicIcons[item.category as keyof typeof demographicIcons]
+                        : Users
+                      return (
+                        <details className="group overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 shadow-sm" key={item.category}>
+                          <summary className="flex min-h-[72px] cursor-pointer list-none items-center gap-3 px-4">
+                            <span className="grid size-6 place-items-center text-violet-600"><DemographicIcon className="size-6" /></span>
+                            <h3 className="flex-1 text-left text-base font-semibold">{item.category}</h3>
+                            <span className="grid size-8 place-items-center rounded-full border border-zinc-200 bg-white"><ChevronRight className="size-4 transition group-open:rotate-90" /></span>
+                          </summary>
+                          <dl className="divide-y divide-zinc-100 border-t border-zinc-200 bg-white px-4">{item.values.map((value) => <div className="flex justify-between py-3 text-sm" key={value.label}><dt className="text-zinc-700">{value.label}</dt><dd className="rounded-full bg-violet-200 px-2 py-0.5 text-xs font-semibold">{value.count}</dd></div>)}</dl>
+                        </details>
+                      )
+                    })}
                   </div>
                 </section>
               ))}
