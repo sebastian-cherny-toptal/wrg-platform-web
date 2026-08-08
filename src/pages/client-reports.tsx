@@ -671,6 +671,12 @@ export function ResponsePatternsPage() {
                             itemIndex === index ? config.defaultRange : range,
                           ),
                         );
+                      } else {
+                        setRanges((currentRanges) =>
+                          currentRanges.map((range, itemIndex) =>
+                            itemIndex === index ? "" : range,
+                          ),
+                        );
                       }
                     }}
                   >
