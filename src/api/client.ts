@@ -8,6 +8,7 @@ import {
   demographicResponseSchema,
   employeeResponseBreakdownSchema,
   employeeResponseBreakdownBySectionSchema,
+  heatMapPreviewResponseSchema,
   loginResultSchema,
   projectSchema,
   reportProductSchema,
@@ -27,6 +28,12 @@ import {
   roles,
   syncJobs,
 } from "../fixtures/data";
+
+export type ResponsePatternRanges = {
+  positive?: [number, number];
+  neutral?: [number, number];
+  negative?: [number, number];
+};
 
 const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "/v1",
@@ -144,6 +151,32 @@ async function downloadRequest(
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function responsePatternsPath(
+  programId: string,
+  ranges: ResponsePatternRanges,
+  isPreview = false,
+): string {
+  const params = new URLSearchParams({
+    selectedProgramId: programId,
+    patternMode: "range",
+    includePositive: String(Boolean(ranges.positive)),
+    includeNeutral: String(Boolean(ranges.neutral)),
+    includeNegative: String(Boolean(ranges.negative)),
+  });
+  const rangeParams = [
+    ["positive", ranges.positive],
+    ["neutral", ranges.neutral],
+    ["negative", ranges.negative],
+  ] as const;
+  for (const [name, range] of rangeParams) {
+    if (!range) continue;
+    params.set(`${name}Min`, String(range[0]));
+    params.set(`${name}Max`, String(range[1]));
+  }
+  if (isPreview) params.set("isPreview", "true");
+  return `/client/generateHeatMap?${params.toString()}`;
 }
 
 const pause = async () =>
@@ -343,12 +376,19 @@ export const api = {
         "Workforce_Feedback_Results.xlsx",
         "POST",
       ),
+    previewResponsePatterns: (
+      programId: string,
+      ranges: ResponsePatternRanges,
+    ) =>
+      request(responsePatternsPath(programId, ranges, true), {
+        schema: heatMapPreviewResponseSchema,
+      }),
     downloadResponsePatternsWorkbook: (
       programId: string,
-      responsePatterns: { metric: "agreement" | "disagreement"; minimum: number; maximum: number }[],
+      ranges: ResponsePatternRanges,
     ) =>
       downloadRequest(
-        `/client/generateHeatMap?selectedProgramId=${encodeURIComponent(programId)}&queryFilter=${encodeURIComponent(JSON.stringify({ responsePatterns }))}`,
+        responsePatternsPath(programId, ranges),
         "Response_Patterns.xlsx",
       ),
     downloadAnnualWorkbook: (programId: string) =>

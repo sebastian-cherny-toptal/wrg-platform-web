@@ -117,6 +117,30 @@ export const employeeResponseBreakdownSchema = z.object({
   ),
 });
 
+export const heatMapPreviewResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  isConfidential: z.boolean().optional(),
+  data: z.object({
+    heatmapPreview: z.array(
+      z.object({
+        row: z.number().int().positive(),
+        col: z.number().int().positive(),
+        color: z.string(),
+        value: z.union([z.number(), z.string()]),
+      }),
+    ),
+    percentage: z.object({
+      positivePercentage: z.number().min(0).max(100).optional(),
+      neutralPercentage: z.number().min(0).max(100).optional(),
+      negativePercentage: z.number().min(0).max(100).optional(),
+      greenPercentage: z.number().min(0).max(100).optional(),
+      bluePercentage: z.number().min(0).max(100).optional(),
+      redPercentage: z.number().min(0).max(100).optional(),
+    }),
+  }),
+});
+
 const benchmarkValueSchema = z.union([z.number(), z.string()]);
 
 export const workforceComparisonSchema = z.object({

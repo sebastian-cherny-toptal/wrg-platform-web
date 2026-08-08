@@ -13,9 +13,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api/client";
+import { api, type ResponsePatternRanges } from "../api/client";
 import { routeMap } from "../app/metadata";
 import { ImageDownloadMenu } from "../components/image-download-menu";
 import { Button, Card, PageHeader, StatePanel, cn } from "../components/ui";
@@ -551,18 +551,24 @@ const patternConfigs = [
     description:
       "Download a report that highlights responses that have high percentage of agreement. WRG recommends the 80–100% range.",
     placeholder: "e.g., 80–100%",
+    defaultRange: "80-100%",
+    rangeKey: "positive" as const,
   },
   {
     title: "Moderate % Agreement",
     description:
       "Download a report that highlights responses that have a moderate percentage of agreement. WRG recommends the 60–79% range.",
     placeholder: "e.g., 60–79%",
+    defaultRange: "60-79%",
+    rangeKey: "neutral" as const,
   },
   {
     title: "High % Disagreement",
     description:
       "Download a report that highlights responses that have a high percentage of disagreement. WRG recommends the 10–20% range.",
     placeholder: "e.g., 10–20%",
+    defaultRange: "10-20%",
+    rangeKey: "negative" as const,
   },
 ];
 
@@ -586,23 +592,48 @@ export function ResponsePatternsPage() {
   const report = useCategoryResults();
   const [enabled, setEnabled] = useState<boolean[]>([false, false, false]);
   const [ranges, setRanges] = useState(["", "", ""]);
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState<
+    Awaited<ReturnType<typeof api.reports.previewResponsePatterns>> | null
+  >(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const parsedRanges = ranges.map(parsePercentageRange);
   const valid =
     enabled.some(Boolean) &&
     enabled.every((value, index) => !value || parsedRanges[index] !== null);
-  const previewRows = useMemo(
-    () =>
-      report.categoryResults.filter((result) =>
-        enabled.some((isEnabled, index) => {
-          const range = parsedRanges[index];
-          if (!isEnabled || !range) return false;
-          const value = index === 2 ? result.disagreement : result.agreement;
-          return value >= range[0] && value <= range[1];
-        }),
-      ),
-    [enabled, parsedRanges, report.categoryResults],
+  const selectedRanges = enabled.reduce<ResponsePatternRanges>(
+    (selection, isEnabled, index) => {
+      const range = parsedRanges[index];
+      const config = patternConfigs[index];
+      if (isEnabled && range && config) selection[config.rangeKey] = range;
+      return selection;
+    },
+    {},
   );
+  const resetPreview = () => {
+    setPreview(null);
+    setPreviewError(null);
+  };
+  const previewReport = async () => {
+    if (!valid || !report.programId) return;
+    setPreviewing(true);
+    setPreviewError(null);
+    try {
+      setPreview(
+        await api.reports.previewResponsePatterns(
+          report.programId,
+          selectedRanges,
+        ),
+      );
+    } catch (error) {
+      setPreview(null);
+      setPreviewError(
+        error instanceof Error ? error.message : "Unable to preview the report",
+      );
+    } finally {
+      setPreviewing(false);
+    }
+  };
   return (
     <>
       <ReportHeader
@@ -626,13 +657,22 @@ export function ResponsePatternsPage() {
                       "relative h-6 w-11 rounded-full transition",
                       enabled[index] ? "bg-violet-600" : "bg-zinc-300",
                     )}
-                    onClick={() =>
+                    onClick={() => {
+                      resetPreview();
+                      const nextEnabled = !enabled[index];
                       setEnabled((values) =>
                         values.map((value, itemIndex) =>
-                          itemIndex === index ? !value : value,
+                          itemIndex === index ? nextEnabled : value,
                         ),
-                      )
-                    }
+                      );
+                      if (nextEnabled) {
+                        setRanges((currentRanges) =>
+                          currentRanges.map((range, itemIndex) =>
+                            itemIndex === index ? config.defaultRange : range,
+                          ),
+                        );
+                      }
+                    }}
                   >
                     <span
                       className={cn(
@@ -650,13 +690,14 @@ export function ResponsePatternsPage() {
                   <input
                     className="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-violet-500"
                     disabled={!enabled[index]}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      resetPreview();
                       setRanges((values) =>
                         values.map((value, itemIndex) =>
                           itemIndex === index ? event.target.value : value,
                         ),
-                      )
-                    }
+                      );
+                    }}
                     placeholder={config.placeholder}
                     value={ranges[index]}
                   />
@@ -667,61 +708,59 @@ export function ResponsePatternsPage() {
           <div className="mt-5 flex justify-end gap-3">
             <Button
               className="gap-2"
-              disabled={!valid || !report.programId}
+              disabled={!preview || !valid || !report.programId}
               onClick={() =>
                 void api.reports.downloadResponsePatternsWorkbook(
                   report.programId ?? "",
-                  enabled.flatMap((isEnabled, index) => {
-                    const range = parsedRanges[index];
-                    return isEnabled && range
-                      ? [{
-                          metric: index === 2 ? "disagreement" as const : "agreement" as const,
-                          minimum: range[0],
-                          maximum: range[1],
-                        }]
-                      : [];
-                  }),
+                  selectedRanges,
                 )
               }
               variant="secondary"
             >
               <Download className="size-4" /> Download Report
             </Button>
-            <Button disabled={!valid} onClick={() => setPreview(true)}>
+            <Button
+              disabled={!valid || previewing}
+              onClick={() => void previewReport()}
+            >
               Preview the Report
             </Button>
           </div>
+          {previewError ? (
+            <p className="mt-4 text-right text-sm text-red-600" role="alert">
+              {previewError}
+            </p>
+          ) : null}
         </Card>
         {preview ? (
-          <Card className="mt-5 overflow-hidden shadow-none">
-            <div className="border-b border-zinc-200 p-5">
-              <h2 className="font-semibold">Response Pattern Preview</h2>
-            </div>
-            <div className="divide-y divide-zinc-100">
-              {previewRows.length ? previewRows.map((result) => (
-                <div
-                  className="flex items-center justify-between gap-4 p-4 text-sm"
-                  key={result.title}
-                >
-                  <span>{result.title}</span>
-                  <span
-                    className={cn(
-                      "rounded-full px-3 py-1 text-xs font-semibold",
-                      result.agreement >= 80
-                        ? "bg-emerald-100 text-emerald-700"
-                        : result.agreement >= 60
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700",
-                    )}
+          <Card className="mt-5 p-5 shadow-none">
+            <h2 className="font-semibold">Response Patterns Report</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {patternConfigs.map((config, index) => {
+                if (!enabled[index]) return null;
+                const percentages = preview.data.percentage;
+                const percentage =
+                  config.rangeKey === "positive"
+                    ? (percentages.positivePercentage ??
+                      percentages.greenPercentage ??
+                      0)
+                    : config.rangeKey === "neutral"
+                      ? (percentages.neutralPercentage ??
+                        percentages.bluePercentage ??
+                        0)
+                      : (percentages.negativePercentage ??
+                        percentages.redPercentage ??
+                        0);
+                return (
+                  <div
+                    className="rounded-lg bg-zinc-100 p-4 text-sm"
+                    key={config.title}
                   >
-                    {result.agreement}% agreement · {result.disagreement}% disagreement
-                  </span>
-                </div>
-              )) : (
-                <p className="p-5 text-sm text-zinc-500">
-                  No categories fall within the selected ranges.
-                </p>
-              )}
+                    <span className="block text-zinc-600">{config.title}</span>
+                    <strong className="mt-1 block text-xl">{percentage}%</strong>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         ) : null}
