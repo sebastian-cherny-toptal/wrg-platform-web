@@ -26,10 +26,11 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { routeMap } from '../app/metadata'
+import { ImageDownloadMenu } from '../components/image-download-menu'
 import { Badge, Button, Card, PageHeader, StatePanel, cn } from '../components/ui'
 import { useAppStore, useSelectedProgram } from '../store/app-store'
 
@@ -118,18 +119,6 @@ const dashboardData = {
   },
 } as const
 
-function downloadDashboardData(filename: string, rows: (string | number)[][]) {
-  const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
-  const href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-  const link = document.createElement('a')
-  link.href = href
-  link.download = filename
-  document.body.append(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(href), 1000)
-}
-
 function DashboardBars({ positive, negative }: { positive: number; negative: number }) {
   const bars = [
     { label: 'Average Positive Response', value: positive, color: '#7c3aed' },
@@ -168,6 +157,9 @@ function DashboardBars({ positive, negative }: { positive: number; negative: num
 export function DashboardPage() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
+  const responseChartRef = useRef<HTMLDivElement>(null)
+  const responseRateRef = useRef<HTMLElement>(null)
+  const statementsRef = useRef<HTMLDivElement>(null)
   const session = useAppStore((state) => state.session)
   const program = useSelectedProgram()
   const programs = session?.user.programs ?? []
@@ -209,44 +201,44 @@ export function DashboardPage() {
 
       <div className="mt-6 border-t border-zinc-200 bg-[#fbfbfb] px-6 pb-6 pt-3">
         <div className="grid gap-4 xl:grid-cols-[430px_minmax(0,1fr)]">
-          <Card className="relative h-[727px] p-4">
-            <h2 className="max-w-[317px] pr-8 text-[16px] font-semibold leading-6">Average Positive and Average Negative Response</h2>
-            <p className="mt-2 text-[14px] leading-5 text-zinc-500">Survey data collected via paper and online methods {data.dates}</p>
-            <button
-              className="absolute right-4 top-4 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100"
-              aria-label="Download response chart"
-              onClick={() => downloadDashboardData(`response-chart-${selectedYear}.csv`, [['Response', 'Percent'], ['Average Positive Response', data.positive], ['Average Negative Response', data.negative]])}
-            >
-              <Download className="size-[18px]" />
-            </button>
-            <DashboardBars positive={data.positive} negative={data.negative} />
-            <button
-              className="absolute bottom-4 right-4 grid size-6 place-items-center rounded-full border-2 border-violet-500 text-xs font-semibold text-violet-600"
-              aria-label="Help"
-              aria-expanded={helpOpen}
-              onClick={() => setHelpOpen((open) => !open)}
-            >
-              ?
-            </button>
-            {helpOpen ? (
-              <div className="absolute bottom-12 right-4 z-10 w-[360px] rounded-lg border border-zinc-200 bg-white p-4 text-[12px] leading-5 text-zinc-600 shadow-xl" role="tooltip">
-                <p>The Average Positive Response is the average percentage of agreement among your survey population. It averages each survey question to arrive at an overall average percentage for the entire survey.</p>
-                <p className="mt-2">The Average Negative Response is the average percentage of disagreement among your population.</p>
-                <p className="mt-2"><strong>Note:</strong> These percentages will not always add to 100 as they do not account for respondents who selected a neutral response.</p>
-              </div>
-            ) : null}
-          </Card>
+          <div ref={responseChartRef}>
+            <Card className="relative h-[727px] p-4">
+              <h2 className="max-w-[317px] pr-8 text-[16px] font-semibold leading-6">Average Positive and Average Negative Response</h2>
+              <p className="mt-2 text-[14px] leading-5 text-zinc-500">Survey data collected via paper and online methods {data.dates}</p>
+              <ImageDownloadMenu
+                className="absolute right-4 top-4"
+                iconOnly
+                name="Average Positive and Average Negative Response"
+                targetRef={responseChartRef}
+              />
+              <DashboardBars positive={data.positive} negative={data.negative} />
+              <button
+                className="absolute bottom-4 right-4 grid size-6 place-items-center rounded-full border-2 border-violet-500 text-xs font-semibold text-violet-600"
+                aria-label="Help"
+                aria-expanded={helpOpen}
+                onClick={() => setHelpOpen((open) => !open)}
+              >
+                ?
+              </button>
+              {helpOpen ? (
+                <div className="absolute bottom-12 right-4 z-10 w-[360px] rounded-lg border border-zinc-200 bg-white p-4 text-[12px] leading-5 text-zinc-600 shadow-xl" role="tooltip">
+                  <p>The Average Positive Response is the average percentage of agreement among your survey population. It averages each survey question to arrive at an overall average percentage for the entire survey.</p>
+                  <p className="mt-2">The Average Negative Response is the average percentage of disagreement among your population.</p>
+                  <p className="mt-2"><strong>Note:</strong> These percentages will not always add to 100 as they do not account for respondents who selected a neutral response.</p>
+                </div>
+              ) : null}
+            </Card>
+          </div>
 
           <div className="grid gap-3">
-            <section className="relative h-[166px] rounded-[20px] bg-slate-100 p-3">
+            <section className="relative h-[166px] rounded-[20px] bg-slate-100 p-3" ref={responseRateRef}>
               <h2 className="text-[16px] font-semibold">Response Rate Overview</h2>
-              <button
-                className="absolute right-3 top-3 rounded-md p-1 text-zinc-500 hover:bg-white"
-                aria-label="Download response rate overview"
-                onClick={() => downloadDashboardData(`response-rate-${selectedYear}.csv`, [['Metric', 'Value'], ['# of Surveys Completed', data.completed], ['# of Surveys Sent', data.sent], ['Response Rate', `${data.rate}%`]])}
-              >
-                <Download className="size-[18px]" />
-              </button>
+              <ImageDownloadMenu
+                className="absolute right-3 top-3"
+                iconOnly
+                name="Response Rate Overview"
+                targetRef={responseRateRef}
+              />
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {[
                   ['# of Surveys Completed', String(data.completed)],
@@ -260,15 +252,15 @@ export function DashboardPage() {
                 ))}
               </div>
             </section>
+            <div ref={statementsRef}>
             <Card className="relative h-[549px] p-4">
               <h2 className="pr-8 text-[15px] font-semibold">What are your employees saying?</h2>
-              <button
-                className="absolute right-3 top-3 rounded-md p-1 text-zinc-500 hover:bg-zinc-100"
-                aria-label="Download employee statements"
-                onClick={() => downloadDashboardData(`employee-statements-${selectedYear}.csv`, [['Rating', 'Statement', 'Agreement'], ...data.top.map((item) => ['Top', item[0], `${item[1]}%`]), ...data.bottom.map((item) => ['Bottom', item[0], `${item[1]}%`])])}
-              >
-                <Download className="size-[18px]" />
-              </button>
+              <ImageDownloadMenu
+                className="absolute right-3 top-3"
+                iconOnly
+                name="What are your employees saying"
+                targetRef={statementsRef}
+              />
               <div className="mt-2 grid grid-cols-2 gap-3 text-center text-[12px] text-zinc-700">
                 <p className="whitespace-nowrap">Top Three Rated Survey Statements</p>
                 <p className="whitespace-nowrap">Bottom Three Rated Survey Statements</p>
@@ -296,6 +288,7 @@ export function DashboardPage() {
                 <p>If your organization has a tie of four or more lowest rated statements, the bottom three are selected in the order they appear on the survey</p>
               </div>
             </Card>
+            </div>
           </div>
         </div>
 
@@ -389,10 +382,7 @@ export function WorkforceFeedbackPage() {
               <h2 className="text-lg font-semibold">Total Number of Survey Responses by Demographic Category</h2>
               <Button
                 className="gap-2"
-                onClick={() => downloadDashboardData(
-                  'employee-response-breakdown-demo.csv',
-                  [['Demographic', 'Value', 'Responses'], ...report.data.flatMap((item) => item.values.map((value) => [item.category, value.label, value.count]))],
-                )}
+                onClick={() => void api.reports.downloadFeedbackWorkbook(program?.id ?? '')}
               >
                 <Download className="size-4" /> Download Report
               </Button>

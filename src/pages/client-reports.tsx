@@ -12,12 +12,12 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { toJpeg, toPng, toSvg } from "html-to-image";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { routeMap } from "../app/metadata";
+import { ImageDownloadMenu } from "../components/image-download-menu";
 import { Button, Card, PageHeader, StatePanel, cn } from "../components/ui";
 import { useAppStore, useSelectedProgram } from "../store/app-store";
 
@@ -71,44 +71,6 @@ function useCategoryResults() {
       : [],
     programId: program?.id,
   };
-}
-
-type DownloadFormat = "jpg" | "png" | "svg";
-
-async function downloadElement(
-  element: HTMLElement | null,
-  filename: string,
-  format: DownloadFormat,
-) {
-  if (!element) return;
-  const options = {
-    cacheBust: true,
-    pixelRatio: 2,
-    backgroundColor: "#ffffff",
-    skipFonts: true,
-    // html-to-image types filter nodes as HTMLElement, but it walks childNodes
-    // and also passes Text/Comment nodes that have no classList.
-    filter: (node: HTMLElement) => {
-      if (node === element) return true;
-      const domNode: Node = node;
-      return !(
-        domNode instanceof Element &&
-        domNode.classList.contains("download-exclude")
-      );
-    },
-  };
-  const dataUrl =
-    format === "svg"
-      ? await toSvg(element, options)
-      : format === "jpg"
-        ? await toJpeg(element, { ...options, quality: 0.95 })
-        : await toPng(element, options);
-  const anchor = document.createElement("a");
-  anchor.download = `${filename}.${format}`;
-  anchor.href = dataUrl;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
 }
 
 const responseQuestions = [
@@ -273,100 +235,6 @@ function DownloadReportButton({
     >
       <Download className="size-4" /> {downloading ? "Preparing…" : label}
     </Button>
-  );
-}
-
-function ImageDownloadMenu({
-  targetRef,
-  name,
-  label = "Download Report",
-  iconOnly = false,
-  disabled = false,
-  onDownloadXlsx,
-}: {
-  targetRef: { current: HTMLElement | null };
-  name: string;
-  label?: string;
-  iconOnly?: boolean;
-  disabled?: boolean;
-  onDownloadXlsx?: () => Promise<void>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-
-  async function download(format: DownloadFormat) {
-    setOpen(false);
-    setDownloading(true);
-    try {
-      await downloadElement(targetRef.current, name, format);
-    } finally {
-      setDownloading(false);
-    }
-  }
-
-  return (
-    <div
-      className="download-exclude relative"
-      onClick={(event) => event.stopPropagation()}
-    >
-      {iconOnly ? (
-        <button
-          aria-label={`Download ${name}`}
-          className="p-1 text-zinc-500 hover:text-zinc-900 disabled:opacity-50"
-          disabled={disabled || downloading}
-          onClick={() => setOpen((value) => !value)}
-          type="button"
-        >
-          <Download className="size-4" />
-        </button>
-      ) : (
-        <Button
-          className="gap-2 rounded-md"
-          disabled={disabled || downloading}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <Download className="size-4" /> {downloading ? "Preparing…" : label}
-        </Button>
-      )}
-      {open ? (
-        <div className="absolute right-0 top-full z-30 mt-2 w-44 rounded-lg border border-zinc-200 bg-white p-1 shadow-xl">
-          <button
-            className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-100"
-            onClick={() => void download("png")}
-            type="button"
-          >
-            Download as PNG
-          </button>
-          <button
-            className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-100"
-            onClick={() => void download("jpg")}
-            type="button"
-          >
-            Download as JPG
-          </button>
-          <button
-            className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-100"
-            onClick={() => void download("svg")}
-            type="button"
-          >
-            Download as SVG
-          </button>
-          {onDownloadXlsx ? (
-            <button
-              className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-100"
-              onClick={() => {
-                setOpen(false);
-                setDownloading(true);
-                void onDownloadXlsx().finally(() => setDownloading(false));
-              }}
-              type="button"
-            >
-              Download report as XLSX
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -897,6 +765,9 @@ function DonutScore({
 
 export function AnnualTrendsPage() {
   const program = useSelectedProgram();
+  const surveyAverageRef = useRef<HTMLDivElement>(null);
+  const categoryTrendsRef = useRef<HTMLDivElement>(null);
+  const questionTrendsRef = useRef<HTMLDivElement>(null);
   const [selectedCategory, setSelectedCategory] = useState(
     "Core Employee Experience",
   );
@@ -964,26 +835,26 @@ export function AnnualTrendsPage() {
         >
           <Download className="size-4" /> Download Report
         </Button>
-        <Card className="relative mt-6 overflow-hidden p-5 shadow-none">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Survey Average</h2>
-            <button
-              aria-label="Download survey average"
-              className="p-1 text-zinc-500"
-              onClick={() => void api.reports.downloadAnnualWorkbook(program?.id ?? "")}
-            >
-              <Download className="size-4" />
-            </button>
-          </div>
-          <div className="mt-3 grid lg:grid-cols-2 lg:divide-x lg:divide-zinc-200">
-            <DonutScore
-              delta={currentAverage - previousAverage}
-              value={currentAverage}
-              year={Number(currentYear)}
-            />
-            <DonutScore value={previousAverage} year={Number(previousYear)} />
-          </div>
-        </Card>
+        <div className="mt-6" ref={surveyAverageRef}>
+          <Card className="relative overflow-hidden p-5 shadow-none">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Survey Average</h2>
+              <ImageDownloadMenu
+                iconOnly
+                name="Survey Average"
+                targetRef={surveyAverageRef}
+              />
+            </div>
+            <div className="mt-3 grid lg:grid-cols-2 lg:divide-x lg:divide-zinc-200">
+              <DonutScore
+                delta={currentAverage - previousAverage}
+                value={currentAverage}
+                year={Number(currentYear)}
+              />
+              <DonutScore value={previousAverage} year={Number(previousYear)} />
+            </div>
+          </Card>
+        </div>
         {categories.isPending ? (
           <StatePanel
             kind="loading"
@@ -1015,69 +886,85 @@ export function AnnualTrendsPage() {
                 </button>
               ))}
             </div>
-            <Card className="mt-4 p-5 shadow-none">
-              <h2 className="font-semibold">{selectedCategory}</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {[currentSnapshot, previousSnapshot].map((yearSnapshot, index) => {
-                  const year = index === 0 ? currentYear : previousYear;
-                  return (
-                    <div className="rounded-xl bg-zinc-50 p-5" key={year}>
-                      <h3 className="font-semibold">{year}</h3>
-                      <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                        <span>{percentage(yearSnapshot, "Agree")}% Agreement</span>
-                        <span>{percentage(yearSnapshot, "Neutral")}% Neutral</span>
-                        <span>{percentage(yearSnapshot, "Disagree")}% Disagreement</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-            <Card className="mt-4 overflow-hidden shadow-none">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-5">
-                <h2 className="font-semibold">Question trends</h2>
-                <div className="flex gap-2">
-                  {(["Agree", "Neutral", "Disagree"] as const).map((item) => (
-                    <button
-                      className={cn(
-                        "rounded-full px-3 py-1 text-xs font-semibold",
-                        metric === item
-                          ? "bg-violet-600 text-white"
-                          : "bg-zinc-100 text-zinc-600",
-                      )}
-                      key={item}
-                      onClick={() => setMetric(item)}
-                      type="button"
-                    >
-                      {item === "Agree" ? "Agreement" : item === "Disagree" ? "Disagreement" : item}
-                    </button>
-                  ))}
+            <div className="mt-4" ref={categoryTrendsRef}>
+              <Card className="p-5 shadow-none">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-semibold">{selectedCategory}</h2>
+                  <ImageDownloadMenu
+                    iconOnly
+                    name={`${selectedCategory} annual trends`}
+                    targetRef={categoryTrendsRef}
+                  />
                 </div>
-              </div>
-              {details.isPending ? (
-                <p className="p-5 text-sm text-zinc-500">Loading question trends…</p>
-              ) : details.data?.data.length ? (
-                <div className="divide-y divide-zinc-100">
-                  {details.data.data.map((question) => {
-                    const valueFor = (year: string) => {
-                      const yearData = (question as Record<string, unknown>)[year];
-                      if (!yearData || typeof yearData !== "object" || !("responses" in yearData)) return null;
-                      const responses = (yearData as { responses: { ResponseCaption: string; percentage: number }[] }).responses;
-                      return responses.find((response) => response.ResponseCaption === metric)?.percentage ?? 0;
-                    };
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  {[currentSnapshot, previousSnapshot].map((yearSnapshot, index) => {
+                    const year = index === 0 ? currentYear : previousYear;
                     return (
-                      <div className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_80px_80px]" key={question.questionId}>
-                        <span>{question.question}</span>
-                        <span className="font-semibold">{valueFor(currentYear)}%</span>
-                        <span className="font-semibold text-zinc-500">{valueFor(previousYear) ?? "—"}{valueFor(previousYear) === null ? "" : "%"}</span>
+                      <div className="rounded-xl bg-zinc-50 p-5" key={year}>
+                        <h3 className="font-semibold">{year}</h3>
+                        <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                          <span>{percentage(yearSnapshot, "Agree")}% Agreement</span>
+                          <span>{percentage(yearSnapshot, "Neutral")}% Neutral</span>
+                          <span>{percentage(yearSnapshot, "Disagree")}% Disagreement</span>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              ) : (
-                <p className="p-5 text-sm text-zinc-500">No question-level comparison is available for this category.</p>
-              )}
-            </Card>
+              </Card>
+            </div>
+            <div className="mt-4" ref={questionTrendsRef}>
+              <Card className="shadow-none">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-5">
+                  <h2 className="font-semibold">Question trends</h2>
+                  <div className="flex items-center gap-2">
+                    {(["Agree", "Neutral", "Disagree"] as const).map((item) => (
+                      <button
+                        className={cn(
+                          "rounded-full px-3 py-1 text-xs font-semibold",
+                          metric === item
+                            ? "bg-violet-600 text-white"
+                            : "bg-zinc-100 text-zinc-600",
+                        )}
+                        key={item}
+                        onClick={() => setMetric(item)}
+                        type="button"
+                      >
+                        {item === "Agree" ? "Agreement" : item === "Disagree" ? "Disagreement" : item}
+                      </button>
+                    ))}
+                    <ImageDownloadMenu
+                      iconOnly
+                      name={`${selectedCategory} question trends`}
+                      targetRef={questionTrendsRef}
+                    />
+                  </div>
+                </div>
+                {details.isPending ? (
+                  <p className="p-5 text-sm text-zinc-500">Loading question trends…</p>
+                ) : details.data?.data.length ? (
+                  <div className="divide-y divide-zinc-100">
+                    {details.data.data.map((question) => {
+                      const valueFor = (year: string) => {
+                        const yearData = (question as Record<string, unknown>)[year];
+                        if (!yearData || typeof yearData !== "object" || !("responses" in yearData)) return null;
+                        const responses = (yearData as { responses: { ResponseCaption: string; percentage: number }[] }).responses;
+                        return responses.find((response) => response.ResponseCaption === metric)?.percentage ?? 0;
+                      };
+                      return (
+                        <div className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_80px_80px]" key={question.questionId}>
+                          <span>{question.question}</span>
+                          <span className="font-semibold">{valueFor(currentYear)}%</span>
+                          <span className="font-semibold text-zinc-500">{valueFor(previousYear) ?? "—"}{valueFor(previousYear) === null ? "" : "%"}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="p-5 text-sm text-zinc-500">No question-level comparison is available for this category.</p>
+                )}
+              </Card>
+            </div>
           </>
         )}
       </div>
@@ -1275,8 +1162,10 @@ function BenchmarkCategoryCard({
   onSelect: () => void;
 }) {
   const values = winnerValues(category);
+  const cardRef = useRef<HTMLElement>(null);
   return (
     <section
+      ref={cardRef}
       aria-expanded={selected}
       className={cn(
         "relative flex min-h-[390px] cursor-pointer flex-col rounded-2xl border p-5 shadow-none transition",
@@ -1296,16 +1185,11 @@ function BenchmarkCategoryCard({
     >
       <div className="flex items-start justify-between gap-4">
         <h2 className="max-w-[350px] text-[15px] font-semibold">{category.title}</h2>
-        <button
-          aria-label={`Download ${category.title}`}
-          className="download-exclude rounded p-1 text-zinc-500 hover:bg-white"
-          onClick={(event) => {
-            event.stopPropagation();
-            downloadText(`${category.title}-benchmark.txt`, values.map((value, index) => `${benchmarkEmployerLabels[index]} Winners: ${value}%`));
-          }}
-        >
-          <Download className="size-4" />
-        </button>
+        <ImageDownloadMenu
+          iconOnly
+          name={category.title}
+          targetRef={cardRef}
+        />
       </div>
       <div className="mt-6 flex flex-1 items-end gap-2">
         {values.map((value, index) => (
@@ -1523,21 +1407,20 @@ function ComparisonQuestionDetails({
   loading: boolean;
   onClose: () => void;
 }) {
+  const detailRef = useRef<HTMLElement>(null);
   return (
-    <section className="border-t border-zinc-200 bg-white">
+    <section className="border-t border-zinc-200 bg-white" ref={detailRef}>
       <div className="flex items-center justify-between gap-4 px-5 py-5">
         <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-zinc-700">
           <span className="flex items-center gap-2"><i className="size-2.5 rounded-sm bg-violet-900" />Your Results</span>
           <span className="flex items-center gap-2"><i className="size-2.5 rounded-sm bg-violet-400" />{compareLabel}</span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            aria-label={`Download ${title} comparison details`}
-            className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
-            onClick={() => downloadText(`${title}-comparison-details.txt`, rows.flatMap((row) => [row.question, `Your Results: ${row.currentOrg}%`, `${compareLabel}: ${row.otherOrg}%`, ""]))}
-          >
-            <Download className="size-4" />
-          </button>
+          <ImageDownloadMenu
+            iconOnly
+            name={`${title} comparison details`}
+            targetRef={detailRef}
+          />
           <button aria-label="Close chart" className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" onClick={onClose}>
             <X className="size-4" />
           </button>
@@ -1576,6 +1459,61 @@ function ComparisonQuestionDetails({
         </div>
       )}
     </section>
+  );
+}
+
+function ComparisonCategoryCard({
+  title,
+  benchmark,
+  active,
+  selected,
+  onToggle,
+  details,
+}: {
+  title: string;
+  benchmark: number;
+  active: number;
+  selected: boolean;
+  onToggle: () => void;
+  details: UseQueryResult<Awaited<ReturnType<typeof api.reports.comparisonQuestions>>>;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  return (
+    <div ref={cardRef}>
+      <Card className={cn("shadow-none transition", selected && "border-violet-300 shadow-md")}>
+        <div
+          aria-expanded={selected}
+          className={cn("cursor-pointer transition", selected && "bg-violet-50")}
+          onClick={onToggle}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onToggle();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+            <h2 className="font-semibold">{title}</h2>
+            <ImageDownloadMenu iconOnly name={title} targetRef={cardRef} />
+          </div>
+          <div className="grid gap-8 p-7 md:grid-cols-2 md:divide-x md:divide-zinc-200">
+            <AgreementDonut label="Your Results" value={cohenComparisonValues[title] ?? 0} />
+            <div className="md:pl-8"><AgreementDonut label={comparisonTabs[active] ?? "All Winners"} value={benchmark} /></div>
+          </div>
+        </div>
+        {selected ? (
+          <ComparisonQuestionDetails
+            compareLabel={comparisonTabs[active] ?? "All Winners"}
+            loading={details.isLoading}
+            onClose={onToggle}
+            rows={details.data?.data.questionResponse ?? []}
+            title={title}
+          />
+        ) : null}
+      </Card>
+    </div>
   );
 }
 
@@ -1643,48 +1581,15 @@ export function ComparisonDataPage() {
             const benchmark = benchmarkCategoryValues[title]?.[active] ?? (title === "Supplementary Questions" ? 0 : 88 - active);
             const selected = selectedCategory === title;
             return (
-              <Card className={cn("overflow-hidden shadow-none transition", selected && "border-violet-300 shadow-md")} key={title}>
-                <div
-                  aria-expanded={selected}
-                  className={cn("cursor-pointer transition", selected && "bg-violet-50")}
-                  onClick={() => setSelectedCategory((current) => current === title ? null : title)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setSelectedCategory((current) => current === title ? null : title);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
-                    <h2 className="font-semibold">{title}</h2>
-                    <button
-                      aria-label={`Download ${title}`}
-                      className="rounded p-1 text-zinc-400 hover:bg-white"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        downloadText(`${title}-comparison.txt`, [`Your Results: ${cohenComparisonValues[title] ?? 0}%`, `${comparisonTabs[active] ?? "All Winners"}: ${benchmark}%`]);
-                      }}
-                    >
-                      <Download className="size-4" />
-                    </button>
-                  </div>
-                  <div className="grid gap-8 p-7 md:grid-cols-2 md:divide-x md:divide-zinc-200">
-                    <AgreementDonut label="Your Results" value={cohenComparisonValues[title] ?? 0} />
-                    <div className="md:pl-8"><AgreementDonut label={comparisonTabs[active] ?? "All Winners"} value={benchmark} /></div>
-                  </div>
-                </div>
-                {selected ? (
-                  <ComparisonQuestionDetails
-                    compareLabel={comparisonTabs[active] ?? "All Winners"}
-                    loading={details.isLoading}
-                    onClose={() => setSelectedCategory(null)}
-                    rows={details.data?.data.questionResponse ?? []}
-                    title={title}
-                  />
-                ) : null}
-              </Card>
+              <ComparisonCategoryCard
+                active={active}
+                benchmark={benchmark}
+                details={details}
+                key={title}
+                onToggle={() => setSelectedCategory((current) => current === title ? null : title)}
+                selected={selected}
+                title={title}
+              />
             );
           })}
         </div>

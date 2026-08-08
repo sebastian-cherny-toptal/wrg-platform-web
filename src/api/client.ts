@@ -333,8 +333,15 @@ export const api = {
       ),
     downloadDetailedWorkbook: (programId: string) =>
       downloadRequest(
-        `/client/generateHeatMapDetailed?selectedProgramId=${encodeURIComponent(programId)}`,
-        "Employee_Feedback_Detailed.xlsx",
+        `/client/generateHeatMap?selectedProgramId=${encodeURIComponent(programId)}`,
+        "Workforce_Feedback_Results.xlsx",
+        "POST",
+      ),
+    downloadFeedbackWorkbook: (programId: string) =>
+      downloadRequest(
+        `/client/generateHeatMap?selectedProgramId=${encodeURIComponent(programId)}`,
+        "Workforce_Feedback_Results.xlsx",
+        "POST",
       ),
     downloadResponsePatternsWorkbook: (
       programId: string,
