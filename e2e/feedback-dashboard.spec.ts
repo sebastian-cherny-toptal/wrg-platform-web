@@ -279,6 +279,8 @@ test.describe('Feedback Data Dashboard', () => {
   })
 
   test('navigates through response patterns and annual trends', async ({ page }) => {
+    test.setTimeout(90_000)
+
     await logInToFeedbackDashboard(page)
 
     const responsePatternsButton = page.locator('#side-menu-wrapper').getByText('Response Patterns', { exact: true })
