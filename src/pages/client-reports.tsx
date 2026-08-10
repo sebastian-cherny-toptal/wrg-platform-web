@@ -13,9 +13,15 @@ import {
   XCircle,
 } from "lucide-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { api, type ResponsePatternRanges } from "../api/client";
+import {
+  api,
+  type ReportQueryFilter,
+  type ResponsePatternRanges,
+  type SurveyFilter,
+} from "../api/client";
 import { routeMap } from "../app/metadata";
 import { ImageDownloadMenu } from "../components/image-download-menu";
 import { Button, Card, PageHeader, StatePanel, cn } from "../components/ui";
@@ -57,11 +63,19 @@ function categoryResultsFromResponse(
   );
 }
 
-function useCategoryResults() {
+function useCategoryResults(queryFilter: ReportQueryFilter = {}) {
   const program = useSelectedProgram();
   const report = useQuery({
-    queryKey: ["employee-response-breakdown-by-section", program?.id],
-    queryFn: () => api.reports.responseBreakdownBySection(program?.id ?? ""),
+    queryKey: [
+      "employee-response-breakdown-by-section",
+      program?.id,
+      queryFilter,
+    ],
+    queryFn: () =>
+      api.reports.responseBreakdownBySection(
+        program?.id ?? "",
+        queryFilter,
+      ),
     enabled: Boolean(program),
   });
   return {
@@ -235,6 +249,310 @@ function DownloadReportButton({
     >
       <Download className="size-4" /> {downloading ? "Preparing…" : label}
     </Button>
+  );
+}
+
+type SelectedFilter = SurveyFilter["options"][number] & {
+  questionId: string;
+};
+
+function selectedFilterKey(filter: SelectedFilter) {
+  return JSON.stringify([filter.questionId, filter.label]);
+}
+
+function useMobileFilterLayout() {
+  const [mobile, setMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 1024,
+  );
+
+  useEffect(() => {
+    const update = () => setMobile(window.innerWidth < 1024);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  return mobile;
+}
+
+export function DetailedResultsFilters({
+  filters,
+  selectedFilters,
+  loading,
+  error,
+  onToggle,
+}: {
+  filters: SurveyFilter[];
+  selectedFilters: SelectedFilter[];
+  loading: boolean;
+  error?: string | undefined;
+  onToggle: (filter: SelectedFilter) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<number | null>(null);
+  const [openMobileCategories, setOpenMobileCategories] = useState<string[]>([]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const mobile = useMobileFilterLayout();
+  const selectedKeys = new Set(selectedFilters.map(selectedFilterKey));
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    if (!mobile) document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobile, open]);
+
+  const activeFilter =
+    activeCategory === null ? undefined : filters[activeCategory];
+
+  return (
+    <div className="relative w-full lg:w-auto" ref={rootRef}>
+      <Button
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`Filters${selectedFilters.length ? ` (${selectedFilters.length})` : ""}`}
+        className="w-full gap-2 lg:w-auto"
+        onClick={() => setOpen((value) => !value)}
+        variant="secondary"
+      >
+        <Filter className="size-4" /> Filters
+        {selectedFilters.length ? (
+          <span className="text-violet-600">({selectedFilters.length})</span>
+        ) : null}
+      </Button>
+      {open && !mobile ? (
+        <div
+          aria-label="Detailed results filters"
+          className="absolute left-0 top-12 z-40 flex w-[min(900px,calc(100vw-4rem))] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl"
+          role="dialog"
+        >
+          <div className="w-64 shrink-0 border-r border-zinc-200 py-2">
+            {loading ? (
+              <p className="px-4 py-3 text-sm text-zinc-500">
+                Loading filters…
+              </p>
+            ) : error ? (
+              <p className="px-4 py-3 text-sm text-red-600" role="alert">
+                {error}
+              </p>
+            ) : (
+              filters.map((filter, index) => (
+                <button
+                  aria-pressed={activeCategory === index}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-semibold transition-colors hover:bg-violet-50 hover:text-violet-600",
+                    activeCategory === index &&
+                      "bg-violet-50 text-violet-600",
+                  )}
+                  key={filter.questionId}
+                  onClick={() => setActiveCategory(index)}
+                  onMouseEnter={() => setActiveCategory(index)}
+                  type="button"
+                >
+                  {filter.label}
+                  <ChevronRight className="size-4 shrink-0" />
+                </button>
+              ))
+            )}
+          </div>
+          <div className="max-h-[450px] min-h-32 flex-1 overflow-y-auto py-2">
+            {activeFilter ? (
+              activeFilter.options.length ? (
+                activeFilter.options.map((option) => {
+                  const selection = {
+                    ...option,
+                    questionId: activeFilter.questionId,
+                  };
+                  const selected = selectedKeys.has(
+                    selectedFilterKey(selection),
+                  );
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className="group flex w-full items-center gap-3 px-5 py-2.5 text-left text-sm transition-colors hover:bg-zinc-50"
+                      key={option.label}
+                      onClick={() => onToggle(selection)}
+                      type="button"
+                    >
+                      <span
+                        className={cn(
+                          "grid size-4 shrink-0 place-items-center rounded border border-zinc-300",
+                          selected && "border-violet-600 bg-violet-600",
+                        )}
+                      >
+                        {selected ? (
+                          <Check className="size-3 text-white" />
+                        ) : null}
+                      </span>
+                      <span
+                        className={cn(
+                          selected && "font-bold text-violet-600",
+                        )}
+                      >
+                        {option.label}
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="px-5 py-4 text-sm italic text-zinc-400">
+                  No options available
+                </p>
+              )
+            ) : (
+              <div className="grid min-h-32 place-items-center px-5 text-center text-sm text-zinc-400">
+                <span>
+                  <Filter className="mx-auto mb-2 size-6 opacity-30" />
+                  Select a category to view filters
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+      {open && mobile
+        ? createPortal(
+            <div
+              aria-label="Detailed results filters"
+              aria-modal="true"
+              className="fixed inset-0 z-[100] flex flex-col bg-white"
+              role="dialog"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-5">
+                <div>
+                  <h2 className="text-xl font-semibold text-zinc-900">Filters</h2>
+                  {selectedFilters.length ? (
+                    <p className="mt-1 text-xs text-violet-600">
+                      {selectedFilters.length} selected
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  aria-label="Close filters"
+                  className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+                  onClick={() => setOpen(false)}
+                  type="button"
+                >
+                  <X className="size-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto pb-28">
+                {loading ? (
+                  <p className="px-6 py-5 text-sm text-zinc-500">
+                    Loading filters…
+                  </p>
+                ) : error ? (
+                  <p className="px-6 py-5 text-sm text-red-600" role="alert">
+                    {error}
+                  </p>
+                ) : filters.length ? (
+                  filters.map((filter) => {
+                    const expanded = openMobileCategories.includes(
+                      filter.questionId,
+                    );
+                    return (
+                      <section
+                        className="border-b border-zinc-200"
+                        key={filter.questionId}
+                      >
+                        <button
+                          aria-expanded={expanded}
+                          className="flex w-full items-center justify-between px-6 py-5 text-left font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
+                          onClick={() =>
+                            setOpenMobileCategories((current) =>
+                              expanded
+                                ? current.filter(
+                                    (questionId) =>
+                                      questionId !== filter.questionId,
+                                  )
+                                : [...current, filter.questionId],
+                            )
+                          }
+                          type="button"
+                        >
+                          <span>{filter.label}</span>
+                          {expanded ? (
+                            <ChevronDown className="size-5 rotate-180 text-zinc-500" />
+                          ) : (
+                            <ChevronDown className="size-5 text-zinc-500" />
+                          )}
+                        </button>
+                        {expanded ? (
+                          <div className="grid gap-1 px-3 pb-5">
+                            {filter.options.length ? (
+                              filter.options.map((option) => {
+                                const selection = {
+                                  ...option,
+                                  questionId: filter.questionId,
+                                };
+                                const selected = selectedKeys.has(
+                                  selectedFilterKey(selection),
+                                );
+                                return (
+                                  <button
+                                    aria-pressed={selected}
+                                    className={cn(
+                                      "flex w-full items-center gap-4 rounded-lg px-5 py-4 text-left text-sm transition-colors",
+                                      selected
+                                        ? "bg-violet-50 font-bold text-violet-600"
+                                        : "text-zinc-900 hover:bg-zinc-50",
+                                    )}
+                                    key={option.label}
+                                    onClick={() => onToggle(selection)}
+                                    type="button"
+                                  >
+                                    <span
+                                      className={cn(
+                                        "grid size-5 shrink-0 place-items-center rounded border border-zinc-300",
+                                        selected &&
+                                          "border-violet-600 bg-violet-600",
+                                      )}
+                                    >
+                                      {selected ? (
+                                        <Check className="size-3.5 text-white" />
+                                      ) : null}
+                                    </span>
+                                    <span>{option.label}</span>
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <p className="px-5 py-4 text-sm italic text-zinc-400">
+                                No options available
+                              </p>
+                            )}
+                          </div>
+                        ) : null}
+                      </section>
+                    );
+                  })
+                ) : (
+                  <p className="px-6 py-5 text-sm text-zinc-500">
+                    No filters available
+                  </p>
+                )}
+              </div>
+              <div className="absolute inset-x-0 bottom-0 border-t border-zinc-200 bg-white p-6 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+                <Button
+                  className="h-14 w-full rounded-xl text-base font-bold"
+                  onClick={() => setOpen(false)}
+                >
+                  Apply filters
+                </Button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
   );
 }
 
@@ -446,9 +764,52 @@ function DetailPanel({
 }
 
 export function DetailedResultsPage() {
-  const report = useCategoryResults();
+  const program = useSelectedProgram();
+  const [filterSelection, setFilterSelection] = useState<{
+    programId: string | undefined;
+    filters: SelectedFilter[];
+  }>({ programId: program?.id, filters: [] });
+  const selectedFilters = useMemo(
+    () =>
+      filterSelection.programId === program?.id
+        ? filterSelection.filters
+        : [],
+    [filterSelection, program?.id],
+  );
+  const queryFilter = useMemo<ReportQueryFilter>(() => {
+    const grouped = new Map<string, string[]>();
+    for (const filter of selectedFilters) {
+      grouped.set(filter.questionId, [
+        ...new Set([
+          ...(grouped.get(filter.questionId) ?? []),
+          ...filter.values,
+        ]),
+      ]);
+    }
+    return Object.fromEntries(grouped);
+  }, [selectedFilters]);
+  const report = useCategoryResults(queryFilter);
   const reportRef = useRef<HTMLDivElement>(null);
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
+  const filterOptions = useQuery({
+    queryKey: ["survey-filters", program?.id],
+    queryFn: () => api.reports.surveyFilters(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+
+  const toggleFilter = (selection: SelectedFilter) => {
+    const key = selectedFilterKey(selection);
+    setFilterSelection((current) => {
+      const filters =
+        current.programId === program?.id ? current.filters : [];
+      return {
+        programId: program?.id,
+        filters: filters.some((item) => selectedFilterKey(item) === key)
+          ? filters.filter((item) => selectedFilterKey(item) !== key)
+          : [...filters, selection],
+      };
+    });
+  };
   const selectedResult = report.categoryResults.find(
     (result) => result.title === selectedTitle,
   );
@@ -458,11 +819,13 @@ export function DetailedResultsPage() {
       report.programId,
       selectedResult?.title,
       selectedResult?.questionRange,
+      queryFilter,
     ],
     queryFn: () =>
       api.reports.responseBreakdown(
         report.programId ?? "",
         selectedResult?.questionRange ?? [],
+        queryFilter,
       ),
     enabled: Boolean(report.programId && selectedResult),
   });
@@ -473,17 +836,44 @@ export function DetailedResultsPage() {
         title="Detailed Results"
       />
       <div className="p-6">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <FilterButton />
+        <div className="mb-6 flex flex-col items-stretch justify-between gap-3 lg:flex-row lg:items-center">
+          <DetailedResultsFilters
+            error={filterOptions.isError ? filterOptions.error.message : undefined}
+            filters={filterOptions.data ?? []}
+            loading={filterOptions.isPending}
+            onToggle={toggleFilter}
+            selectedFilters={selectedFilters}
+          />
           <ImageDownloadMenu
             disabled={!report.data || report.isPending}
             name={`detailed-results-${report.programId ?? "demo"}`}
             onDownloadXlsx={() =>
-              api.reports.downloadDetailedWorkbook(report.programId ?? "")
+              api.reports.downloadDetailedWorkbook(
+                report.programId ?? "",
+                queryFilter,
+              )
             }
             targetRef={reportRef}
           />
         </div>
+        {selectedFilters.length ? (
+          <div className="mb-6 flex flex-wrap items-center gap-3 border-b border-zinc-200 pb-4">
+            <span className="text-sm font-semibold text-zinc-900">
+              {selectedFilters.length}
+            </span>
+            <span className="text-sm text-zinc-500">filters applied</span>
+            <span className="h-4 w-px bg-zinc-200" />
+            <button
+              className="rounded-md bg-zinc-100 px-4 py-2 text-sm text-zinc-900 transition-colors hover:bg-zinc-200"
+              onClick={() =>
+                setFilterSelection({ programId: program?.id, filters: [] })
+              }
+              type="button"
+            >
+              Clear all filters
+            </button>
+          </div>
+        ) : null}
         <div ref={reportRef}>
           {report.isPending ? (
             <StatePanel

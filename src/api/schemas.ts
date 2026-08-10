@@ -69,6 +69,27 @@ export const demographicResponseSchema = z.object({
   ),
 });
 
+const surveyFilterOptionSchema = z.object({
+  Caption: z.string(),
+  ResponseId: z.union([z.string(), z.number()]).optional(),
+});
+
+export const surveyFiltersResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.array(
+    z.object({
+      QuestionId: z.union([z.number().int(), z.string()]),
+      filterLabel: z.string(),
+      type: z.string().optional(),
+      filterOption: z.union([
+        z.array(surveyFilterOptionSchema),
+        z.record(z.string(), z.array(z.string())),
+      ]),
+    }),
+  ),
+});
+
 const sectionResponseSchema = z.object({
   ResponseCaption: z.enum(["Agree", "Neutral", "Disagree"]),
   numberOfResponses: z.number().int().nonnegative(),

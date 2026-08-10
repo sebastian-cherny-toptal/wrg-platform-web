@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { http, HttpResponse } from 'msw'
 import { api, responsePatternsPath } from './client'
+import { server } from '../test/setup'
 
 describe('fixture session persistence', () => {
   beforeEach(() => {
@@ -52,5 +54,75 @@ describe('response-pattern report requests', () => {
     expect(url.searchParams.get('positiveMin')).toBe('80')
     expect(url.searchParams.get('positiveMax')).toBe('100')
     expect(url.searchParams.has('isPreview')).toBe(false)
+  })
+})
+
+describe('detailed-results filter requests', () => {
+  it('normalizes standard and grouped survey filter options', async () => {
+    server.use(
+      http.get('http://localhost:3000/client/fetchSurveyFilter', () =>
+        HttpResponse.json({
+          success: true,
+          message: 'success',
+          data: [
+            {
+              QuestionId: 214,
+              filterLabel: 'Department',
+              filterOption: [{ Caption: 'Finance', ResponseId: 1 }],
+            },
+            {
+              QuestionId: 'age-generation',
+              filterLabel: 'Age Generation',
+              filterOption: {
+                'Generation X': ['Born 1965 to 1980'],
+              },
+            },
+          ],
+        }),
+      ),
+    )
+
+    await expect(api.reports.surveyFilters('program')).resolves.toEqual([
+      {
+        questionId: '214',
+        label: 'Department',
+        options: [{ label: 'Finance', values: ['Finance'] }],
+      },
+      {
+        questionId: 'age-generation',
+        label: 'Age Generation',
+        options: [
+          { label: 'Generation X', values: ['Born 1965 to 1980'] },
+        ],
+      },
+    ])
+  })
+
+  it('sends selected values as queryFilter when refreshing results', async () => {
+    let requestBody: unknown
+    server.use(
+      http.post(
+        'http://localhost:3000/client/employeeResponseBreakdownBySection',
+        async ({ request }) => {
+          requestBody = await request.json()
+          return HttpResponse.json({
+            success: true,
+            message: 'success',
+            isConfidential: false,
+            data: [],
+          })
+        },
+      ),
+    )
+
+    await api.reports.responseBreakdownBySection('program', {
+      'department-question': ['Finance', 'Human Resources'],
+    })
+
+    expect(requestBody).toEqual({
+      queryFilter: {
+        'department-question': ['Finance', 'Human Resources'],
+      },
+    })
   })
 })

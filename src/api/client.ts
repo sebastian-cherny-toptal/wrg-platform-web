@@ -14,6 +14,7 @@ import {
   reportProductSchema,
   roleSchema,
   sessionSchema,
+  surveyFiltersResponseSchema,
   syncJobSchema,
   workforceComparisonSchema,
   type LoginResult,
@@ -33,6 +34,14 @@ export type ResponsePatternRanges = {
   positive?: [number, number];
   neutral?: [number, number];
   negative?: [number, number];
+};
+
+export type ReportQueryFilter = Record<string, string[]>;
+
+export type SurveyFilter = {
+  questionId: string;
+  label: string;
+  options: { label: string; values: string[] }[];
 };
 
 const env = {
@@ -207,6 +216,27 @@ async function responseCountByDemographic(programId: string) {
   }));
 }
 
+async function surveyFilters(programId: string): Promise<SurveyFilter[]> {
+  const response = await request(
+    `/client/fetchSurveyFilter?selectedProgramId=${encodeURIComponent(programId)}`,
+    { schema: surveyFiltersResponseSchema },
+  );
+
+  return response.data.map((filter) => ({
+    questionId: String(filter.QuestionId),
+    label: filter.filterLabel,
+    options: Array.isArray(filter.filterOption)
+      ? filter.filterOption.map((option) => ({
+          label: option.Caption,
+          values: [option.Caption],
+        }))
+      : Object.entries(filter.filterOption).map(([label, values]) => ({
+          label,
+          values,
+        })),
+  }));
+}
+
 function fixtureSession(kind: "client" | "admin"): LoginResult {
   return {
     status: "authenticated",
@@ -296,25 +326,33 @@ export const api = {
   },
   reports: {
     demographics: (programId: string) => responseCountByDemographic(programId),
+    surveyFilters,
     catalog: () =>
       env.fixturesEnabled
         ? fixture(products)
         : request("/reports/catalog", { schema: z.array(reportProductSchema) }),
-    responseBreakdownBySection: (programId: string) =>
+    responseBreakdownBySection: (
+      programId: string,
+      queryFilter: ReportQueryFilter = {},
+    ) =>
       request(
         `/client/employeeResponseBreakdownBySection?selectedProgramId=${encodeURIComponent(programId)}&fullReport=false`,
         {
           method: "POST",
-          body: {},
+          body: { queryFilter },
           schema: employeeResponseBreakdownBySectionSchema,
         },
       ),
-    responseBreakdown: (programId: string, questionRange: string[]) =>
+    responseBreakdown: (
+      programId: string,
+      questionRange: string[],
+      queryFilter: ReportQueryFilter = {},
+    ) =>
       request(
         `/client/employeeResponseBreakdown?selectedProgramId=${encodeURIComponent(programId)}&fullReport=false`,
         {
           method: "POST",
-          body: { questionRange },
+          body: { questionRange, queryFilter },
           schema: employeeResponseBreakdownSchema,
         },
       ),
@@ -364,9 +402,16 @@ export const api = {
           schema: annualDetailsSchema,
         },
       ),
-    downloadDetailedWorkbook: (programId: string) =>
+    downloadDetailedWorkbook: (
+      programId: string,
+      queryFilter: ReportQueryFilter = {},
+    ) =>
       downloadRequest(
-        `/client/generateHeatMap?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/generateHeatMap?selectedProgramId=${encodeURIComponent(programId)}${
+          Object.keys(queryFilter).length
+            ? `&queryFilter=${encodeURIComponent(JSON.stringify(queryFilter))}`
+            : ""
+        }`,
         "Workforce_Feedback_Results.xlsx",
         "POST",
       ),
