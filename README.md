@@ -1,49 +1,65 @@
-# WRG Platform Web
+# WRG Platform frontends
 
-First-version React frontend for Workforce Research Group. It replaces the legacy CRA/React Router 5 shell with a strict TypeScript, Vite, React Router, TanStack Query, Zustand, Zod, and Tailwind stack.
+One npm-workspaces repository containing two independently deployed web applications:
+
+- `apps/client`: the client Feedback Data Dashboard.
+- `apps/admin`: the administrator application.
+- `packages/ui`: deliberately small shared presentation layer (currently WRG branding and login artwork).
+- `deploy`: shared static-server configuration.
+
+The applications share source control and selected visual assets, but not routing, authentication state, deployment services, domains, or release workflows. Admin pages and admin API clients must remain in `apps/admin`; `apps/client` only owns the short-lived `/admin-preview` exchange used when an administrator opens a client dashboard.
 
 ## Local development
 
-Requirements: Node 22.13+ and npm 10+.
+Requirements: Node 20.19+ and npm 10+.
 
 ```sh
-cp .env.example .env.local
 npm ci
-npm run dev
+cp apps/client/.env.example apps/client/.env.local
+cp apps/admin/.env.example apps/admin/.env.local
+npm run dev:client
+npm run dev:admin
 ```
 
-The default environment uses synthetic fixtures from `src/fixtures/data.ts`. Names and addresses are intentionally fictional (`example.invalid`), and no staging service is contacted. Set `VITE_USE_API_FIXTURES=false` only when a local `/v1` API is available.
+The client runs on Vite's default port (`5173`) and the admin app is configured for `5174`. Run the API separately, then set each app's API origin in its own `.env.local`.
 
 Useful commands:
 
 ```sh
-npm run lint
-npm run typecheck
-npm test
-npm run build
-npx playwright install chromium
-npm run test:e2e
+npm run check
+npm run test:e2e:client
+npm run build --workspace @wrg/platform-client-web
+npm run build --workspace @wrg/platform-admin-web
 ```
 
-Client fixture login matches the legacy pattern: username `demo-client` → organization confirmation → email `client@example.invalid`. Admin fixture login uses any valid email and an 8+ character password, then a 6-digit code on `/admin/2FA`.
+## Authentication and impersonation boundaries
 
-## Architecture
+- Client and admin login routes live in different applications and origins.
+- Admin credentials/tokens use the admin origin's session storage and are not available to the client origin.
+- Client authentication remains cookie-backed for normal users.
+- `View dashboard` asks the backend for a single-use grant, opens the client app at `/admin-preview?grant=...`, and exchanges it for a short-lived impersonated client session.
+- The client displays the persistent `Admin access` banner and can end that impersonated session. It never receives the administrator's normal access or refresh token.
+- Legacy client URLs such as `/admin-login` and `/admin/*` redirect to `VITE_ADMIN_APP_URL`; they do not render an admin bundle.
 
-- `src/app/metadata.ts`: canonical typed route map, legacy aliases, client access flags, and admin permission shortcodes.
-- `src/api/client.ts`: fetch abstraction, Zod response validation, cookie-based session requests, normalized API errors, and `/v1` endpoints.
-- `src/store/app-store.ts`: UI/session selection and cart state. Session tokens are never stored by JavaScript; the API is expected to use secure HTTP-only cookies.
-- `src/app/router.tsx`: role, entitlement, and permission guards.
-- `src/fixtures`: deterministic development and visual fixture data without real PII.
-- `src/test` and `e2e`: MSW-backed test setup, RTL tests, and Playwright smoke coverage.
+Authorization must still be enforced by the backend. Frontend route separation is not a security boundary by itself.
 
-## Session and impersonation contract
+## CI and deployment
 
-`GET /v1/session` is the source of truth on startup. A session carries `verifiedAt`, `expiresAt`, and nullable impersonation metadata. Impersonation keeps the administrator actor identity and reason visible in a persistent banner. Stopping impersonation calls `DELETE /v1/session/impersonation`.
+Changes to each app trigger only its path-scoped GitHub Actions workflow. Changes to `packages/ui`, deployment configuration, or the root workspace lockfile verify and deploy both applications.
 
-The frontend does not accept tokens from query strings or local storage. Backend authentication should use `Secure`, `HttpOnly`, `SameSite` cookies and enforce the same authorization rules server-side.
+Configure the GitHub `production` environment with:
 
-When fixture mode is enabled, the synthetic session is stored locally so refreshing the page exercises the same startup rehydration flow. This storage is only used for local fixture sessions; real sessions continue to come from the cookie-backed API.
+- Secret `RAILWAY_TOKEN`.
+- Variable `RAILWAY_CLIENT_SERVICE_ID`.
+- Variable `RAILWAY_ADMIN_SERVICE_ID`.
 
-## Deployment
+Use two Railway services sourced from this same repository:
 
-The multi-stage `Dockerfile` builds static assets and serves them using the SPA-aware Nginx configuration in `deploy/nginx.conf` on port 8080. Runtime API routing should proxy `/v1` to the backend at the ingress/load-balancer layer.
+| Service | Railway config file | Public domain | Required build variables |
+| --- | --- | --- | --- |
+| Client | `/apps/client/railway.json` | `feedbackdatadashboard.com` | `VITE_ADMIN_APP_URL=https://admin.feedbackdatadashboard.com/admin/projects` and the client API variables |
+| Admin | `/apps/admin/railway.json` | `admin.feedbackdatadashboard.com` | `VITE_API_BASE_URL=https://api.feedbackdatadashboard.com` |
+
+Keep the Railway root directory empty (repository root) for both services. Each Dockerfile needs the root workspace lockfile and shared package during its build. Vite variables are embedded at build time, so redeploy after changing them.
+
+Both images serve their own static bundle on port `8080`, use `deploy/nginx.conf` for SPA fallback, and expose `/healthz`.

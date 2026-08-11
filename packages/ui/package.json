@@ -1,0 +1,14 @@
+{
+  "name": "@wrg/platform-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./two-column-layout-decoration.png": "./src/assets/images/two-column-layout-decoration.png",
+    "./two-column-layout-default-img.png": "./src/assets/images/two-column-layout-default-img.png"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8"
+  }
+}

@@ -1,7 +1,15 @@
 node_modules
-dist
+**/node_modules
+**/dist
 .git
+.vite
+**/.vite
 playwright-report
+**/playwright-report
 test-results
+**/test-results
 .env*
-!.env.example
+**/.env*
+!**/.env.example
+*.tsbuildinfo
+**/*.tsbuildinfo

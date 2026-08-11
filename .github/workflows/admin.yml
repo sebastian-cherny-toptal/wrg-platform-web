@@ -1,0 +1,59 @@
+name: Admin web
+
+on:
+  pull_request:
+    paths:
+      - 'apps/admin/**'
+      - 'packages/ui/**'
+      - 'deploy/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/admin.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/admin/**'
+      - 'packages/ui/**'
+      - 'deploy/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/admin.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck --workspace @wrg/platform-admin-web
+      - run: npm test --workspace @wrg/platform-admin-web
+      - run: npm run build --workspace @wrg/platform-admin-web
+
+  deploy-production:
+    name: Deploy admin production to Railway
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+      - name: Deploy admin web
+        run: railway up --service "${{ vars.RAILWAY_ADMIN_SERVICE_ID }}" --ci

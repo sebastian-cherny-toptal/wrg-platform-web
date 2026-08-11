@@ -1,0 +1,77 @@
+name: Client web
+
+on:
+  pull_request:
+    paths:
+      - 'apps/client/**'
+      - 'packages/ui/**'
+      - 'deploy/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/client.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/client/**'
+      - 'packages/ui/**'
+      - 'deploy/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/client.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --workspace @wrg/platform-client-web
+      - run: npm run typecheck --workspace @wrg/platform-client-web
+      - run: npm test --workspace @wrg/platform-client-web
+      - run: npm run build --workspace @wrg/platform-client-web
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e --workspace @wrg/platform-client-web -- --project=chromium
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: client-playwright-report
+          path: apps/client/playwright-report/
+
+  deploy-production:
+    name: Deploy client production to Railway
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [verify, e2e]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+      - name: Deploy client web
+        run: railway up --service "${{ vars.RAILWAY_CLIENT_SERVICE_ID }}" --ci
