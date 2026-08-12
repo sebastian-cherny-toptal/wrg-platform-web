@@ -73,5 +73,7 @@ jobs:
           node-version: 22
       - name: Install Railway CLI
         run: npm install --global @railway/cli
+      - name: Select client Dockerfile
+        run: cp apps/client/Dockerfile Dockerfile
       - name: Deploy client web
         run: railway up --service "${{ vars.RAILWAY_CLIENT_SERVICE_ID }}" --ci
