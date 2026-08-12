@@ -96,7 +96,7 @@ describe("response-pattern report requests", () => {
 describe("detailed-results filter requests", () => {
   it("normalizes standard and grouped survey filter options", async () => {
     server.use(
-      http.get("http://localhost:3000/client/fetchSurveyFilter", () =>
+      http.get("*/client/fetchSurveyFilter", () =>
         HttpResponse.json({
           success: true,
           message: "success",
@@ -136,7 +136,7 @@ describe("detailed-results filter requests", () => {
     let requestBody: unknown;
     server.use(
       http.post(
-        "http://localhost:3000/client/employeeResponseBreakdownBySection",
+        "*/client/employeeResponseBreakdownBySection",
         async ({ request }) => {
           requestBody = await request.json();
           return HttpResponse.json({
