@@ -55,5 +55,7 @@ jobs:
           node-version: 22
       - name: Install Railway CLI
         run: npm install --global @railway/cli
+      - name: Select admin Dockerfile
+        run: cp apps/admin/Dockerfile Dockerfile
       - name: Deploy admin web
         run: railway up --service "${{ vars.RAILWAY_ADMIN_SERVICE_ID }}" --ci
