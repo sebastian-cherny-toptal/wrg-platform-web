@@ -23,6 +23,7 @@ import {
   field,
   formatDate,
   type OrganizationRecord,
+  type PortalUserRecord,
   type ProgramRecord,
   type ProjectRecord,
 } from './api'
@@ -133,29 +134,51 @@ export function ProgramDetailPage() {
   const [search, setSearch] = useState('')
   const [date, setDate] = useState('')
   const [expanded, setExpanded] = useState(false)
-  const [busyId, setBusyId] = useState('')
   const [notice, setNotice] = useState('')
+  const [previewOrganization, setPreviewOrganization] = useState<OrganizationRecord | null>(null)
   const program = programLoaded.data
   const organizations = (organizationsLoaded.data ?? []).filter((item) => item.name.toLowerCase().includes(search.toLowerCase()) && (!date || item.createdAt?.slice(0, 10) === date))
   if (programLoaded.loading) return <State loading title="Loading program" message="Retrieving program details." />
   if (!program || programLoaded.error) return <State title="Program unavailable" message={programLoaded.error || 'Program not found'} />
   const details = program.details ?? {}
-  const preview = async (organization: OrganizationRecord) => {
-    setBusyId(organization.id); setNotice('')
-    try { const result = await api.startImpersonation(organization.id, program.id); window.location.assign(result.url) }
-    catch (caught) { setNotice(caught instanceof Error ? caught.message : 'Unable to open dashboard'); setBusyId('') }
-  }
   const resync = async () => {
     if (!window.confirm(`Re-sync all deals for ${program.name}?`)) return
     setNotice('Starting synchronization…')
     try { await api.resyncProgram(program.id); setNotice('Synchronization was queued successfully.') }
     catch (caught) { setNotice(caught instanceof Error ? caught.message : 'Synchronization could not be queued.') }
   }
-  return <><PageHeader title={program.name} breadcrumb={<><Link to={`/admin/projects/${projectId}`}>Project</Link><span>|</span>{program.name}</>} /><button className={expanded ? 'details-toggle expanded' : 'details-toggle'} onClick={() => setExpanded((value) => !value)}><strong>Program Details</strong><ChevronDown size={18} /></button>{expanded ? <div className="details-panel details-grid"><Detail label="Program ID" value={program.id} /><Detail label="Program Year" value={program.year ? String(program.year) : '—'} /><Detail label="Number of Organizations" value={String(program.organizationCount || organizations.length)} /><Detail label="Employee Survey ID" value={field(details, 'Employee_Survey_ID', 'employeeSurveyId')} /><Detail label="Employer Survey ID" value={field(details, 'Employer_Survey_ID', 'employerSurveyId')} /><Detail label="Winners Count" value={field(details, 'winnersCount')} /></div> : null}<div className="section-row"><h2 className="section-title">Organization</h2><button className="primary-button compact" onClick={() => void resync()}>Re-Sync All Deals</button></div>{notice ? <div className="notice">{notice}</div> : null}<Toolbar search={search} setSearch={setSearch} placeholder="Search Clients" date={date} setDate={setDate} /><DataTable headers={['Organization', 'Date Added', 'Current Stage', 'Last Time Synced', 'No. of Surveys Sent', 'Actions']} rows={organizations.map((item) => [<strong>{item.name}</strong>, formatDate(item.createdAt), item.stage ?? '—', formatDate(item.lastSyncedAt), item.surveysSent, item.users.length ? <button className="action-link button-link" disabled={busyId === item.id} onClick={() => void preview(item)}>{busyId === item.id ? 'Opening…' : 'View Dashboard'} <ChevronRight size={18} /></button> : <span className="danger-text">No users</span>])} /><Pager count={organizations.length} shown={10} /></>
+  return <><PageHeader title={program.name} breadcrumb={<><Link to={`/admin/projects/${projectId}`}>Project</Link><span>|</span>{program.name}</>} /><button className={expanded ? 'details-toggle expanded' : 'details-toggle'} onClick={() => setExpanded((value) => !value)}><strong>Program Details</strong><ChevronDown size={18} /></button>{expanded ? <div className="details-panel details-grid"><Detail label="Program ID" value={program.id} /><Detail label="Program Year" value={program.year ? String(program.year) : '—'} /><Detail label="Number of Organizations" value={String(program.organizationCount || organizations.length)} /><Detail label="Employee Survey ID" value={field(details, 'Employee_Survey_ID', 'employeeSurveyId')} /><Detail label="Employer Survey ID" value={field(details, 'Employer_Survey_ID', 'employerSurveyId')} /><Detail label="Winners Count" value={field(details, 'winnersCount')} /></div> : null}<div className="section-row"><h2 className="section-title">Organization</h2><button className="primary-button compact" onClick={() => void resync()}>Re-Sync All Deals</button></div>{notice ? <div className="notice">{notice}</div> : null}<Toolbar search={search} setSearch={setSearch} placeholder="Search Clients" date={date} setDate={setDate} /><DataTable headers={['Organization', 'Date Added', 'Current Stage', 'Last Time Synced', 'No. of Surveys Sent', 'Actions']} rows={organizations.map((item) => [<strong>{item.name}</strong>, formatDate(item.createdAt), item.stage ?? '—', formatDate(item.lastSyncedAt), item.surveysSent, item.users.length ? <button className="action-link button-link" onClick={() => setPreviewOrganization(item)}>View Dashboard <ChevronRight size={18} /></button> : <span className="danger-text">No users</span>])} /><Pager count={organizations.length} shown={10} />{previewOrganization ? <ImpersonationUserModal organization={previewOrganization} program={program} onClose={() => setPreviewOrganization(null)} /> : null}</>
 }
 
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" aria-label="Close" onClick={onClose}><X size={18} /></button><h2>{title}</h2>{children}</section></div>
+}
+
+function ImpersonationUserModal({ organization, program, onClose }: {
+  organization: OrganizationRecord
+  program: ProgramRecord
+  onClose: () => void
+}) {
+  const users = useLoad(
+    `impersonation-users:${organization.id}:${program.id}`,
+    () => api.eligibleImpersonationUsers(organization.id, program.id),
+  )
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [error, setError] = useState('')
+  const [opening, setOpening] = useState(false)
+  const openDashboard = async () => {
+    if (!selectedUserId) return
+    setOpening(true)
+    setError('')
+    try {
+      const result = await api.startImpersonation(organization.id, program.id, selectedUserId)
+      window.location.assign(result.url)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to open dashboard')
+      setOpening(false)
+    }
+  }
+  return <Modal title="Choose a portal user" onClose={onClose}><p className="modal-description">Select the user whose access you want to use for <strong>{organization.name}</strong>.</p>{users.loading ? <State loading title="Loading users" message="Finding users with access to this program." /> : users.error ? <State title="Users unavailable" message={users.error} /> : users.data?.length ? <div className="impersonation-user-list" role="radiogroup" aria-label="Portal users with program access">{users.data.map((user: PortalUserRecord) => <label className={selectedUserId === user.id ? 'impersonation-user selected' : 'impersonation-user'} key={user.id}><input type="radio" name="impersonation-user" value={user.id} checked={selectedUserId === user.id} onChange={() => setSelectedUserId(user.id)} /><span><strong>{user.fullName}</strong><small>{user.email}{user.username ? ` · ${user.username}` : ''}</small></span></label>)}</div> : <State title="No eligible users" message="No active portal users have access to this program." />}{error ? <p className="form-error">{error}</p> : null}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={opening}>Cancel</button><button type="button" className="primary-button compact" disabled={!selectedUserId || opening} onClick={() => void openDashboard()}>{opening ? 'Opening…' : 'View Dashboard'}</button></div></Modal>
 }
 
 function AddUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {

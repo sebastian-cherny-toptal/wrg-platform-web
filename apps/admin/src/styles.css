@@ -118,6 +118,7 @@ a { color: inherit; }
 .modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.5); padding: 20px; }
 .modal { position: relative; width: min(560px, 94vw); max-height: 90vh; overflow-y: auto; border-radius: 10px; background: white; padding: 28px; box-shadow: 0 24px 70px rgba(0,0,0,.28); }
 .modal h2 { margin: 0 0 24px; font-size: 22px; }
+.modal-description { margin: -12px 0 20px; color: #52525b; font-size: 14px; line-height: 1.5; }
 .modal-close { position: absolute; top: 15px; right: 15px; display: grid; place-items: center; border: 0; background: transparent; color: #71717a; cursor: pointer; }
 .modal-form { display: grid; }
 .modal-form fieldset { display: grid; gap: 8px; margin: 0 0 18px; border: 1px solid #e4e4e7; border-radius: 6px; padding: 14px; }
@@ -128,6 +129,14 @@ a { color: inherit; }
 .permission-list label span { max-width: 86%; }
 .form-error { margin: 0 0 16px; color: #c52828; font-size: 14px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.impersonation-user-list { display: grid; gap: 10px; margin-bottom: 22px; }
+.impersonation-user { display: flex; align-items: center; gap: 12px; border: 1px solid #e4e4e7; border-radius: 8px; padding: 13px 14px; cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
+.impersonation-user:hover { border-color: #c4b5fd; background: #faf9ff; }
+.impersonation-user.selected { border-color: #7c3aed; background: #f5f3ff; box-shadow: 0 0 0 2px rgba(124,58,237,.12); }
+.impersonation-user input { width: 16px; height: 16px; margin: 0; accent-color: #7c3aed; }
+.impersonation-user span { min-width: 0; display: grid; gap: 3px; }
+.impersonation-user strong { color: #18181b; font-size: 14px; }
+.impersonation-user small { overflow-wrap: anywhere; color: #71717a; font-size: 12px; }
 
 @media (max-width: 900px) {
   .guest-panel { width: 100%; }

@@ -34,6 +34,13 @@ export type ProgramRecord = {
   details?: Record<string, unknown>
 }
 
+export type PortalUserRecord = {
+  id: string
+  fullName: string
+  email: string
+  username: string | null
+}
+
 export type OrganizationRecord = {
   id: string
   name: string
@@ -41,7 +48,7 @@ export type OrganizationRecord = {
   stage: string | null
   lastSyncedAt: string | null
   surveysSent: number
-  users: Array<{ id: string; fullName: string; email: string; username: string | null }>
+  users: PortalUserRecord[]
 }
 
 export class ApiError extends Error {
@@ -277,6 +284,17 @@ export const api = {
     return array(object(response).data).map(organization)
   },
 
+  async eligibleImpersonationUsers(
+    organizationId: string,
+    programId: string,
+  ): Promise<PortalUserRecord[]> {
+    const query = new URLSearchParams({ organizationId, programId })
+    const response = await request<{ users: PortalUserRecord[] }>(
+      `/admin/impersonations/eligible-users?${query.toString()}`,
+    )
+    return response.users
+  },
+
   async users(): Promise<Record<string, unknown>[]> {
     const response = await request<unknown>('/user/list?expand=projects')
     return array(object(response).data).map(object)
@@ -321,10 +339,14 @@ export const api = {
     await request('/webhook/massResyncByProgram', { method: 'POST', body: JSON.stringify({ programId }) })
   },
 
-  async startImpersonation(organizationId: string, programId: string): Promise<{ url: string }> {
+  async startImpersonation(
+    organizationId: string,
+    programId: string,
+    targetUserId: string,
+  ): Promise<{ url: string }> {
     return request<{ url: string }>('/admin/impersonations', {
       method: 'POST',
-      body: JSON.stringify({ organizationId, programId, reason: 'Preview client dashboard from administration' }),
+      body: JSON.stringify({ organizationId, programId, targetUserId, reason: 'Preview client dashboard from administration' }),
     })
   },
 }

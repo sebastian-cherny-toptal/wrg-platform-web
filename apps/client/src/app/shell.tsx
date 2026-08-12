@@ -187,9 +187,25 @@ export function AppShell() {
   }
 
   const stopImpersonation = async () => {
+    const configuredAdminUrl = new URL(
+      import.meta.env.VITE_ADMIN_APP_URL ?? 'http://localhost:5174/admin/projects',
+      window.location.origin,
+    )
+    let returnUrl = configuredAdminUrl.toString()
+    try {
+      const referrer = new URL(document.referrer)
+      const isConfiguredAdmin = referrer.origin === configuredAdminUrl.origin
+      const isLocalAdmin = import.meta.env.DEV &&
+        ['localhost', '127.0.0.1'].includes(referrer.hostname) &&
+        ['localhost', '127.0.0.1'].includes(configuredAdminUrl.hostname) &&
+        referrer.port === configuredAdminUrl.port
+      if (isConfiguredAdmin || isLocalAdmin) returnUrl = referrer.toString()
+    } catch {
+      // Use the configured admin URL when no valid referrer is available.
+    }
     await api.session.stopImpersonation()
     setSession(null)
-    window.location.assign(import.meta.env.VITE_ADMIN_APP_URL ?? 'http://localhost:5174/admin/projects')
+    window.location.replace(returnUrl)
   }
 
   if (!session) {

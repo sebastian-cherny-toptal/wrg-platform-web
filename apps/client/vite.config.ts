@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: { port: 5173 },
+  server: { host: '0.0.0.0', port: 5173 },
   preview: { port: 4173 },
   test: {
     environment: 'jsdom',
