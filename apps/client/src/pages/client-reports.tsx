@@ -1390,7 +1390,6 @@ export function AnnualTrendsPage() {
 
 export function EmployeeVerbatimsPage() {
   const [filter, setFilter] = useState("");
-  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const program = useSelectedProgram();
   const addToCart = useAppStore((state) => state.addToCart);
   const inCart = useAppStore((state) =>
@@ -1401,11 +1400,6 @@ export function EmployeeVerbatimsPage() {
     queryFn: () => api.reports.openResponseQuestions(program?.id ?? ""),
     enabled: Boolean(program),
   });
-  const answers = useQuery({
-    queryKey: ["open-response-answers", program?.id, selectedQuestionId],
-    queryFn: () => api.reports.openResponseAnswers(program?.id ?? "", selectedQuestionId ?? ""),
-    enabled: Boolean(program && selectedQuestionId),
-  });
   const catalog = useQuery({
     queryKey: ["report-catalog"],
     queryFn: api.reports.catalog,
@@ -1415,47 +1409,9 @@ export function EmployeeVerbatimsPage() {
     queryFn: () => api.reports.surveyFilters(program?.id ?? ""),
     enabled: Boolean(program),
   });
-  const sortedVerbatims = catalog.data?.find((product) => product.id === "report-verbatims-sorted");
-  if (selectedQuestionId !== null) {
-    return (
-      <>
-        <PageHeader
-          breadcrumbs={[
-            { label: "My Reports", path: routeMap.dashboard },
-            { label: `Employee Verbatims ${program?.year ?? ""}`, path: routeMap.employeeVerbatims },
-            { label: "Question Details" },
-          ]}
-          title="Question Details"
-        />
-        <div className="p-6">
-          <button className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-violet-700" onClick={() => setSelectedQuestionId(null)}>
-            <ChevronLeft className="size-4" /> Back to Employee Verbatims
-          </button>
-          {answers.isPending ? (
-            <StatePanel kind="loading" title="Loading employee responses" message="Retrieving verbatims for the selected question." />
-          ) : answers.isError ? (
-            <StatePanel kind="error" title="Employee responses unavailable" message={answers.error.message} action={<Button onClick={() => void answers.refetch()}>Try again</Button>} />
-          ) : answers.data.data.respondentData.length === 0 ? (
-            <StatePanel kind="empty" title="No responses" message="No employees answered this question." />
-          ) : (
-            <Card className="overflow-hidden shadow-none">
-              <div className="border-b border-zinc-200 p-5">
-                <h2 className="text-base font-semibold leading-6">{answers.data.data.queryQuestion.Caption}</h2>
-              </div>
-              <div className="grid gap-3 bg-zinc-50 p-5">
-                {answers.data.data.respondentData.map((respondent, index) => (
-                  <blockquote className="rounded-xl border border-zinc-200 bg-white p-5 text-sm leading-6 text-zinc-700" key={respondent._id ?? `${respondent.RespondentId ?? "response"}-${index}`}>
-                    <span className="mr-2 text-xl leading-none text-violet-500">“</span>{respondent.responses.Value}
-                    <footer className="mt-3 text-xs font-medium text-zinc-400">Employee response {index + 1}</footer>
-                  </blockquote>
-                ))}
-              </div>
-            </Card>
-          )}
-        </div>
-      </>
-    );
-  }
+  const sortedVerbatims = catalog.data?.find(
+    (product) => product.id === "report-verbatims-sorted",
+  );
   return (
     <>
       <ReportHeader
@@ -1469,19 +1425,32 @@ export function EmployeeVerbatimsPage() {
           </div>
           <div>
             <h2 className="text-2xl font-semibold">Sorting your report</h2>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-violet-100">Sorting the employees&apos; open-ended responses by a demographic will allow you to better identify where the comments originated.</p>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-violet-100">
+              Sorting the employees&apos; open-ended responses by a demographic
+              will allow you to better identify where the comments originated.
+            </p>
           </div>
           <div className="rounded-xl bg-white p-4 text-zinc-900">
             <p className="text-[13px] text-zinc-500">Price</p>
-            <strong className="text-2xl">{sortedVerbatims ? `$ ${(sortedVerbatims.priceCents / 100).toLocaleString()}` : "—"}</strong>
-            <p className="mt-3 text-xs font-medium text-zinc-700">Select one of these options</p>
+            <strong className="text-2xl">
+              {sortedVerbatims
+                ? `$ ${(sortedVerbatims.priceCents / 100).toLocaleString()}`
+                : "—"}
+            </strong>
+            <p className="mt-3 text-xs font-medium text-zinc-700">
+              Select one of these options
+            </p>
             <select
               className="mt-3 h-10 w-full rounded-md border border-zinc-300 px-3 text-sm"
               onChange={(event) => setFilter(event.target.value)}
               value={filter}
             >
               <option value="">Select filtering report</option>
-              {(availableFilters.data ?? []).map((item) => <option key={item.questionId} value={item.label}>{item.label}</option>)}
+              {(availableFilters.data ?? []).map((item) => (
+                <option key={item.questionId} value={item.label}>
+                  {item.label}
+                </option>
+              ))}
             </select>
             <Button
               className="mt-3 w-full"
@@ -1501,25 +1470,107 @@ export function EmployeeVerbatimsPage() {
         <Card className="mt-6 overflow-hidden shadow-none">
           <div className="flex items-center justify-between border-b border-zinc-200 p-5">
             <h2 className="font-semibold">Question Details</h2>
-            <DownloadReportButton onDownload={() => api.reports.downloadVerbatimsWorkbook(program?.id ?? "")} />
+            <DownloadReportButton
+              onDownload={() =>
+                api.reports.downloadVerbatimsWorkbook(program?.id ?? "")
+              }
+            />
           </div>
           <div className="grid gap-3 p-5">
             {questions.isPending ? (
-              <StatePanel kind="loading" title="Loading questions" message="Retrieving open-ended survey questions." />
+              <StatePanel
+                kind="loading"
+                title="Loading questions"
+                message="Retrieving open-ended survey questions."
+              />
             ) : questions.isError ? (
-              <StatePanel kind="error" title="Questions unavailable" message={questions.error.message} action={<Button onClick={() => void questions.refetch()}>Try again</Button>} />
+              <StatePanel
+                kind="error"
+                title="Questions unavailable"
+                message={questions.error.message}
+                action={
+                  <Button onClick={() => void questions.refetch()}>
+                    Try again
+                  </Button>
+                }
+              />
             ) : questions.data.data.length === 0 ? (
-              <StatePanel kind="empty" title="No verbatim questions" message="This program has no open-ended response questions." />
-            ) : questions.data.data.map((question) => (
-              <button className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-left text-sm font-medium transition hover:border-violet-300 hover:bg-violet-50" key={String(question.id)} onClick={() => setSelectedQuestionId(String(question.id))}>
-                <span className="flex-1 truncate">{question.caption}</span>
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white shadow-sm"><ChevronRight className="size-4" /></span>
-              </button>
-            ))}
+              <StatePanel
+                kind="empty"
+                title="No verbatim questions"
+                message="This program has no open-ended response questions."
+              />
+            ) : (
+              questions.data.data.map((question) => (
+                <EmployeeVerbatimQuestion
+                  key={String(question.id)}
+                  programId={program?.id ?? ""}
+                  question={question}
+                />
+              ))
+            )}
           </div>
         </Card>
       </div>
     </>
+  );
+}
+
+function EmployeeVerbatimQuestion({
+  programId,
+  question,
+}: {
+  programId: string;
+  question: { caption: string; id: string | number };
+}) {
+  const answers = useQuery({
+    queryKey: ["open-response-answers", programId, question.id],
+    queryFn: () =>
+      api.reports.openResponseAnswers(programId, String(question.id)),
+    enabled: Boolean(programId),
+  });
+  return (
+    <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
+      <h3 className="border-b border-zinc-200 bg-white p-4 text-sm font-semibold leading-6 text-zinc-800">
+        {question.caption}
+      </h3>
+      <div className="grid gap-3 p-4">
+        {answers.isPending ? (
+          <p className="text-sm text-zinc-500">Loading employee responses…</p>
+        ) : answers.isError ? (
+          <StatePanel
+            action={
+              <Button onClick={() => void answers.refetch()}>Try again</Button>
+            }
+            kind="error"
+            message={answers.error.message}
+            title="Employee responses unavailable"
+          />
+        ) : answers.data.data.respondentData.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            No employees answered this question.
+          </p>
+        ) : (
+          answers.data.data.respondentData.map((respondent, index) => (
+            <blockquote
+              className="rounded-xl border border-zinc-200 bg-white p-5 text-sm leading-6 text-zinc-700"
+              key={
+                respondent._id ??
+                `${respondent.RespondentId ?? "response"}-${index}`
+              }
+            >
+              <span className="mr-2 text-xl leading-none text-violet-500">
+                “
+              </span>
+              {respondent.responses.Value}
+              <footer className="mt-3 text-xs font-medium text-zinc-400">
+                Employee response {index + 1}
+              </footer>
+            </blockquote>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
