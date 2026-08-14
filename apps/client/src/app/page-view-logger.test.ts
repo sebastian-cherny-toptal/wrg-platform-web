@@ -3,8 +3,8 @@ import { buildPageViewEvent, sanitizePageViewQuery } from './page-view-logger'
 
 describe('page-view logging', () => {
   it('redacts sensitive query parameters and preserves repeated values', () => {
-    expect(sanitizePageViewQuery('?program=demo&token=secret&tag=a&tag=b')).toEqual({
-      program: 'demo',
+    expect(sanitizePageViewQuery('?program=program-id&token=secret&tag=a&tag=b')).toEqual({
+      program: 'program-id',
       token: '[REDACTED]',
       tag: ['a', 'b'],
     })

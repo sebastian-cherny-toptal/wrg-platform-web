@@ -4,19 +4,29 @@ import {
   annualDetailsSchema,
   annualResponseRateSchema,
   comparisonQuestionsSchema,
+  customReportsSchema,
   demographicResponseSchema,
+  dashboardAgreementSchema,
+  dashboardResponseRateSchema,
+  dashboardStatementsSchema,
   employeeResponseBreakdownSchema,
   employeeResponseBreakdownBySectionSchema,
   heatMapPreviewResponseSchema,
-  loginResultSchema,
+  keyImpactAnalysisSchema,
+  legacyClientLoginSchema,
+  openResponseAnswersSchema,
+  openResponseQuestionsSchema,
+  employerBenchmarkSchema,
   reportProductSchema,
+  responseDetailResultSchema,
+  responseDetailSectionsSchema,
   sessionSchema,
   surveyFiltersResponseSchema,
   workforceComparisonSchema,
   type LoginResult,
   type Session,
 } from "./schemas";
-import { clientSession, products } from "../fixtures/data";
+import { useAppStore } from "../store/app-store";
 
 export type ResponsePatternRanges = {
   positive?: [number, number];
@@ -35,16 +45,22 @@ export type SurveyFilter = {
 const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "/v1",
   apiV1BaseUrl: import.meta.env.VITE_API_V1_BASE_URL ?? "/api",
-  fixturesEnabled: import.meta.env.VITE_USE_API_FIXTURES !== "false",
+  compatibilityApiBaseUrl:
+    import.meta.env.VITE_COMPATIBILITY_API_BASE_URL ?? "",
 };
 
-const fixtureSessionStorageKey = "wrg-platform-fixture-session";
 const impersonationTokenStorageKey = "wrg-impersonation-token";
 const impersonationSessionStorageKey = "wrg-impersonation-session";
+const clientTokenStorageKey = "wrg-client-access-token";
+const clientSessionStorageKey = "wrg-client-session";
 const impersonationExchanges = new Map<string, Promise<Session>>();
 
 function impersonationToken(): string | null {
   return window.sessionStorage.getItem(impersonationTokenStorageKey);
+}
+
+function clientToken(): string | null {
+  return window.localStorage.getItem(clientTokenStorageKey);
 }
 
 function readImpersonationSession(): Session | null {
@@ -71,6 +87,113 @@ function readImpersonationSession(): Session | null {
 function clearImpersonationSession(): void {
   window.sessionStorage.removeItem(impersonationTokenStorageKey);
   window.sessionStorage.removeItem(impersonationSessionStorageKey);
+}
+
+function clearClientSession(): void {
+  window.localStorage.removeItem(clientTokenStorageKey);
+  window.localStorage.removeItem(clientSessionStorageKey);
+}
+
+function closeUnauthorizedSession(): void {
+  clearImpersonationSession();
+  clearClientSession();
+  useAppStore.getState().setSession(null);
+}
+
+function readClientSession(): Session | null {
+  try {
+    const stored = window.localStorage.getItem(clientSessionStorageKey);
+    const token = clientToken();
+    if (!stored || !token) return null;
+    const parsed = sessionSchema.safeParse(JSON.parse(stored));
+    if (!parsed.success || new Date(parsed.data.expiresAt).getTime() <= Date.now()) {
+      clearClientSession();
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    clearClientSession();
+    return null;
+  }
+}
+
+function tokenExpiration(token: string): string {
+  try {
+    const encoded = token.split(".")[1];
+    if (!encoded) throw new Error("JWT payload is missing");
+    const normalized = encoded.replaceAll("-", "+").replaceAll("_", "/");
+    const payload = JSON.parse(window.atob(normalized)) as { exp?: unknown };
+    if (typeof payload.exp !== "number") throw new Error("JWT expiration is missing");
+    return new Date(payload.exp * 1000).toISOString();
+  } catch {
+    return new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  }
+}
+
+function entitlement(value: unknown): "yes" | "no" {
+  return typeof value === "string" && value.trim().toLowerCase() === "yes"
+    ? "yes"
+    : "no";
+}
+
+async function backendClientLogin(input: {
+  username: string;
+  email: string;
+}): Promise<LoginResult> {
+  const response = await request("/user/login", {
+    method: "POST",
+    body: { username: input.username, userEmail: input.email },
+    schema: legacyClientLoginSchema,
+  });
+  const { accessToken, userData } = response.data;
+  const organizationName =
+    userData.organizationId.Account_Name ??
+    userData.organizationId.name ??
+    userData.fullName;
+  const programs = userData.organizationProgram.map((enrollment) => {
+    const reference = enrollment.programId;
+    const id = reference.id ?? reference._id;
+    const name = reference.name ?? reference.Name;
+    const year = reference.year ?? Number(reference.Program_Year);
+    if (!id || !name || !Number.isInteger(year)) {
+      throw new ApiError(
+        "The account contains an invalid reporting program",
+        502,
+        "invalid_program",
+      );
+    }
+    return {
+      id,
+      name,
+      year,
+      organizationName,
+      entitlements: {
+        WFR_Access: entitlement(enrollment.reportAccess.WFR_Access),
+        EV_Access: entitlement(enrollment.reportAccess.EV_Access),
+        WBC_Access: entitlement(enrollment.reportAccess.WBC_Access),
+        BBP_Access: entitlement(enrollment.reportAccess.BBP_Access),
+        RD_Access: entitlement(enrollment.reportAccess.RD_Access),
+        KIA_Access: entitlement(enrollment.reportAccess.KIA_Access),
+        CR_Access: entitlement(enrollment.reportAccess.CR_Access),
+      },
+    };
+  });
+  const session = sessionSchema.parse({
+    user: {
+      id: userData.id ?? userData._id,
+      displayName: userData.fullName,
+      email: userData.email,
+      role: "client",
+      permissions: [],
+      programs,
+    },
+    expiresAt: tokenExpiration(accessToken),
+    verifiedAt: new Date().toISOString(),
+    impersonation: null,
+  });
+  window.localStorage.setItem(clientTokenStorageKey, accessToken);
+  window.localStorage.setItem(clientSessionStorageKey, JSON.stringify(session));
+  return { status: "authenticated", session };
 }
 
 function exchangeImpersonation(grant: string): Promise<Session> {
@@ -118,37 +241,6 @@ function exchangeImpersonation(grant: string): Promise<Session> {
   return exchange;
 }
 
-function readFixtureSession(): Session | null {
-  try {
-    const stored = window.localStorage.getItem(fixtureSessionStorageKey);
-    if (!stored) return null;
-
-    const parsed = sessionSchema.safeParse(JSON.parse(stored));
-    if (
-      !parsed.success ||
-      new Date(parsed.data.expiresAt).getTime() <= Date.now()
-    ) {
-      window.localStorage.removeItem(fixtureSessionStorageKey);
-      return null;
-    }
-    return parsed.data;
-  } catch {
-    window.localStorage.removeItem(fixtureSessionStorageKey);
-    return null;
-  }
-}
-
-function persistFixtureSession(session: Session): void {
-  window.localStorage.setItem(
-    fixtureSessionStorageKey,
-    JSON.stringify(session),
-  );
-}
-
-function clearFixtureSession(): void {
-  window.localStorage.removeItem(fixtureSessionStorageKey);
-}
-
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -172,23 +264,29 @@ async function request<T>(
   path: string,
   options: RequestOptions<T>,
 ): Promise<T> {
-  const response = await fetch(`${env.apiBaseUrl}${path}`, {
+  const baseUrl = path.startsWith("/client/") || path.startsWith("/user/")
+    ? env.compatibilityApiBaseUrl
+    : env.apiBaseUrl;
+  const accessToken = impersonationToken() ?? clientToken();
+  const response = await fetch(`${baseUrl}${path}`, {
     method: options.method ?? "GET",
     credentials: "include",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      ...(impersonationToken()
-        ? { Authorization: `Bearer ${impersonationToken()}` }
-        : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     ...(options.body === undefined
       ? {}
       : { body: JSON.stringify(options.body) }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   });
-  const payload: unknown = await response.json().catch(() => null);
+  const payload: unknown =
+    response.status === 204
+      ? undefined
+      : await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401 && accessToken) closeUnauthorizedSession();
     const parsed = z
       .object({
         message: z.string().optional(),
@@ -215,25 +313,26 @@ async function downloadRequest(
   filename: string,
   method: "GET" | "POST" = "GET",
 ): Promise<void> {
-  const response = await fetch(`${env.apiBaseUrl}${path}`, {
+  const accessToken = impersonationToken() ?? clientToken();
+  const response = await fetch(`${env.compatibilityApiBaseUrl}${path}`, {
     method,
     credentials: "include",
     headers: {
       Accept:
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
-      ...(impersonationToken()
-        ? { Authorization: `Bearer ${impersonationToken()}` }
-        : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     ...(method === "POST" ? { body: "{}" } : {}),
   });
-  if (!response.ok)
+  if (!response.ok) {
+    if (response.status === 401 && accessToken) closeUnauthorizedSession();
     throw new ApiError(
       "Report download failed",
       response.status,
       "report_download_failed",
     );
+  }
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -242,6 +341,36 @@ async function downloadRequest(
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function downloadUrl(url: string, filename: string): Promise<void> {
+  const resolved = new URL(url, window.location.origin);
+  const accessToken =
+    resolved.origin === window.location.origin
+      ? impersonationToken() ?? clientToken()
+      : null;
+  const response = await fetch(resolved, {
+    credentials: "include",
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    if (response.status === 401 && accessToken) closeUnauthorizedSession();
+    throw new ApiError(
+      "Report download failed",
+      response.status,
+      "report_download_failed",
+    );
+  }
+  const objectUrl = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 export function responsePatternsPath(
@@ -268,14 +397,6 @@ export function responsePatternsPath(
   }
   if (isPreview) params.set("isPreview", "true");
   return `/client/generateHeatMap?${params.toString()}`;
-}
-
-const pause = async () =>
-  new Promise<void>((resolve) => window.setTimeout(resolve, 120));
-
-async function fixture<T>(value: T): Promise<T> {
-  await pause();
-  return structuredClone(value);
 }
 
 async function responseCountByDemographic(programId: string) {
@@ -319,19 +440,6 @@ async function surveyFilters(programId: string): Promise<SurveyFilter[]> {
   }));
 }
 
-function fixtureSession(): LoginResult {
-  return {
-    status: "authenticated",
-    session: clientSession,
-  };
-}
-
-async function fixtureLogin(): Promise<LoginResult> {
-  const result = await fixture(fixtureSession());
-  if (result.status === "authenticated") persistFixtureSession(result.session);
-  return result;
-}
-
 export const api = {
   session: {
     get: (): Promise<Session | null> => {
@@ -342,16 +450,24 @@ export const api = {
       const previewSession = readImpersonationSession();
       return previewSession
         ? Promise.resolve(previewSession)
-        : env.fixturesEnabled
-          ? Promise.resolve(readFixtureSession())
-          : request("/session", { schema: sessionSchema.nullable() });
+        : Promise.resolve(readClientSession());
     },
-    logout: (): Promise<void> =>
-      impersonationToken()
-        ? Promise.resolve(clearImpersonationSession())
-        : env.fixturesEnabled
-          ? Promise.resolve(clearFixtureSession())
-          : request("/session", { method: "DELETE", schema: z.void() }),
+    logout: async (): Promise<void> => {
+      if (impersonationToken()) {
+        clearImpersonationSession();
+        return;
+      }
+      try {
+        if (clientToken()) {
+          await request("/auth/logout", {
+            method: "POST",
+            schema: z.object({ ok: z.literal(true) }),
+          });
+        }
+      } finally {
+        clearClientSession();
+      }
+    },
     stopImpersonation: async (): Promise<void> => {
       const token = impersonationToken();
       if (token) {
@@ -371,22 +487,37 @@ export const api = {
     clientLogin: (input: {
       username: string;
       email: string;
-    }): Promise<LoginResult> =>
-      env.fixturesEnabled
-        ? fixtureLogin()
-        : request("/auth/client/login", {
-            method: "POST",
-            body: input,
-            schema: loginResultSchema,
-          }),
+    }): Promise<LoginResult> => backendClientLogin(input),
+  },
+  dashboard: {
+    overview: async (programId: string) => {
+      const selectedProgramId = encodeURIComponent(programId);
+      const [agreement, responseRate, statements] = await Promise.all([
+        request(
+          `/client/averagePercentageOfAgreement?selectedProgramId=${selectedProgramId}`,
+          { schema: dashboardAgreementSchema },
+        ),
+        request(
+          `/client/surveyResponseRate?selectedProgramId=${selectedProgramId}`,
+          { schema: dashboardResponseRateSchema },
+        ),
+        request(
+          `/client/dashboardTopBottomStatements?selectedProgramId=${selectedProgramId}`,
+          { schema: dashboardStatementsSchema },
+        ),
+      ]);
+      return {
+        agreement: agreement.data,
+        responseRate: responseRate.data,
+        statements: statements.data,
+      };
+    },
   },
   reports: {
     demographics: (programId: string) => responseCountByDemographic(programId),
     surveyFilters,
     catalog: () =>
-      env.fixturesEnabled
-        ? fixture(products)
-        : request("/reports/catalog", { schema: z.array(reportProductSchema) }),
+      request("/reports/catalog", { schema: z.array(reportProductSchema) }),
     responseBreakdownBySection: (
       programId: string,
       queryFilter: ReportQueryFilter = {},
@@ -430,6 +561,59 @@ export const api = {
           schema: comparisonQuestionsSchema,
         },
       ),
+    openResponseQuestions: (programId: string) =>
+      request(
+        `/client/getOpenResponsesQuestions?selectedProgramId=${encodeURIComponent(programId)}`,
+        { schema: openResponseQuestionsSchema },
+      ),
+    openResponseAnswers: (
+      programId: string,
+      questionId: string,
+      queryFilter: ReportQueryFilter = {},
+    ) =>
+      request(
+        `/client/getOpenResponsesAnswers?selectedProgramId=${encodeURIComponent(programId)}&questionId=${encodeURIComponent(questionId)}`,
+        {
+          method: "POST",
+          body: { queryFilter },
+          schema: openResponseAnswersSchema,
+        },
+      ),
+    employerBenchmark: (programId: string) =>
+      request(
+        `/client/employerBenchmarkReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        { schema: employerBenchmarkSchema },
+      ),
+    responseDetailSections: (programId: string) =>
+      request(
+        `/client/responseDetailReportSectionQuestions?selectedProgramId=${encodeURIComponent(programId)}`,
+        { schema: responseDetailSectionsSchema },
+      ),
+    responseDetailResult: (
+      programId: string,
+      questionId: string,
+      filterQuestion: string,
+    ) =>
+      request(
+        `/client/responseDetailReportQuestionResult?selectedProgramId=${encodeURIComponent(programId)}&version=1`,
+        {
+          method: "POST",
+          body: { QuestionId: questionId, filterQuestion },
+          schema: responseDetailResultSchema,
+        },
+      ),
+    customReports: (programId: string) =>
+      request(
+        `/client/getCustomReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        { schema: customReportsSchema },
+      ),
+    keyImpactAnalysis: (programId: string) =>
+      request(
+        `/client/getKeyImpactAnalysis?selectedProgramId=${encodeURIComponent(programId)}`,
+        { schema: keyImpactAnalysisSchema },
+      ),
+    downloadCustomReport: (url: string, filename: string) =>
+      downloadUrl(url, filename),
     annualResponseRate: (programId: string) =>
       request(
         `/client/surveyResponseRateAnuualTrend?selectedProgramId=${encodeURIComponent(programId)}`,

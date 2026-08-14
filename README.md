@@ -57,7 +57,7 @@ Use two Railway services sourced from this same repository:
 
 | Service | Railway config file | Public domain | Required build variables |
 | --- | --- | --- | --- |
-| Client | `/apps/client/railway.json` | `feedbackdatadashboard.com` | `VITE_ADMIN_APP_URL=https://admin.feedbackdatadashboard.com/admin/projects` and the client API variables |
+| Client | `/apps/client/railway.json` | `feedbackdatadashboard.com` | `VITE_API_BASE_URL=https://api.feedbackdatadashboard.com/api/v1`, `VITE_API_V1_BASE_URL=https://api.feedbackdatadashboard.com/api`, `VITE_COMPATIBILITY_API_BASE_URL=https://api.feedbackdatadashboard.com`, and `VITE_ADMIN_APP_URL=https://admin.feedbackdatadashboard.com/admin/projects` |
 | Admin | `/apps/admin/railway.json` | `admin.feedbackdatadashboard.com` | `VITE_API_BASE_URL=https://api.feedbackdatadashboard.com` |
 
 Keep the Railway root directory empty (repository root) for both services. Each Dockerfile needs the root workspace lockfile and shared package during its build. Vite variables are embedded at build time, so redeploy after changing them.

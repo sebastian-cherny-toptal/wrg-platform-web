@@ -4,7 +4,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { WorkforceLogoWhite } from '@wrg/platform-ui'
 import decorationImage from '@wrg/platform-ui/two-column-layout-decoration.png'
 import heroImage from '@wrg/platform-ui/two-column-layout-default-img.png'
-import { api, ApiError, persistAuth, readAuth, type AdminAuth } from './api'
+import { adminAuthChangedEvent, api, ApiError, persistAuth, readAuth, type AdminAuth } from './api'
 
 type AuthContextValue = {
   auth: AdminAuth | null
@@ -17,6 +17,11 @@ const pendingLoginKey = 'wrg-admin-pending-login'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuthState] = useState<AdminAuth | null>(() => readAuth())
+  useEffect(() => {
+    const syncAuth = () => setAuthState(readAuth())
+    window.addEventListener(adminAuthChangedEvent, syncAuth)
+    return () => window.removeEventListener(adminAuthChangedEvent, syncAuth)
+  }, [])
   const setAuth = (next: AdminAuth | null) => {
     persistAuth(next)
     setAuthState(next)

@@ -80,44 +80,19 @@ const reportCards = [
   },
 ] as const
 
-const dashboardData = {
-  2025: {
-    positive: 83,
-    negative: 6,
-    completed: 199,
-    sent: 410,
-    rate: 49,
-    dates: 'between 07.18.2025 and 08.08.2025',
-    top: [
-      ['I typically go above and beyond for this organization', 96],
-      ['I understand how my work impacts organizational success', 95],
-      ["I would endorse this organization's products/services", 94],
-    ],
-    bottom: [
-      ['I am paid fairly for the work I perform', 62],
-      ['I receive sufficient ongoing training', 67],
-      ['Organizational leaders act on employee suggestions', 68],
-    ],
-  },
-  2024: {
-    positive: 84,
-    negative: 5,
-    completed: 160,
-    sent: 412,
-    rate: 39,
-    dates: 'between 07.19.2024 and 08.09.2024',
-    top: [
-      ['This organization is committed to producing high-quality products/services', 98],
-      ['I typically go above and beyond for this organization', 96],
-      ["I am kept aware of this organization's financial status", 96],
-    ],
-    bottom: [
-      ['I receive sufficient ongoing training', 59],
-      ['Organizational leaders act on employee suggestions', 66],
-      ['I believe my compensation is fair', 67],
-    ],
-  },
-} as const
+function surveyDateDescription(startDate: string | null, endDate: string | null) {
+  if (!startDate && !endDate) return 'Survey collection dates are unavailable.'
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+  const start = startDate ? formatter.format(new Date(startDate)) : null
+  const end = endDate ? formatter.format(new Date(endDate)) : null
+  if (start && end) return `Survey data collected via paper and online methods between ${start} and ${end}.`
+  return `Survey data collected via paper and online methods on ${start ?? end}.`
+}
 
 function DashboardBars({ positive, negative }: { positive: number; negative: number }) {
   const bars = [
@@ -157,16 +132,29 @@ function DashboardBars({ positive, negative }: { positive: number; negative: num
 export function DashboardPage() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
+  const [programWindowStart, setProgramWindowStart] = useState(0)
   const responseChartRef = useRef<HTMLDivElement>(null)
   const responseRateRef = useRef<HTMLElement>(null)
   const statementsRef = useRef<HTMLDivElement>(null)
   const session = useAppStore((state) => state.session)
   const program = useSelectedProgram()
   const programs = session?.user.programs ?? []
+  const programWindowSize = 4
+  const showProgramNavigation = programs.length > programWindowSize
+  const visiblePrograms = showProgramNavigation
+    ? programs.slice(programWindowStart, programWindowStart + programWindowSize)
+    : programs
+  const lastProgramWindowStart = Math.max(0, programs.length - programWindowSize)
   const selectProgram = useAppStore((state) => state.selectProgram)
   const visibleReports = reportCards.filter((report) => program?.entitlements[report.entitlement] === 'yes')
-  const selectedYear = program?.year === 2024 ? 2024 : 2025
-  const data = dashboardData[selectedYear]
+  const dashboard = useQuery({
+    queryKey: ['dashboard-overview', program?.id],
+    queryFn: () => {
+      if (!program) throw new Error('A program is required to load dashboard data')
+      return api.dashboard.overview(program.id)
+    },
+    enabled: Boolean(program),
+  })
 
   return (
     <div className="mr-2 min-h-full bg-white">
@@ -181,12 +169,24 @@ export function DashboardPage() {
       </div>
 
       <div className="mx-6 flex h-[70px] items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 p-3">
-        <button className="grid size-10 shrink-0 place-items-center text-zinc-400" disabled aria-label="Previous program"><ChevronLeft /></button>
-        <div className="mx-0.5 grid flex-1 grid-cols-2 gap-6">
-          {programs.map((item) => (
+        {showProgramNavigation ? (
+          <button
+            className="grid size-10 shrink-0 place-items-center text-zinc-600 disabled:text-zinc-300"
+            disabled={programWindowStart === 0}
+            aria-label="Previous programs"
+            onClick={() => setProgramWindowStart((start) => Math.max(0, start - programWindowSize))}
+          >
+            <ChevronLeft />
+          </button>
+        ) : null}
+        <div
+          className="grid min-w-0 flex-1 gap-2"
+          style={{ gridTemplateColumns: `repeat(${Math.max(visiblePrograms.length, 1)}, minmax(0, 1fr))` }}
+        >
+          {visiblePrograms.sort((a, b) => b.year - a.year).map((item) => (
             <button
               className={cn(
-                'h-10 rounded-xl border px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-400',
+                'h-10 min-w-0 rounded-xl border px-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-400',
                 item.id === program?.id ? 'border-violet-200 bg-violet-200 text-zinc-900' : 'border-zinc-300 bg-white',
               )}
               key={item.id}
@@ -196,22 +196,43 @@ export function DashboardPage() {
             </button>
           ))}
         </div>
-        <button className="grid size-10 shrink-0 place-items-center text-zinc-400" disabled aria-label="Next program"><ChevronRight /></button>
+        {showProgramNavigation ? (
+          <button
+            className="grid size-10 shrink-0 place-items-center text-zinc-600 disabled:text-zinc-300"
+            disabled={programWindowStart >= lastProgramWindowStart}
+            aria-label="Next programs"
+            onClick={() => setProgramWindowStart((start) => Math.min(lastProgramWindowStart, start + programWindowSize))}
+          >
+            <ChevronRight />
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-6 border-t border-zinc-200 bg-[#fbfbfb] px-6 pb-6 pt-3">
+        {!program ? (
+          <StatePanel kind="empty" title="No program selected" message="Your account does not currently have access to a reporting program." />
+        ) : dashboard.isPending ? (
+          <StatePanel kind="loading" title="Loading dashboard" message="Retrieving survey results for the selected program." />
+        ) : dashboard.isError ? (
+          <StatePanel
+            kind="error"
+            title="Dashboard data unavailable"
+            message="The survey results could not be loaded from the server. No sample data has been substituted."
+            action={<Button variant="secondary" onClick={() => void dashboard.refetch()}>Try again</Button>}
+          />
+        ) : (
         <div className="grid gap-4 xl:grid-cols-[430px_minmax(0,1fr)]">
           <div ref={responseChartRef}>
             <Card className="relative h-[727px] p-4">
               <h2 className="max-w-[317px] pr-8 text-[16px] font-semibold leading-6">Average Positive and Average Negative Response</h2>
-              <p className="mt-2 text-[14px] leading-5 text-zinc-500">Survey data collected via paper and online methods {data.dates}</p>
+              <p className="mt-2 text-[14px] leading-5 text-zinc-500">{surveyDateDescription(dashboard.data.agreement.StartDate, dashboard.data.agreement.EndDate)}</p>
               <ImageDownloadMenu
                 className="absolute right-4 top-4"
                 iconOnly
                 name="Average Positive and Average Negative Response"
                 targetRef={responseChartRef}
               />
-              <DashboardBars positive={data.positive} negative={data.negative} />
+              <DashboardBars positive={dashboard.data.agreement.percentage} negative={dashboard.data.agreement.negativePercentage} />
               <button
                 className="absolute bottom-4 right-4 grid size-6 place-items-center rounded-full border-2 border-violet-500 text-xs font-semibold text-violet-600"
                 aria-label="Help"
@@ -241,9 +262,9 @@ export function DashboardPage() {
               />
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {[
-                  ['# of Surveys Completed', String(data.completed)],
-                  ['# of Surveys Sent', String(data.sent)],
-                  ['Response Rate', `${data.rate}%`],
+                  ['# of Surveys Completed', String(dashboard.data.responseRate.completedSurvey)],
+                  ['# of Surveys Sent', String(dashboard.data.responseRate.sendSurvey)],
+                  ['Response Rate', `${dashboard.data.responseRate.responseRate}%`],
                 ].map(([label, value], index) => (
                   <div className={cn('flex h-[106px] flex-col items-center justify-center rounded-xl border border-zinc-200 bg-white p-2 text-center', index === 2 && 'border-violet-100 bg-violet-100')} key={label}>
                     <p className="order-1 text-[12px] font-semibold leading-4 text-zinc-900">{label}</p>
@@ -267,30 +288,33 @@ export function DashboardPage() {
               </div>
               <div className="mt-[14px] grid grid-cols-2 gap-3">
                 <div className="grid gap-3">
-                  {data.top.map(([statement, agreement]) => (
-                    <div className="flex min-h-[118px] flex-col items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-center" key={statement}>
-                      <p className="text-[13px] leading-[18px] text-emerald-950">{statement}</p>
-                      <span className="mt-2 rounded-lg bg-emerald-100 px-2 py-1 text-[13px] text-emerald-700">({agreement}% Agree)</span>
+                  {dashboard.data.statements.top.map((statement) => (
+                    <div className="flex min-h-[118px] flex-col items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-center" key={statement.title}>
+                      <p className="text-[13px] leading-[18px] text-emerald-950">{statement.title}</p>
+                      <span className="mt-2 rounded-lg bg-emerald-100 px-2 py-1 text-[13px] text-emerald-700">({statement.percentage}% Agree)</span>
                     </div>
                   ))}
+                  {dashboard.data.statements.top.length === 0 ? <p className="py-10 text-sm text-zinc-500">Not enough responses to display statements.</p> : null}
                 </div>
                 <div className="grid gap-3">
-                  {data.bottom.map(([statement, agreement]) => (
-                    <div className="flex min-h-[118px] flex-col items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-center" key={statement}>
-                      <p className="text-[13px] leading-[18px] text-orange-950">{statement}</p>
-                      <span className="mt-2 rounded-lg bg-orange-100 px-2 py-1 text-[13px] text-orange-600">({agreement}% Agree)</span>
+                  {dashboard.data.statements.bottom.map((statement) => (
+                    <div className="flex min-h-[118px] flex-col items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-center" key={statement.title}>
+                      <p className="text-[13px] leading-[18px] text-orange-950">{statement.title}</p>
+                      <span className="mt-2 rounded-lg bg-orange-100 px-2 py-1 text-[13px] text-orange-600">({statement.percentage}% Agree)</span>
                     </div>
                   ))}
+                  {dashboard.data.statements.bottom.length === 0 ? <p className="py-10 text-sm text-zinc-500">Not enough responses to display statements.</p> : null}
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-center text-[9px] leading-[13px] text-zinc-500">
-                <p>If your organization has a tie of four or more highest rated statements, the top three are selected in the order they appear on the survey</p>
-                <p>If your organization has a tie of four or more lowest rated statements, the bottom three are selected in the order they appear on the survey</p>
+                <p>{dashboard.data.statements.noteTop}</p>
+                <p>{dashboard.data.statements.noteBottom}</p>
               </div>
             </Card>
             </div>
           </div>
         </div>
+        )}
 
         {visibleReports.length ? (
           <section className="mt-3 rounded-[20px] border border-zinc-200 bg-slate-50 p-6">
@@ -420,6 +444,12 @@ export function WorkforceFeedbackPage() {
 
 export function CatalogPage() {
   const catalog = useQuery({ queryKey: ['report-catalog'], queryFn: api.reports.catalog })
+  const program = useSelectedProgram()
+  const surveyFilters = useQuery({
+    queryKey: ['survey-filters', program?.id],
+    queryFn: () => api.reports.surveyFilters(program?.id ?? ''),
+    enabled: Boolean(program),
+  })
   const addToCart = useAppStore((state) => state.addToCart)
   const cart = useAppStore((state) => state.cart)
   const [verbatimFilter, setVerbatimFilter] = useState('')
@@ -444,12 +474,12 @@ export function CatalogPage() {
               <Card className="flex min-h-[360px] flex-col p-6 shadow-none">
                 <div className="flex items-start justify-between gap-4">
                   <span className="grid size-14 place-items-center rounded-full bg-violet-100 text-violet-700"><MessageSquareText /></span>
-                  <strong className="text-xl text-red-600">$425</strong>
+                  <strong className="text-xl text-red-600">{money.format(sortedVerbatims.priceCents / 100)}</strong>
                 </div>
-                <h2 className="mt-5 text-lg font-semibold">Sorted Employee Verbatims</h2>
+                <h2 className="mt-5 text-lg font-semibold">{sortedVerbatims.name}</h2>
                 <p className="mt-2 text-sm leading-6 text-zinc-500">{sortedVerbatims.description}</p>
                 <select className="mt-5 h-11 rounded-lg border border-zinc-300 bg-white px-3 text-sm" onChange={(event) => setVerbatimFilter(event.target.value)} value={verbatimFilter}>
-                  <option value="">Select filtering report</option><option>Age Generation</option><option>Department</option><option>Job Level</option>
+                  <option value="">Select filtering report</option>{(surveyFilters.data ?? []).map((filter) => <option key={filter.questionId} value={filter.label}>{filter.label}</option>)}
                 </select>
                 <Button
                   className="mt-3 bg-red-600 hover:bg-red-700"
@@ -465,11 +495,10 @@ export function CatalogPage() {
               <Card className="flex min-h-[360px] flex-col p-6 shadow-none">
                 <div className="flex items-start justify-between gap-4">
                   <span className="grid size-14 place-items-center rounded-full bg-violet-100 text-violet-700"><FileChartColumn /></span>
-                  <strong className="text-xl text-red-600">$820</strong>
+                  <strong className="text-xl text-red-600">{money.format(keyImpact.priceCents / 100)}</strong>
                 </div>
-                <h2 className="mt-5 text-lg font-semibold">Key Impact Analysis</h2>
+                <h2 className="mt-5 text-lg font-semibold">{keyImpact.name}</h2>
                 <p className="mt-2 text-sm leading-6 text-zinc-500">{keyImpact.description}</p>
-                <p className="mt-4 text-xs font-medium text-zinc-600">A minimum of 100 survey responses is required. Delivery in 7–10 business days.</p>
                 <div className="mt-auto flex items-center justify-between gap-3 pt-5">
                   <Link className="text-sm font-semibold text-red-600" to={routeMap.keyImpactAnalysis}>View Report →</Link>
                   <Button
@@ -486,7 +515,7 @@ export function CatalogPage() {
               <Card className="flex min-h-[230px] flex-col p-6 shadow-none md:col-span-2 md:flex-row md:items-start md:gap-6">
                 <span className="grid size-14 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-700"><PackageCheck /></span>
                 <div className="flex-1">
-                  <h2 className="text-lg font-semibold">Re-Sorted Workforce Feedback Report</h2>
+                  <h2 className="text-lg font-semibold">{resorted.name}</h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">{resorted.description}</p>
                   <a className="mt-5 inline-block text-sm font-semibold text-red-600" href="mailto:SurveyPro@workforcerg.com">Contact a Survey Professional →</a>
                 </div>

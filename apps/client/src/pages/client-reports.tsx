@@ -5,10 +5,8 @@ import {
   ChevronRight,
   Download,
   Filter,
-  Minus,
   ShoppingCart,
   SlidersHorizontal,
-  Trophy,
   X,
   XCircle,
 } from "lucide-react";
@@ -85,31 +83,6 @@ function useCategoryResults(queryFilter: ReportQueryFilter = {}) {
       : [],
     programId: program?.id,
   };
-}
-
-const responseQuestions = [
-  "This organization's culture allows me to do my best work",
-  "I typically go above and beyond for this organization",
-  "I would endorse this organization's products/services",
-  "I am typically enthusiastic about my work",
-  "I feel satisfied with this organization",
-  "I intend to remain at this organization for the foreseeable future",
-  "I feel pride in saying I work for this organization",
-  "I would endorse this organization as an employer",
-  "I find purpose in my work",
-];
-
-function downloadText(filename: string, lines: string[]) {
-  const url = URL.createObjectURL(
-    new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" }),
-  );
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -221,12 +194,10 @@ function ReportHeader({
 
 function DownloadReportButton({
   label = "Download Report",
-  filename = "demo-report.txt",
   onDownload,
 }: {
   label?: string;
-  filename?: string;
-  onDownload?: () => Promise<void> | void;
+  onDownload: () => Promise<void> | void;
 }) {
   const [downloading, setDownloading] = useState(false);
   return (
@@ -236,12 +207,7 @@ function DownloadReportButton({
       onClick={async () => {
         setDownloading(true);
         try {
-          if (onDownload) await onDownload();
-          else
-            downloadText(filename, [
-              "Demo User",
-              "Sanitized demonstration report data",
-            ]);
+          await onDownload();
         } finally {
           setDownloading(false);
         }
@@ -556,7 +522,17 @@ export function DetailedResultsFilters({
   );
 }
 
-function FilterButton() {
+function FilterButton({
+  filters,
+  value,
+  onChange,
+  loading,
+}: {
+  filters: SurveyFilter[];
+  value: string;
+  onChange: (value: string) => void;
+  loading: boolean;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -571,12 +547,9 @@ function FilterButton() {
         <div className="absolute left-0 top-12 z-20 w-64 rounded-xl border border-zinc-200 bg-white p-4 shadow-xl">
           <label className="grid gap-2 text-xs font-semibold text-zinc-600">
             Compare by
-            <select className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-normal text-zinc-900">
-              <option>All respondents</option>
-              <option>Age Generation</option>
-              <option>Department</option>
-              <option>Job Level</option>
-              <option>Workplace Setting</option>
+            <select className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-normal text-zinc-900" disabled={loading} onChange={(event) => onChange(event.target.value)} value={value}>
+              <option value="">Select a demographic</option>
+              {filters.map((filter) => <option key={filter.questionId} value={filter.questionId}>{filter.label}</option>)}
             </select>
           </label>
           <Button className="mt-3 w-full" onClick={() => setOpen(false)}>
@@ -846,7 +819,7 @@ export function DetailedResultsPage() {
           />
           <ImageDownloadMenu
             disabled={!report.data || report.isPending}
-            name={`detailed-results-${report.programId ?? "demo"}`}
+            name={`detailed-results-${report.programId ?? "unselected"}`}
             onDownloadXlsx={() =>
               api.reports.downloadDetailedWorkbook(
                 report.programId ?? "",
@@ -1280,14 +1253,22 @@ export function AnnualTrendsPage() {
                 targetRef={surveyAverageRef}
               />
             </div>
-            <div className="mt-3 grid lg:grid-cols-2 lg:divide-x lg:divide-zinc-200">
-              <DonutScore
-                delta={currentAverage - previousAverage}
-                value={currentAverage}
-                year={Number(currentYear)}
-              />
-              <DonutScore value={previousAverage} year={Number(previousYear)} />
-            </div>
+            {averages.isPending ? (
+              <StatePanel kind="loading" title="Loading survey averages" message="Comparing overall agreement for both survey years." />
+            ) : averages.isError ? (
+              <StatePanel kind="error" title="Survey averages unavailable" message={averages.error.message} />
+            ) : averages.data.data === null ? (
+              <StatePanel kind="empty" title="No prior survey average" message="A prior year is required for the annual comparison." />
+            ) : (
+              <div className="mt-3 grid lg:grid-cols-2 lg:divide-x lg:divide-zinc-200">
+                <DonutScore
+                  delta={currentAverage - previousAverage}
+                  value={currentAverage}
+                  year={Number(currentYear)}
+                />
+                <DonutScore value={previousAverage} year={Number(previousYear)} />
+              </div>
+            )}
           </Card>
         </div>
         {categories.isPending ? (
@@ -1409,36 +1390,33 @@ export function AnnualTrendsPage() {
 
 export function EmployeeVerbatimsPage() {
   const [filter, setFilter] = useState("");
-  const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const program = useSelectedProgram();
   const addToCart = useAppStore((state) => state.addToCart);
   const inCart = useAppStore((state) =>
     state.cart.some((item) => item.productId === "report-verbatims-sorted"),
   );
-  const questions = [
-    "What are the top two or three reasons people like working for this organization? (2000 character limit)",
-    "What two or three things can this organization add or change to improve employee engagement and success? (2000 character limit)",
-  ];
-  const responses = [
-    [
-      "The people, the collaborative culture, and the opportunity to do meaningful work.",
-      "Supportive colleagues and managers who trust employees to do their jobs.",
-      "The benefits, flexibility, and strong reputation of the organization.",
-      "I appreciate the intelligent people I work with and the variety of projects.",
-      "The organization is stable, professional, and focused on its clients.",
-      "My team communicates well and is willing to help when priorities change.",
-    ],
-    [
-      "Continue improving communication between departments and offices.",
-      "Provide clearer career paths and more visibility into advancement opportunities.",
-      "Reduce unnecessary processes so teams can make decisions more quickly.",
-      "Invest in modern tools and make training easier to access.",
-      "Create more opportunities for employees to connect across the organization.",
-      "Keep workloads sustainable during the busiest parts of the year.",
-    ],
-  ];
-  if (selectedQuestion !== null) {
-    const question = questions[selectedQuestion] ?? questions[0];
+  const questions = useQuery({
+    queryKey: ["open-response-questions", program?.id],
+    queryFn: () => api.reports.openResponseQuestions(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const answers = useQuery({
+    queryKey: ["open-response-answers", program?.id, selectedQuestionId],
+    queryFn: () => api.reports.openResponseAnswers(program?.id ?? "", selectedQuestionId ?? ""),
+    enabled: Boolean(program && selectedQuestionId),
+  });
+  const catalog = useQuery({
+    queryKey: ["report-catalog"],
+    queryFn: api.reports.catalog,
+  });
+  const availableFilters = useQuery({
+    queryKey: ["survey-filters", program?.id],
+    queryFn: () => api.reports.surveyFilters(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const sortedVerbatims = catalog.data?.find((product) => product.id === "report-verbatims-sorted");
+  if (selectedQuestionId !== null) {
     return (
       <>
         <PageHeader
@@ -1450,22 +1428,30 @@ export function EmployeeVerbatimsPage() {
           title="Question Details"
         />
         <div className="p-6">
-          <button className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-violet-700" onClick={() => setSelectedQuestion(null)}>
+          <button className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-violet-700" onClick={() => setSelectedQuestionId(null)}>
             <ChevronLeft className="size-4" /> Back to Employee Verbatims
           </button>
-          <Card className="overflow-hidden shadow-none">
-            <div className="border-b border-zinc-200 p-5">
-              <h2 className="text-base font-semibold leading-6">{question}</h2>
-            </div>
-            <div className="grid gap-3 bg-zinc-50 p-5">
-              {(responses[selectedQuestion] ?? responses[0] ?? []).map((response, index) => (
-                <blockquote className="rounded-xl border border-zinc-200 bg-white p-5 text-sm leading-6 text-zinc-700" key={response}>
-                  <span className="mr-2 text-xl leading-none text-violet-500">“</span>{response}
-                  <footer className="mt-3 text-xs font-medium text-zinc-400">Employee response {index + 1}</footer>
-                </blockquote>
-              ))}
-            </div>
-          </Card>
+          {answers.isPending ? (
+            <StatePanel kind="loading" title="Loading employee responses" message="Retrieving verbatims for the selected question." />
+          ) : answers.isError ? (
+            <StatePanel kind="error" title="Employee responses unavailable" message={answers.error.message} action={<Button onClick={() => void answers.refetch()}>Try again</Button>} />
+          ) : answers.data.data.respondentData.length === 0 ? (
+            <StatePanel kind="empty" title="No responses" message="No employees answered this question." />
+          ) : (
+            <Card className="overflow-hidden shadow-none">
+              <div className="border-b border-zinc-200 p-5">
+                <h2 className="text-base font-semibold leading-6">{answers.data.data.queryQuestion.Caption}</h2>
+              </div>
+              <div className="grid gap-3 bg-zinc-50 p-5">
+                {answers.data.data.respondentData.map((respondent, index) => (
+                  <blockquote className="rounded-xl border border-zinc-200 bg-white p-5 text-sm leading-6 text-zinc-700" key={respondent._id ?? `${respondent.RespondentId ?? "response"}-${index}`}>
+                    <span className="mr-2 text-xl leading-none text-violet-500">“</span>{respondent.responses.Value}
+                    <footer className="mt-3 text-xs font-medium text-zinc-400">Employee response {index + 1}</footer>
+                  </blockquote>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </>
     );
@@ -1487,7 +1473,7 @@ export function EmployeeVerbatimsPage() {
           </div>
           <div className="rounded-xl bg-white p-4 text-zinc-900">
             <p className="text-[13px] text-zinc-500">Price</p>
-            <strong className="text-2xl">$ 425</strong>
+            <strong className="text-2xl">{sortedVerbatims ? `$ ${(sortedVerbatims.priceCents / 100).toLocaleString()}` : "—"}</strong>
             <p className="mt-3 text-xs font-medium text-zinc-700">Select one of these options</p>
             <select
               className="mt-3 h-10 w-full rounded-md border border-zinc-300 px-3 text-sm"
@@ -1495,18 +1481,16 @@ export function EmployeeVerbatimsPage() {
               value={filter}
             >
               <option value="">Select filtering report</option>
-              <option>Age Generation</option>
-              <option>Department</option>
-              <option>Job Level</option>
+              {(availableFilters.data ?? []).map((item) => <option key={item.questionId} value={item.label}>{item.label}</option>)}
             </select>
             <Button
               className="mt-3 w-full"
-              disabled={!filter || inCart}
+              disabled={!filter || inCart || !sortedVerbatims}
               onClick={() =>
                 addToCart({
                   productId: "report-verbatims-sorted",
-                  name: "Sorted Employee Verbatims",
-                  priceCents: 42500,
+                  name: sortedVerbatims?.name ?? "Sorted Employee Verbatims",
+                  priceCents: sortedVerbatims?.priceCents ?? 0,
                 })
               }
             >
@@ -1520,9 +1504,15 @@ export function EmployeeVerbatimsPage() {
             <DownloadReportButton onDownload={() => api.reports.downloadVerbatimsWorkbook(program?.id ?? "")} />
           </div>
           <div className="grid gap-3 p-5">
-            {questions.map((question, index) => (
-              <button className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-left text-sm font-medium transition hover:border-violet-300 hover:bg-violet-50" key={question} onClick={() => setSelectedQuestion(index)}>
-                <span className="flex-1 truncate">{question}</span>
+            {questions.isPending ? (
+              <StatePanel kind="loading" title="Loading questions" message="Retrieving open-ended survey questions." />
+            ) : questions.isError ? (
+              <StatePanel kind="error" title="Questions unavailable" message={questions.error.message} action={<Button onClick={() => void questions.refetch()}>Try again</Button>} />
+            ) : questions.data.data.length === 0 ? (
+              <StatePanel kind="empty" title="No verbatim questions" message="This program has no open-ended response questions." />
+            ) : questions.data.data.map((question) => (
+              <button className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-left text-sm font-medium transition hover:border-violet-300 hover:bg-violet-50" key={String(question.id)} onClick={() => setSelectedQuestionId(String(question.id))}>
+                <span className="flex-1 truncate">{question.caption}</span>
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white shadow-sm"><ChevronRight className="size-4" /></span>
               </button>
             ))}
@@ -1532,29 +1522,6 @@ export function EmployeeVerbatimsPage() {
     </>
   );
 }
-
-const benchmarks = [
-  ["All Size Categories", 88],
-  ["Small Employers", 93],
-  ["Medium Employers", 91],
-  ["Large Employers", 89],
-  ["Major Employers", 87],
-  ["Super Employers", 85],
-] as const;
-
-const benchmarkCategoryValues: Record<string, number[]> = {
-  "Core Employee Experience": [91, 96, 94, 92, 90, 88],
-  "Your Job": [89, 94, 92, 89, 87, 85],
-  "Communication and Workplace Culture": [87, 93, 90, 87, 85, 84],
-  "Relationship With Your Manager": [93, 96, 94, 93, 92, 91],
-  "Training, Technology and Professional Development": [85, 91, 88, 86, 83, 79],
-  "Diversity and Inclusion": [92, 94, 91, 92, 91, 91],
-  "Leadership of this Organization": [87, 93, 91, 88, 84, 81],
-  Leadership: [87, 93, 91, 88, 84, 81],
-  "Employee Benefits": [86, 92, 89, 87, 84, 82],
-  "Work-Life Balance": [85, 91, 88, 86, 83, 81],
-  "Supplementary Questions": [84, 90, 87, 85, 82, 80],
-};
 
 type BenchmarkDetailRow = {
   id?: string | number | undefined;
@@ -1568,35 +1535,31 @@ type BenchmarkCategory = {
   nestedData: BenchmarkDetailRow[];
 };
 
-const benchmarkEmployerLabels = [
-  "All Employers",
-  "Small Employers",
-  "Medium Employers",
-  "Large Employers",
-  "Major Employers",
-  "Super Employers",
-] as const;
+function benchmarkValue(value: number | string | undefined): number | "x" {
+  if (typeof value === "number") return value;
+  const parsed = Number.parseFloat(value ?? "");
+  return Number.isFinite(parsed) ? parsed : "x";
+}
 
-function winnerValues(category: BenchmarkCategory): number[] {
-  const pairedValues = category.dataValues.filter((_, index) => index % 2 === 0);
-  const source = pairedValues.length >= 6
-    ? pairedValues
-    : benchmarkCategoryValues[category.title] ?? [88, 93, 91, 89, 87, 85];
-  return source.slice(0, 6).map((value) =>
-    typeof value === "number" ? value : Number.parseFloat(value) || 0,
-  );
+function benchmarkPairs(category: BenchmarkCategory) {
+  return Array.from({ length: Math.ceil(category.dataValues.length / 2) }, (_, index) => ({
+    winner: benchmarkValue(category.dataValues[index * 2]),
+    nonWinner: benchmarkValue(category.dataValues[index * 2 + 1]),
+  }));
 }
 
 function BenchmarkCategoryCard({
   category,
+  employerLabels,
   selected,
   onSelect,
 }: {
   category: BenchmarkCategory;
+  employerLabels: string[];
   selected: boolean;
   onSelect: () => void;
 }) {
-  const values = winnerValues(category);
+  const values = benchmarkPairs(category);
   const cardRef = useRef<HTMLElement>(null);
   return (
     <section
@@ -1628,22 +1591,25 @@ function BenchmarkCategoryCard({
       </div>
       <div className="mt-6 flex flex-1 items-end gap-2">
         {values.map((value, index) => (
-          <div className="flex min-w-0 flex-1 flex-col items-center gap-2" key={`${value}-${index}`}>
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-2" key={`${value.winner}-${value.nonWinner}-${index}`}>
             <div className="flex h-[180px] items-end gap-1.5">
               <div className="flex h-full flex-col items-center justify-end gap-1">
-                <span className="shrink-0 whitespace-nowrap text-xs">{value}%</span>
+                <span className="shrink-0 whitespace-nowrap text-xs">{typeof value.winner === "number" ? `${value.winner}%` : "x"}</span>
                 <div
                   className="w-7 shrink-0 rounded-t-lg bg-violet-900"
-                  style={{ height: `${Math.round((value / 100) * 160)}px` }}
+                  style={{ height: `${typeof value.winner === "number" ? Math.round((value.winner / 100) * 160) : 0}px` }}
                 />
               </div>
               <div className="flex h-full flex-col items-center justify-end gap-1">
-                <span className="shrink-0 text-xs">x</span>
-                <div className="h-0 w-7 shrink-0 rounded-t-lg bg-violet-400" />
+                <span className="shrink-0 text-xs">{typeof value.nonWinner === "number" ? `${value.nonWinner}%` : "x"}</span>
+                <div
+                  className="w-7 shrink-0 rounded-t-lg bg-violet-400"
+                  style={{ height: `${typeof value.nonWinner === "number" ? Math.round((value.nonWinner / 100) * 160) : 0}px` }}
+                />
               </div>
             </div>
             <span className="min-h-6 text-center text-[10px] leading-3 text-zinc-600">
-              {benchmarkEmployerLabels[index]}
+              {employerLabels[index] ?? `Employer group ${index + 1}`}
             </span>
           </div>
         ))}
@@ -1658,9 +1624,11 @@ function BenchmarkCategoryCard({
 
 function BenchmarkDetailsTable({
   category,
+  employerLabels,
   onClose,
 }: {
   category: BenchmarkCategory;
+  employerLabels: string[];
   onClose: () => void;
 }) {
   return (
@@ -1676,12 +1644,12 @@ function BenchmarkDetailsTable({
           <thead>
             <tr>
               <th className="w-[300px] px-6 py-3 text-left" rowSpan={2}>Question</th>
-              {benchmarkEmployerLabels.map((label) => (
+              {employerLabels.map((label) => (
                 <th className="px-2 py-3 text-center" colSpan={2} key={label}>{label}</th>
               ))}
             </tr>
             <tr>
-              {benchmarkEmployerLabels.flatMap((label) => [
+              {employerLabels.flatMap((label) => [
                 <th className="whitespace-nowrap px-2 py-3 font-medium" key={`${label}-winner`}><span className="inline-flex items-center gap-1"><i className="size-2 rounded-sm bg-violet-900" />Winners</span></th>,
                 <th className="whitespace-nowrap px-2 py-3 font-medium" key={`${label}-non-winner`}><span className="inline-flex items-center gap-1"><i className="size-2 rounded-sm bg-violet-400" />Non-Winners</span></th>,
               ])}
@@ -1691,7 +1659,7 @@ function BenchmarkDetailsTable({
             {category.nestedData.map((row, rowIndex) => (
               <tr className={cn("border-t border-violet-200", rowIndex % 2 === 0 && "bg-white/45")} key={row.id ?? row.title}>
                 <td className="px-6 py-4 leading-5 text-zinc-600">{row.title}</td>
-                {benchmarkEmployerLabels.flatMap((label, groupIndex) => {
+                {employerLabels.flatMap((label, groupIndex) => {
                   const winners = row.dataValues[groupIndex * 2];
                   const nonWinners = row.dataValues[groupIndex * 2 + 1];
                   return [
@@ -1709,7 +1677,6 @@ function BenchmarkDetailsTable({
 }
 
 export function BenchmarkDataPage() {
-  const { categoryResults } = useCategoryResults();
   const program = useSelectedProgram();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const comparison = useQuery({
@@ -1717,11 +1684,22 @@ export function BenchmarkDataPage() {
     queryFn: () => api.reports.workforceComparison(program?.id ?? ""),
     enabled: Boolean(program),
   });
-  const categories: BenchmarkCategory[] = comparison.data?.data.data ?? categoryResults.map((item) => ({
-    title: item.title,
-    dataValues: (benchmarkCategoryValues[item.title] ?? [88, 93, 91, 89, 87, 85]).flatMap((value) => [value, "x"]),
-    nestedData: [],
-  }));
+  const categories: BenchmarkCategory[] = comparison.data?.data.data ?? [];
+  const employerLabels = (comparison.data?.data.tableHeaders ?? [])
+    .filter((header) => header.type.includes("Yes"))
+    .map((header) => header.title);
+  const averages = (comparison.data?.data.surveyAverage ?? []).map((average) => {
+    const yes = average.Yes;
+    const no = average.No;
+    const winner = yes && typeof yes === "object" && "value" in yes ? yes.value : "x";
+    const nonWinner = no && typeof no === "object" && "value" in no ? no.value : "x";
+    return {
+      title: typeof average.title === "string" ? average.title : "Employer group",
+      subTitle: typeof average.subTitle === "string" ? average.subTitle : "Survey Average",
+      winner: typeof winner === "number" || typeof winner === "string" ? winner : "x",
+      nonWinner: typeof nonWinner === "number" || typeof nonWinner === "string" ? nonWinner : "x",
+    };
+  });
   const categoryRows = Array.from(
     { length: Math.ceil(categories.length / 2) },
     (_, index) => categories.slice(index * 2, index * 2 + 2),
@@ -1734,22 +1712,29 @@ export function BenchmarkDataPage() {
       />
       <div className="p-6">
         <div className="flex justify-end"><DownloadReportButton onDownload={() => api.reports.downloadBenchmarkWorkbook(program?.id ?? "")} /></div>
+        {comparison.isPending ? (
+          <StatePanel kind="loading" title="Loading benchmark data" message="Retrieving comparison results for the selected program." />
+        ) : comparison.isError ? (
+          <StatePanel kind="error" title="Benchmark data unavailable" message={comparison.error.message} action={<Button onClick={() => void comparison.refetch()}>Try again</Button>} />
+        ) : categories.length === 0 ? (
+          <StatePanel kind="empty" title="No benchmark data" message="The backend returned no benchmark results for this program." />
+        ) : (<>
         <Card className="mt-6 p-5 shadow-none">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            {benchmarks.map(([label, value]) => (
+            {averages.map((average) => (
               <div
                 className="rounded-xl bg-zinc-100 p-4 text-center"
-                key={label}
+                key={average.title}
               >
-                <h2 className="min-h-10 text-[13px] font-semibold">{label}</h2>
-                <p className="mt-3 text-xs text-zinc-500">Survey Average</p>
-                <strong className="mt-1 block text-2xl">{value}%</strong>
+                <h2 className="min-h-10 text-[13px] font-semibold">{average.title}</h2>
+                <p className="mt-3 text-xs text-zinc-500">{average.subTitle}</p>
+                <strong className="mt-1 block text-2xl">{typeof average.winner === "number" ? `${average.winner}%` : average.winner}</strong>
                 <div className="mt-3 flex justify-center gap-3 text-xs">
                   <span className="flex items-center gap-1 text-emerald-600">
                     <Check className="size-4" /> Winners
                   </span>
                   <span className="flex items-center gap-1 text-red-500">
-                    <XCircle className="size-4" /> x
+                    <XCircle className="size-4" /> {typeof average.nonWinner === "number" ? `${average.nonWinner}%` : average.nonWinner}
                   </span>
                 </div>
               </div>
@@ -1765,13 +1750,14 @@ export function BenchmarkDataPage() {
                   {row.map((category) => (
                     <BenchmarkCategoryCard
                       category={category}
+                      employerLabels={employerLabels}
                       key={category.title}
                       onSelect={() => setSelectedCategory((current) => current === category.title ? null : category.title)}
                       selected={selectedCategory === category.title}
                     />
                   ))}
                 </div>
-                {selected ? <BenchmarkDetailsTable category={selected} onClose={() => setSelectedCategory(null)} /> : null}
+                {selected ? <BenchmarkDetailsTable category={selected} employerLabels={employerLabels} onClose={() => setSelectedCategory(null)} /> : null}
               </div>
             );
           })}
@@ -1779,41 +1765,11 @@ export function BenchmarkDataPage() {
         <p className="mt-4 text-xs text-zinc-500">
           x – Insufficient data to provide meaningful feedback.
         </p>
+        </>)}
       </div>
     </>
   );
 }
-
-const comparisonTabs = [
-  "All Winners",
-  "Small Winners",
-  "Medium Winners",
-  "Large Winners",
-  "Major Winners",
-  "Super Winners",
-];
-const comparisonCohortKeys = [
-  "AllYes",
-  "SmallYes",
-  "MediumYes",
-  "LargeYes",
-  "MajorYes",
-  "SuperYes",
-] as const;
-
-const cohenComparisonValues: Record<string, number> = {
-  "Core Employee Experience": 87,
-  "Your Job": 83,
-  "Communication and Workplace Culture": 83,
-  "Relationship With Your Manager": 89,
-  "Training, Technology and Professional Development": 81,
-  "Diversity and Inclusion": 88,
-  "Leadership of this Organization": 81,
-  Leadership: 81,
-  "Employee Benefits": 79,
-  "Work-Life Balance": 77,
-  "Supplementary Questions": 0,
-};
 
 function AgreementDonut({ value, label }: { value: number | string; label: string }) {
   const numeric = typeof value === "number" ? value : 0;
@@ -1900,14 +1856,16 @@ function ComparisonQuestionDetails({
 function ComparisonCategoryCard({
   title,
   benchmark,
-  active,
+  currentValue,
+  compareLabel,
   selected,
   onToggle,
   details,
 }: {
   title: string;
   benchmark: number;
-  active: number;
+  currentValue: number;
+  compareLabel: string;
   selected: boolean;
   onToggle: () => void;
   details: UseQueryResult<Awaited<ReturnType<typeof api.reports.comparisonQuestions>>>;
@@ -1934,13 +1892,13 @@ function ComparisonCategoryCard({
             <ImageDownloadMenu iconOnly name={title} targetRef={cardRef} />
           </div>
           <div className="grid gap-8 p-7 md:grid-cols-2 md:divide-x md:divide-zinc-200">
-            <AgreementDonut label="Your Results" value={cohenComparisonValues[title] ?? 0} />
-            <div className="md:pl-8"><AgreementDonut label={comparisonTabs[active] ?? "All Winners"} value={benchmark} /></div>
+            <AgreementDonut label="Your Results" value={currentValue} />
+            <div className="md:pl-8"><AgreementDonut label={compareLabel} value={benchmark} /></div>
           </div>
         </div>
         {selected ? (
           <ComparisonQuestionDetails
-            compareLabel={comparisonTabs[active] ?? "All Winners"}
+            compareLabel={compareLabel}
             loading={details.isLoading}
             onClose={onToggle}
             rows={details.data?.data.questionResponse ?? []}
@@ -1955,17 +1913,27 @@ function ComparisonCategoryCard({
 export function ComparisonDataPage() {
   const [active, setActive] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const { categoryResults } = useCategoryResults();
+  const categoryReport = useCategoryResults();
+  const { categoryResults } = categoryReport;
   const program = useSelectedProgram();
-  const categories = (categoryResults.length ? categoryResults.map(({ title }) => title) : Object.keys(cohenComparisonValues)).filter((title) => title !== "Supplementary Questions");
+  const comparison = useQuery({
+    queryKey: ["workforce-comparison", program?.id],
+    queryFn: () => api.reports.workforceComparison(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const cohorts = (comparison.data?.data.tableHeaders ?? [])
+    .map((header, index) => ({ label: header.title, key: header.type.replace("_", ""), index }))
+    .filter((cohort) => cohort.key.endsWith("Yes"));
+  const categories = categoryResults.filter(({ title }) => title !== "Supplementary Questions");
+  const selectedCohort = cohorts[active];
   const details = useQuery({
     queryKey: ["comparison-question-details", program?.id, selectedCategory, active],
     queryFn: () => api.reports.comparisonQuestions(
       program?.id ?? "",
       selectedCategory ?? "",
-      comparisonCohortKeys[active] ?? "AllYes",
+      selectedCohort?.key ?? "",
     ),
-    enabled: Boolean(program && selectedCategory),
+    enabled: Boolean(program && selectedCategory && selectedCohort),
   });
   return (
     <>
@@ -1984,7 +1952,7 @@ export function ComparisonDataPage() {
             <ChevronLeft className="size-4" />
           </button>
           <div className="grid flex-1 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-            {comparisonTabs.map((tab, index) => (
+            {cohorts.map((cohort, index) => (
               <button
                 className={cn(
                   "h-10 rounded-lg px-2 text-xs font-medium",
@@ -1992,10 +1960,10 @@ export function ComparisonDataPage() {
                     ? "bg-violet-600 text-white"
                     : "bg-white text-zinc-600",
                 )}
-                key={tab}
+                key={cohort.key}
                 onClick={() => setActive(index)}
               >
-                {tab}
+                {cohort.label}
               </button>
             ))}
           </div>
@@ -2004,147 +1972,175 @@ export function ComparisonDataPage() {
             className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-zinc-500"
             onClick={() =>
               setActive((value) =>
-                Math.min(comparisonTabs.length - 1, value + 1),
+                Math.min(cohorts.length - 1, value + 1),
               )
             }
           >
             <ChevronRight className="size-4" />
           </button>
         </div>
-        <div className="mt-6 grid gap-5">
-          {categories.map((title) => {
-            const benchmark = benchmarkCategoryValues[title]?.[active] ?? (title === "Supplementary Questions" ? 0 : 88 - active);
-            const selected = selectedCategory === title;
+        {categoryReport.isPending || comparison.isPending ? (
+          <StatePanel kind="loading" title="Loading comparison data" message="Retrieving your results and comparison cohorts." />
+        ) : categoryReport.isError || comparison.isError ? (
+          <StatePanel kind="error" title="Comparison data unavailable" message={(categoryReport.error ?? comparison.error)?.message ?? "The comparison could not be loaded."} />
+        ) : categories.length === 0 || cohorts.length === 0 ? (
+          <StatePanel kind="empty" title="No comparison data" message="The backend returned no comparison results for this program." />
+        ) : <div className="mt-6 grid gap-5">
+          {categories.map((category) => {
+            const benchmarkCategory = comparison.data.data.data.find((item) => item.title === category.title);
+            const rawBenchmark = selectedCohort ? benchmarkCategory?.dataValues[selectedCohort.index] : undefined;
+            const benchmark = typeof rawBenchmark === "number" ? rawBenchmark : Number.parseFloat(rawBenchmark ?? "") || 0;
+            const selected = selectedCategory === category.title;
             return (
               <ComparisonCategoryCard
-                active={active}
                 benchmark={benchmark}
+                compareLabel={selectedCohort?.label ?? "Comparison group"}
+                currentValue={category.agreement}
                 details={details}
-                key={title}
-                onToggle={() => setSelectedCategory((current) => current === title ? null : title)}
+                key={category.title}
+                onToggle={() => setSelectedCategory((current) => current === category.title ? null : category.title)}
                 selected={selected}
-                title={title}
+                title={category.title}
               />
             );
           })}
-        </div>
+        </div>}
         <p className="mt-4 text-xs text-zinc-500">x – Insufficient data to provide meaningful feedback.</p>
       </div>
     </>
   );
 }
 
-const practiceQuestions = [
-  ["Does your organization coordinate “Fun” activities?", "Yes", [100, 100, 100, 100, 100, 100]],
-  ["Does your organization have a structured system for recognizing achievements, attendance, or safety goals?", "Yes", [86, 83, 80, 88, 89, 100]],
-  ["Does your organization formally recognize individual employee milestones?", "Yes", [97, 96, 100, 95, 100, 100]],
-  ["Do you have a strategy to recruit and retain a diverse workforce?", "Yes", [89, 91, 84, 91, 100, 80]],
-  ["Do you have a strategy specifically focused on recruiting and retaining Generation Z employees?", "Yes", [69, 57, 48, 79, 100, 80]],
-  ["Does your organization conduct preemployment screening?", "Yes", [96, 96, 92, 98, 100, 100]],
-  ["Which preemployment tools does your organization use?", "Credit history", [61, 32, 74, 63, 78, 80]],
-  ["Which preemployment tools does your organization use?", "Criminal background", [99, 95, 100, 100, 100, 100]],
-  ["Which preemployment tools does your organization use?", "Driving records", [22, 23, 17, 23, 22, 40]],
-  ["Which preemployment tools does your organization use?", "Drug testing", [16, 5, 9, 20, 33, 40]],
-  ["Which preemployment tools does your organization use?", "Education verification", [88, 73, 87, 93, 100, 100]],
-  ["Which preemployment tools does your organization use?", "Personality/behavioral assessment", [26, 23, 26, 23, 44, 40]],
-  ["Which preemployment tools does your organization use?", "Professional reference", [84, 77, 91, 85, 89, 60]],
-  ["Which preemployment tools does your organization use?", "Skills assessment", [63, 45, 65, 75, 56, 40]],
-  ["Which preemployment tools does your organization use?", "Social media", [19, 27, 26, 13, 22, 0]],
-  ["Which preemployment tools does your organization use?", "Work sample", [42, 41, 48, 43, 56, 0]],
-] as const;
-
-const metricTabs = [
-  "All Winners",
-  "All Non-Winners",
-  "Small Winners (20–49 US Employees)",
-  "Small Non-Winners",
-  "Medium Winners (50–99 US Employees)",
-  "Medium Non-Winners",
-  "Large Winners (100–499 US Employees)",
-  "Large Non-Winners",
-  "Major Winners (500–999 US Employees)",
-  "Major Non-Winners",
-  "Super Winners (1,000 or more US Employees)",
-  "Super Non-Winners",
-];
-
 export function BenefitsBestPracticesPage() {
-  const [active, setActive] = useState(0);
   const program = useSelectedProgram();
-  const showNonWinners = active % 2 === 1;
+  const report = useQuery({
+    queryKey: ["employer-benchmark", program?.id],
+    queryFn: () => api.reports.employerBenchmark(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const headers = report.data?.data.tableHeaders ?? [];
+  type BenchmarkNode = NonNullable<Awaited<ReturnType<typeof api.reports.employerBenchmark>>["data"]["tableData"][number]["nestedData"]>[number];
+  type BenefitsRow = { format: string; section: string; question: string; response: string; values: (number | string)[] };
+  const flattenNode = (section: string, node: BenchmarkNode, parents: string[] = []): BenefitsRow[] => {
+    if (node.dataValues) {
+      return [{
+        format: node.type ?? "%",
+        section,
+        question: parents[0] ?? node.title,
+        response: [...parents.slice(1), ...(parents.length ? [node.title] : [])].join(" / "),
+        values: node.dataValues,
+      }];
+    }
+    return (node.nestedData ?? []).flatMap((child) => flattenNode(section, child, [...parents, node.title]));
+  };
+  const rows = (report.data?.data.tableData ?? []).flatMap((section) =>
+    section.nestedData.flatMap((node) => flattenNode(section.title, node)),
+  );
   return (
     <>
       <ReportHeader title="Benefits & Best Practices" />
       <div className="p-6">
         <div className="flex justify-end"><DownloadReportButton onDownload={() => api.reports.downloadBenefitsWorkbook(program?.id ?? "")} /></div>
-        <Card className="mt-6 overflow-hidden shadow-none">
-          <div className="border-b border-zinc-200 p-5">
-            <p className="mb-3 text-[11px] font-semibold tracking-wider text-zinc-500">
-              METRIC CATEGORY
-            </p>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {metricTabs.map((tab, index) => (
-                <button
-                  className={cn(
-                    "flex min-w-[150px] items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium",
-                    active === index
-                      ? "border-violet-300 bg-violet-50 text-violet-700"
-                      : "border-zinc-200 bg-white text-zinc-600",
-                  )}
-                  key={tab}
-                  onClick={() => setActive(index)}
-                >
-                  {tab.includes("Non") ? (
-                    <Minus className="size-4" />
-                  ) : (
-                    <Trophy className="size-4" />
-                  )}{" "}
-                  {tab}
-                </button>
-              ))}
-            </div>
-          </div>
+        {report.isPending ? (
+          <StatePanel kind="loading" title="Loading benefits and practices" message="Retrieving employer benchmark data." />
+        ) : report.isError ? (
+          <StatePanel kind="error" title="Benefits data unavailable" message={report.error.message} action={<Button onClick={() => void report.refetch()}>Try again</Button>} />
+        ) : rows.length === 0 ? (
+          <StatePanel kind="empty" title="No benefits data" message="The backend returned no benefits or best-practice results." />
+        ) : <Card className="mt-6 overflow-hidden shadow-none">
           <div className="overflow-x-auto">
             <table className="min-w-[1050px] w-full text-left text-xs">
-              <thead className="bg-zinc-100 text-zinc-600"><tr><th className="w-[390px] px-5 py-4">Question / Response</th>{["All Employers", "Small", "Medium", "Large", "Major", "Super"].map((label) => <th className="px-3 py-4 text-center" key={label}>{label}</th>)}</tr></thead>
+              <thead className="bg-zinc-100 text-zinc-600"><tr><th className="w-[390px] px-5 py-4">Question / Response</th>{headers.map((header, index) => <th className="px-3 py-4 text-center" key={`${header.title}-${header.type ?? index}`}>{header.title}</th>)}</tr></thead>
               <tbody>
-                {practiceQuestions.map(([question, answer, values], index) => (
-                  <tr className={cn("border-t border-zinc-100", index % 2 === 1 && "bg-zinc-50/60")} key={`${question}-${answer}`}>
-                    <td className="px-5 py-4"><span className="block font-medium leading-5 text-zinc-800">{question}</span><span className="mt-1 block text-zinc-500">{answer}</span></td>
-                    {values.map((value, valueIndex) => <td className="px-3 py-4 text-center font-semibold" key={valueIndex}>{showNonWinners ? <span className="text-zinc-400">x</span> : `${value}%`}</td>)}
+                {rows.map((row, index) => (
+                  <tr className={cn("border-t border-zinc-100", index % 2 === 1 && "bg-zinc-50/60")} key={`${row.section}-${row.question}-${row.response}`}>
+                    <td className="px-5 py-4"><span className="text-[10px] font-semibold uppercase tracking-wide text-violet-600">{row.section}</span><span className="mt-1 block font-medium leading-5 text-zinc-800">{row.question}</span><span className="mt-1 block text-zinc-500">{row.response}</span></td>
+                    {headers.map((header, valueIndex) => { const value = row.values[valueIndex] ?? "x"; return <td className="px-3 py-4 text-center font-semibold" key={`${header.title}-${valueIndex}`}>{typeof value === "number" ? `${Math.round(value)}${row.format === "%" ? "%" : ""}` : value}</td>; })}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </Card>
-        {showNonWinners ? <p className="mt-4 text-xs text-zinc-500">x – Insufficient non-winner data to provide meaningful feedback.</p> : null}
+        </Card>}
       </div>
     </>
   );
 }
 
-function ResponseDetailTable({ seed = 0 }: { seed?: number }) {
-  const labels = ["Strongly Agree", "Agree", "Slightly Agree", "Slightly Disagree", "Disagree", "Strongly Disagree"];
-  const groups = ["Gen Z", "Millennial", "Gen X", "Baby Boomer"];
+type ResponseDetailData = Awaited<ReturnType<typeof api.reports.responseDetailResult>>["data"];
+
+function ResponseDetailTable({ data }: { data: ResponseDetailData }) {
+  const [headerRow, ...rows] = data;
+  const cellText = (cell: ResponseDetailData[number][number] | undefined) =>
+    typeof cell === "string" || typeof cell === "number" ? String(cell) : "";
+  const headers = headerRow?.slice(1).map(cellText) ?? [];
+  const renderCell = (cell: ResponseDetailData[number][number]) => {
+    if (typeof cell === "object") {
+      const value = cell.percentile ?? cell.average ?? "—";
+      return <><strong>{value}</strong><span className="ml-1 text-zinc-400">({cell.respondentCount})</span></>;
+    }
+    return <strong>{cell}</strong>;
+  };
   return (
     <div className="overflow-x-auto py-2">
       <table className="min-w-[690px] w-full text-xs">
-        <thead><tr className="bg-zinc-100 text-zinc-600"><th className="px-3 py-3 text-left">Response</th>{groups.map((group) => <th className="px-3 py-3 text-center" key={group}>{group}</th>)}</tr></thead>
+        <thead><tr className="bg-zinc-100 text-zinc-600"><th className="px-3 py-3 text-left">Response</th>{headers.map((header) => <th className="px-3 py-3 text-center" key={header}>{header}</th>)}</tr></thead>
         <tbody>
-          {labels.map((label, row) => (
-            <tr className="border-t border-zinc-100" key={label}><td className="px-3 py-3 font-medium">{label}</td>{groups.map((group, column) => { const value = Math.max(1, ([45, 31, 12, 6, 4, 2][row] ?? 0) + ((seed + column * 2 + row) % 5) - 2); return <td className="px-3 py-3 text-center" key={group}><strong>{value}%</strong><span className="ml-1 text-zinc-400">({Math.max(5, Math.round(value * 1.9))})</span></td>; })}</tr>
+          {rows.map((row, rowIndex) => (
+            <tr className={cn("border-t border-zinc-100", cellText(row[0]) === "Question Total" && "border-t-2 border-zinc-200 bg-violet-50")} key={`${cellText(row[0])}-${rowIndex}`}><td className="px-3 py-3 font-medium">{cellText(row[0])}</td>{row.slice(1).map((cell, column) => <td className="px-3 py-3 text-center" key={`${headers[column] ?? column}-${column}`}>{renderCell(cell)}</td>)}</tr>
           ))}
-          <tr className="border-t-2 border-zinc-200 bg-violet-50"><td className="px-3 py-3 font-semibold">Question Total</td>{groups.map((group, index) => <td className="px-3 py-3 text-center font-semibold text-violet-700" key={group}>{[92, 91, 94, 93][index]}%</td>)}</tr>
         </tbody>
       </table>
     </div>
   );
 }
 
+function ResponseDetailQuestion({
+  programId,
+  filterQuestion,
+  question,
+}: {
+  programId: string;
+  filterQuestion: string;
+  question: { QuestionId: string | number; Caption: string };
+}) {
+  const [open, setOpen] = useState(false);
+  const result = useQuery({
+    queryKey: ["response-detail-result", programId, question.QuestionId, filterQuestion],
+    queryFn: () => api.reports.responseDetailResult(programId, String(question.QuestionId), filterQuestion),
+    enabled: open,
+  });
+  return (
+    <details className="group/question rounded-lg bg-white" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer items-center gap-3 p-4 text-sm">
+        <span className="flex-1">{question.Caption}</span>
+        <ChevronRight className="size-4 transition group-open/question:rotate-90" />
+      </summary>
+      <div className="border-t border-zinc-100 px-4 pb-5">
+        {result.isPending ? <p className="py-5 text-sm text-zinc-500">Loading response distribution…</p>
+          : result.isError ? <p className="py-5 text-sm text-red-600">{result.error.message}</p>
+          : result.data.data.length ? <ResponseDetailTable data={result.data.data} />
+          : <p className="py-5 text-sm text-zinc-500">No response distribution is available.</p>}
+      </div>
+    </details>
+  );
+}
+
 export function ResponseDetailPage() {
-  const { categoryResults } = useCategoryResults();
   const program = useSelectedProgram();
+  const [filterQuestion, setFilterQuestion] = useState("");
+  const filters = useQuery({
+    queryKey: ["survey-filters", program?.id],
+    queryFn: () => api.reports.surveyFilters(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const sections = useQuery({
+    queryKey: ["response-detail-sections", program?.id],
+    queryFn: () => api.reports.responseDetailSections(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const effectiveFilterQuestion = filterQuestion !== "" ? filterQuestion : (filters.data?.[0]?.questionId ?? "");
+  const selectedFilter = filters.data?.find((filter) => filter.questionId === effectiveFilterQuestion);
   return (
     <>
       <ReportHeader
@@ -2153,42 +2149,32 @@ export function ResponseDetailPage() {
       />
       <div className="p-6">
         <div className="flex items-center justify-between gap-3">
-          <FilterButton />
+          <FilterButton filters={filters.data ?? []} loading={filters.isPending} onChange={setFilterQuestion} value={effectiveFilterQuestion} />
           <DownloadReportButton onDownload={() => api.reports.downloadResponseDetailWorkbook(program?.id ?? "")} />
         </div>
-        <span className="mt-4 inline-flex rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">
-          Filter: Age Generation
-        </span>
+        {selectedFilter ? <span className="mt-4 inline-flex rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">Filter: {selectedFilter.label}</span> : null}
         <div className="mt-5 grid gap-3">
-          {categoryResults.map((area, areaIndex) => (
+          {filters.isError || sections.isError ? (
+            <StatePanel kind="error" title="Response detail unavailable" message={(filters.error ?? sections.error)?.message ?? "The response detail could not be loaded."} />
+          ) : filters.isPending || sections.isPending ? (
+            <StatePanel kind="loading" title="Loading response detail" message="Retrieving questions and demographic filters." />
+          ) : !effectiveFilterQuestion ? (
+            <StatePanel kind="empty" title="No demographic filters" message="The backend returned no demographics to compare." />
+          ) : sections.data.data.length === 0 ? (
+            <StatePanel kind="empty" title="No response detail" message={sections.data.message} />
+          ) : sections.data.data.flatMap((section) => Object.entries(section)).map(([title, questions]) => (
             <details
               className="group rounded-xl border border-zinc-200 bg-white"
-              key={area.title}
+              key={title}
             >
               <summary className="flex cursor-pointer items-center justify-between p-5 font-semibold">
-                <span>{area.title}</span>
+                <span>{title}</span>
                 <span className="grid size-8 place-items-center rounded-full border border-zinc-300">
                   <ChevronDown className="size-4 transition group-open:rotate-180" />
                 </span>
               </summary>
               <div className="grid gap-2 border-t border-zinc-200 bg-zinc-50 p-4">
-                {(areaIndex === 0
-                  ? responseQuestions
-                  : responseQuestions.slice(0, 4)
-                ).map((question) => (
-                  <details
-                    className="group/question rounded-lg bg-white"
-                    key={question}
-                  >
-                    <summary className="flex cursor-pointer items-center gap-3 p-4 text-sm">
-                      <span className="flex-1">{question}</span>
-                      <ChevronRight className="size-4 transition group-open/question:rotate-90" />
-                    </summary>
-                    <div className="border-t border-zinc-100 px-4 pb-5">
-                      <ResponseDetailTable seed={areaIndex} />
-                    </div>
-                  </details>
-                ))}
+                {questions.map((question) => <ResponseDetailQuestion filterQuestion={effectiveFilterQuestion} key={String(question.QuestionId)} programId={program?.id ?? ""} question={question} />)}
               </div>
             </details>
           ))}
@@ -2199,18 +2185,38 @@ export function ResponseDetailPage() {
 }
 
 export function KeyImpactAnalysisPage() {
+  const program = useSelectedProgram();
+  const analysis = useQuery({
+    queryKey: ["key-impact-analysis", program?.id],
+    queryFn: () => api.reports.keyImpactAnalysis(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const report = analysis.data?.data.report ?? [];
+  const maxValue = Math.max(1, ...report.map((item) => Number(item.value) || 0));
   return (
     <>
       <ReportHeader
-        customBreadcrumb
         description="This report identifies key motivators of employee engagement within your unique population. This information is vital to knowing what workplace attributes are most important to retain your top talent and drive high productivity among all staff."
-        title="Key Impact Analysis 2025 (Demo)"
+        title="Key Impact Analysis"
       />
       <div className="p-6">
-        <DownloadReportButton filename="key-impact-analysis-demo.txt" />
-        <Card className="mt-10 min-h-[520px] shadow-none">
-          <div />
-        </Card>
+        {analysis.data?.data.data.signedUrl ? <DownloadReportButton onDownload={() => api.reports.downloadCustomReport(analysis.data.data.data.signedUrl ?? "", analysis.data.data.fileName ?? "Key_Impact_Analysis.pdf")} /> : null}
+        {analysis.isPending ? (
+          <StatePanel kind="loading" title="Loading key impact analysis" message="Retrieving the analysis for the selected program." />
+        ) : analysis.isError ? (
+          <StatePanel kind="error" title="Key impact analysis unavailable" message={analysis.error.message} action={<Button onClick={() => void analysis.refetch()}>Try again</Button>} />
+        ) : report.length === 0 ? (
+          <StatePanel kind="empty" title="No key impact analysis" message="The backend returned no key-impact results for this program." />
+        ) : <Card className="mt-10 p-6 shadow-none">
+          <div className="grid gap-5">
+            {report.map((item) => { const value = Number(item.value) || 0; return (
+              <div key={`${item.label}-${item.key}`}>
+                <div className="mb-2 flex items-start justify-between gap-4 text-sm"><div><strong>{item.label}</strong><p className="mt-1 text-zinc-500">{item.key}</p></div><strong>{value}</strong></div>
+                <div className="h-3 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.max(0, Math.min(100, (value / maxValue) * 100))}%` }} /></div>
+              </div>
+            ); })}
+          </div>
+        </Card>}
       </div>
     </>
   );
@@ -2218,6 +2224,14 @@ export function KeyImpactAnalysisPage() {
 
 export function CustomReportsPage() {
   const program = useSelectedProgram();
+  const reports = useQuery({
+    queryKey: ["custom-reports", program?.id],
+    queryFn: () => api.reports.customReports(program?.id ?? ""),
+    enabled: Boolean(program),
+  });
+  const formatDate = (value: string | Date | undefined) => value
+    ? new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value))
+    : "—";
   return (
     <>
       <PageHeader
@@ -2240,28 +2254,35 @@ export function CustomReportsPage() {
           </a>
           .
         </p>
-        <Card className="overflow-hidden shadow-none">
+        {reports.isPending ? (
+          <StatePanel kind="loading" title="Loading custom reports" message="Retrieving files for the selected program." />
+        ) : reports.isError ? (
+          <StatePanel kind="error" title="Custom reports unavailable" message={reports.error.message} action={<Button onClick={() => void reports.refetch()}>Try again</Button>} />
+        ) : reports.data.data.length === 0 ? (
+          <StatePanel kind="empty" title="No custom reports" message="Your custom reports will appear here when they are available." />
+        ) : <Card className="overflow-hidden shadow-none">
           <div className="grid grid-cols-[1fr_1.4fr_130px_100px] gap-4 bg-zinc-100 p-4 text-xs font-semibold text-zinc-500">
             <span>Report Name</span>
             <span>Description</span>
             <span>Upload Date</span>
             <span>Action</span>
           </div>
-          <div className="grid grid-cols-[1fr_1.4fr_130px_100px] items-center gap-4 p-4 text-sm">
-            <strong>Cohen &amp; Steers - Response Detail Report</strong>
-            <span className="leading-5 text-zinc-500">
-              RDR for Cohen &amp; Steers, using employee survey data from the Best
-              Places Money Management 2025 program.
-            </span>
-            <span className="text-zinc-500">05/11/2025</span>
-            <button
-              className="h-9 rounded bg-red-600 px-3 text-xs font-semibold text-white"
-              onClick={() => api.reports.downloadResponseDetailWorkbook(program?.id ?? "")}
-            >
-              DOWNLOAD
-            </button>
-          </div>
-        </Card>
+          {reports.data.data.map((report) => (
+            <div className="grid grid-cols-[1fr_1.4fr_130px_100px] items-center gap-4 border-t border-zinc-100 p-4 text-sm first:border-t-0" key={report._id}>
+              <strong>{report.ReportTitle}</strong>
+              <span className="leading-5 text-zinc-500">{report.ReportDescription}</span>
+              <span className="text-zinc-500">{formatDate(report.createAt ?? report.createdAt)}</span>
+              <div className="grid gap-2">
+                {report.reportFormats.map((format, index) => {
+                  const url = format.signedUrl ?? format.fileUrl ?? format.url;
+                  const filename = format.fileName ?? format.filename ?? `${report.ReportTitle}-${index + 1}`;
+                  return url ? <button className="h-9 rounded bg-red-600 px-3 text-xs font-semibold text-white" key={format._id ?? `${url}-${index}`} onClick={() => void api.reports.downloadCustomReport(url, filename)}>DOWNLOAD</button> : null;
+                })}
+                {report.reportFormats.length === 0 ? <span className="text-xs text-zinc-500">Pending</span> : null}
+              </div>
+            </div>
+          ))}
+        </Card>}
       </div>
     </>
   );

@@ -43,6 +43,93 @@ export const loginResultSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
+const legacyProgramReferenceSchema = z.object({
+  _id: z.string().optional(),
+  id: z.string().optional(),
+  Name: z.string().optional(),
+  name: z.string().optional(),
+  Program_Year: z.string().nullable().optional(),
+  year: z.number().int().nullable().optional(),
+});
+
+export const legacyClientLoginSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    accessToken: z.string().min(1),
+    userData: z.object({
+      _id: z.string().optional(),
+      id: z.string().optional(),
+      email: z.email(),
+      fullName: z.string(),
+      organizationId: z.object({
+        Account_Name: z.string().optional(),
+        name: z.string().optional(),
+      }),
+      organizationProgram: z.array(
+        z.object({
+          reportAccess: z.record(z.string(), z.unknown()),
+          programId: legacyProgramReferenceSchema,
+        }),
+      ),
+    }),
+  }),
+});
+
+const dashboardPercentageSchema = z
+  .union([z.number(), z.string()])
+  .transform((value, context) => {
+    const percentage = Number(value);
+    if (!Number.isFinite(percentage)) {
+      context.addIssue({
+        code: "custom",
+        message: "Expected a numeric percentage",
+      });
+      return z.NEVER;
+    }
+    return percentage;
+  });
+
+export const dashboardResponseRateSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    sendSurvey: z.number().nonnegative(),
+    completedSurvey: z.number().nonnegative(),
+    responseRate: z.number().nonnegative(),
+    Total_Number_of_Program_EEs: z.number().nonnegative(),
+    Total_Number_of_National_EEs: z.number().nonnegative(),
+  }),
+});
+
+export const dashboardAgreementSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    percentage: dashboardPercentageSchema,
+    negativePercentage: dashboardPercentageSchema,
+    totalRespondents: z.number().int().nonnegative(),
+    StartDate: z.string().nullable(),
+    EndDate: z.string().nullable(),
+    numberOfQuestions: z.number().int().nonnegative(),
+  }),
+});
+
+const dashboardStatementSchema = z.object({
+  title: z.string(),
+  percentage: z.number().nonnegative(),
+});
+
+export const dashboardStatementsSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    top: z.array(dashboardStatementSchema),
+    bottom: z.array(dashboardStatementSchema),
+    noteTop: z.string(),
+    noteBottom: z.string(),
+  }),
+});
+
 export const demographicSchema = z.object({
   category: z.string(),
   group: z.enum(["personal", "workplace"]),
@@ -206,6 +293,156 @@ export const comparisonQuestionsSchema = z.object({
         otherOrg: z.number().min(0).max(100),
       }),
     ),
+  }),
+});
+
+export const openResponseQuestionsSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.array(
+    z.object({
+      caption: z.string(),
+      id: z.union([z.string(), z.number()]),
+      _id: z.string().optional(),
+      questionNumber: z.number().optional(),
+    }),
+  ),
+});
+
+export const openResponseAnswersSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    respondentData: z.array(
+      z.object({
+        _id: z.string().optional(),
+        RespondentId: z.union([z.string(), z.number()]).optional(),
+        responses: z.object({
+          QuestionId: z.union([z.string(), z.number()]).optional(),
+          DataLabel: z.string().nullable().optional(),
+          Value: z.string(),
+          ResponseCaption: z.string().optional(),
+        }),
+      }),
+    ),
+    dataLen: z.number().int().nonnegative().optional(),
+    queryQuestion: z.object({
+      Caption: z.string(),
+      Id: z.union([z.string(), z.number()]),
+      DataLabel: z.string().nullable().optional(),
+    }),
+  }),
+});
+
+type EmployerBenchmarkNode = {
+  id?: string | number | undefined;
+  title: string;
+  type?: string | undefined;
+  dataValues?: (number | string)[] | undefined;
+  nestedData?: EmployerBenchmarkNode[] | undefined;
+};
+
+const employerBenchmarkNodeSchema: z.ZodType<EmployerBenchmarkNode> = z.lazy(
+  () =>
+    z.object({
+      id: z.union([z.string(), z.number()]).optional(),
+      title: z.string(),
+      type: z.string().optional(),
+      dataValues: z.array(z.union([z.number(), z.string()])).optional(),
+      nestedData: z.array(employerBenchmarkNodeSchema).optional(),
+    }),
+);
+
+export const employerBenchmarkSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    tableHeaders: z.array(
+      z.object({
+        title: z.string(),
+        type: z.string().optional(),
+        color: z.string().optional(),
+      }),
+    ),
+    tableData: z.array(
+      z.object({
+        title: z.string(),
+        nestedData: z.array(employerBenchmarkNodeSchema),
+      }),
+    ),
+  }),
+});
+
+export const responseDetailSectionsSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.array(
+    z.record(
+      z.string(),
+      z.array(
+        z.object({
+          QuestionId: z.union([z.string(), z.number()]),
+          Caption: z.string(),
+        }),
+      ),
+    ),
+  ),
+});
+
+const responseDetailCellSchema = z.union([
+  z.string(),
+  z.number(),
+  z.object({
+    percentile: z.string().optional(),
+    average: z.string().optional(),
+    respondentCount: z.number().int().nonnegative(),
+  }),
+]);
+
+export const responseDetailResultSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.array(z.array(responseDetailCellSchema)),
+});
+
+export const customReportsSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.array(
+    z.object({
+      _id: z.string(),
+      ReportTitle: z.string(),
+      ReportDescription: z.string(),
+      createAt: z.union([z.string(), z.date()]).optional(),
+      createdAt: z.union([z.string(), z.date()]).optional(),
+      reportFormats: z.array(
+        z.object({
+          _id: z.string().optional(),
+          fileName: z.string().optional(),
+          filename: z.string().optional(),
+          fileUrl: z.string().optional(),
+          signedUrl: z.string().optional(),
+          url: z.string().optional(),
+        }),
+      ).default([]),
+    }).passthrough(),
+  ),
+});
+
+export const keyImpactAnalysisSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    _id: z.string().optional(),
+    fileName: z.string().optional(),
+    report: z.array(
+      z.object({
+        label: z.string(),
+        key: z.string(),
+        value: z.union([z.number(), z.string()]),
+      }),
+    ),
+    data: z.object({ signedUrl: z.string().nullable().optional() }),
   }),
 });
 

@@ -1,220 +1,319 @@
-import { z } from 'zod'
+import { z } from "zod";
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
-const authStorageKey = 'wrg-admin-auth'
+const apiBaseUrl = (
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
+).replace(/\/$/, "");
+const authStorageKey = "wrg-admin-auth";
+export const adminAuthChangedEvent = "wrg-admin-auth-changed";
 
 export type AdminIdentity = {
-  id: string
-  displayName: string
-  email: string
-  roles: string[]
-  permissions: string[]
-}
+  id: string;
+  displayName: string;
+  email: string;
+  roles: string[];
+  permissions: string[];
+};
 
 export type AdminAuth = {
-  accessToken: string
-  refreshToken: string
-  user: AdminIdentity
-}
+  accessToken: string;
+  refreshToken: string;
+  user: AdminIdentity;
+};
 
 export type ProjectRecord = {
-  id: string
-  name: string
-  createdAt: string | null
-  programs: ProgramRecord[]
-}
+  id: string;
+  name: string;
+  createdAt: string | null;
+  programs: ProgramRecord[];
+};
 
 export type ProgramRecord = {
-  id: string
-  name: string
-  year: number | null
-  createdAt: string | null
-  organizationCount: number
-  projectId?: string
-  details?: Record<string, unknown>
-}
+  id: string;
+  name: string;
+  year: number | null;
+  createdAt: string | null;
+  organizationCount: number;
+  projectId?: string;
+  details?: Record<string, unknown>;
+};
 
 export type PortalUserRecord = {
-  id: string
-  fullName: string
-  email: string
-  username: string | null
-}
+  id: string;
+  fullName: string;
+  email: string;
+  username: string | null;
+};
 
 export type OrganizationRecord = {
-  id: string
-  name: string
-  createdAt: string | null
-  stage: string | null
-  lastSyncedAt: string | null
-  surveysSent: number
-  users: PortalUserRecord[]
-}
+  id: string;
+  sourceId: string;
+  sourceName: string | null;
+  name: string;
+  createdAt: string | null;
+  stage: string | null;
+  lastSyncedAt: string | null;
+  surveysSent: number;
+  programs: Array<{
+    id: string;
+    name: string;
+    year: number | null;
+    projectId: string;
+    projectName: string;
+  }>;
+  users: PortalUserRecord[];
+};
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message)
-    this.name = 'ApiError'
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
   }
 }
 
 export function readAuth(): AdminAuth | null {
   try {
-    const raw = window.sessionStorage.getItem(authStorageKey)
-    if (!raw) return null
-    const parsed = z.object({
-      accessToken: z.string().min(1),
-      refreshToken: z.string().min(1),
-      user: z.object({
-        id: z.string(),
-        displayName: z.string(),
-        email: z.string(),
-        roles: z.array(z.string()),
-        permissions: z.array(z.string()),
-      }),
-    }).safeParse(JSON.parse(raw))
-    return parsed.success ? parsed.data : null
+    const raw = window.sessionStorage.getItem(authStorageKey);
+    if (!raw) return null;
+    const parsed = z
+      .object({
+        accessToken: z.string().min(1),
+        refreshToken: z.string().min(1),
+        user: z.object({
+          id: z.string(),
+          displayName: z.string(),
+          email: z.string(),
+          roles: z.array(z.string()),
+          permissions: z.array(z.string()),
+        }),
+      })
+      .safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
   } catch {
-    return null
+    return null;
   }
 }
 
 export function persistAuth(auth: AdminAuth | null): void {
-  if (auth) window.sessionStorage.setItem(authStorageKey, JSON.stringify(auth))
-  else window.sessionStorage.removeItem(authStorageKey)
+  if (auth) window.sessionStorage.setItem(authStorageKey, JSON.stringify(auth));
+  else window.sessionStorage.removeItem(authStorageKey);
+  window.dispatchEvent(new Event(adminAuthChangedEvent));
 }
 
 function object(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {}
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
-function stringValue(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : fallback
+function stringValue(value: unknown, fallback = ""): string {
+  return typeof value === "string"
+    ? value
+    : typeof value === "number"
+      ? String(value)
+      : fallback;
 }
 
 function array(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
+  return Array.isArray(value) ? value : [];
 }
 
-function authHeaders(): Record<string, string> {
-  const token = readAuth()?.accessToken
-  return token ? { Authorization: `Bearer ${token}` } : {}
+function authHeaders(token?: string): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const auth = readAuth();
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers: {
-      Accept: 'application/json',
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...authHeaders(),
+      Accept: "application/json",
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...authHeaders(auth?.accessToken),
       ...(options.headers ?? {}),
     },
-  })
-  const payload: unknown = await response.json().catch(() => null)
+  });
+  const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const body = object(payload)
-    const nested = object(body.error)
+    if (response.status === 401 && auth?.accessToken) persistAuth(null);
+    const body = object(payload);
+    const nested = object(body.error);
     throw new ApiError(
-      stringValue(body.message) || stringValue(body.msg) || stringValue(nested.message) || 'Request failed',
+      stringValue(body.message) ||
+        stringValue(body.msg) ||
+        stringValue(nested.message) ||
+        "Request failed",
       response.status,
-    )
+    );
   }
-  return payload as T
+  return payload as T;
 }
 
 function identity(raw: unknown, emailFallback: string): AdminIdentity {
-  const value = object(raw)
-  const role = object(value.roleId)
-  const roles = [stringValue(value.role), stringValue(role.role)].filter(Boolean)
-  const permissions = array(role.permissions).map(String)
+  const value = object(raw);
+  const role = object(value.roleId);
+  const roles = [stringValue(value.role), stringValue(role.role)].filter(
+    Boolean,
+  );
+  const permissions = array(role.permissions).map(String);
   return {
     id: stringValue(value._id) || stringValue(value.id),
-    displayName: stringValue(value.fullName) || stringValue(value.name) || emailFallback.split('@')[0] || 'Administrator',
+    displayName:
+      stringValue(value.fullName) ||
+      stringValue(value.name) ||
+      emailFallback.split("@")[0] ||
+      "Administrator",
     email: stringValue(value.email) || emailFallback,
-    roles: roles.length ? roles : ['admin'],
+    roles: roles.length ? roles : ["admin"],
     permissions,
-  }
+  };
 }
 
-function decodePrincipal(accessToken: string): { roles: string[]; permissions: string[]; sub: string } {
+function decodePrincipal(accessToken: string): {
+  roles: string[];
+  permissions: string[];
+  sub: string;
+} {
   try {
-    const payload = JSON.parse(atob(accessToken.split('.')[1]?.replaceAll('-', '+').replaceAll('_', '/') ?? '')) as Record<string, unknown>
+    const payload = JSON.parse(
+      atob(
+        accessToken.split(".")[1]?.replaceAll("-", "+").replaceAll("_", "/") ??
+          "",
+      ),
+    ) as Record<string, unknown>;
     return {
       sub: stringValue(payload.sub),
       roles: array(payload.roles).map(String),
       permissions: array(payload.permissions).map(String),
-    }
+    };
   } catch {
-    return { sub: '', roles: [], permissions: [] }
+    return { sub: "", roles: [], permissions: [] };
   }
 }
 
 function program(raw: unknown): ProgramRecord {
-  const value = object(raw)
-  const organizations = array(value.orgs ?? value.organizations)
+  const value = object(raw);
+  const organizations = array(value.orgs ?? value.organizations);
   return {
     id: stringValue(value._id) || stringValue(value.id),
     name: stringValue(value.Name) || stringValue(value.name),
-    year: Number.isFinite(Number(value.Program_Year ?? value.year)) ? Number(value.Program_Year ?? value.year) : null,
-    createdAt: stringValue(value.createAt) || stringValue(value.createdAt) || null,
-    organizationCount: Number(value.numberOfOrganizations ?? value.Number_of_Organizations ?? organizations.length ?? 0),
+    year: Number.isFinite(Number(value.Program_Year ?? value.year))
+      ? Number(value.Program_Year ?? value.year)
+      : null,
+    createdAt:
+      stringValue(value.createAt) || stringValue(value.createdAt) || null,
+    organizationCount: Number(
+      value.numberOfOrganizations ??
+        value.Number_of_Organizations ??
+        organizations.length ??
+        0,
+    ),
     projectId: stringValue(object(value.Project)._id) || undefined,
     details: value,
-  }
+  };
 }
 
 function project(raw: unknown): ProjectRecord {
-  const value = object(raw)
+  const value = object(raw);
   return {
     id: stringValue(value._id) || stringValue(value.id),
     name: stringValue(value.Name) || stringValue(value.name),
-    createdAt: stringValue(value.createAt) || stringValue(value.createdAt) || null,
+    createdAt:
+      stringValue(value.createAt) || stringValue(value.createdAt) || null,
     programs: array(value.Programs ?? value.programs).map(program),
-  }
+  };
 }
 
-function organization(raw: unknown): OrganizationRecord {
-  const value = object(raw)
-  const enrollment = object(object(array(value.orgPrograms)[0]).orgs)
+export function organization(raw: unknown): OrganizationRecord {
+  const value = object(raw);
+  const organizationPrograms = array(value.orgPrograms);
+  const enrollment = object(object(organizationPrograms[0]).orgs);
+  const id = stringValue(value._id) || stringValue(value.id);
+  const sourceId =
+    stringValue(value.sourceOrganizationId) ||
+    stringValue(enrollment.Source_Organization_ID) ||
+    id;
+  const sourceName =
+    stringValue(value.sourceOrganizationName) ||
+    stringValue(enrollment.Source_Organization_Name) ||
+    null;
+  const storedName =
+    stringValue(value.Alias_Company_Name) ||
+    stringValue(value.Account_Name) ||
+    stringValue(value.name);
+  const name = sourceName && sourceName !== sourceId ? sourceName : storedName;
   return {
-    id: stringValue(value._id) || stringValue(value.id),
-    name: stringValue(value.Alias_Company_Name) || stringValue(value.Account_Name) || stringValue(value.name),
-    createdAt: stringValue(enrollment.Created_Time) || stringValue(value.createAt) || null,
+    id,
+    sourceId,
+    sourceName,
+    name,
+    createdAt:
+      stringValue(enrollment.Created_Time) ||
+      stringValue(value.createAt) ||
+      null,
     stage: stringValue(enrollment.Stage) || null,
     lastSyncedAt: stringValue(enrollment.Last_time_deal_synced) || null,
     surveysSent: Number(enrollment.Surveys_Sent ?? 0),
+    programs: organizationPrograms
+      .map((entry) => {
+        const access = object(object(entry).orgs);
+        const reference = object(array(access.programId)[0]);
+        const yearValue = reference.Program_Year ?? reference.year;
+        return {
+          id: stringValue(reference._id) || stringValue(reference.id),
+          name: stringValue(reference.Name) || stringValue(reference.name),
+          year: Number.isFinite(Number(yearValue)) ? Number(yearValue) : null,
+          projectId: stringValue(access.projectId),
+          projectName: stringValue(access.projectName),
+        };
+      })
+      .filter(({ id }) => Boolean(id)),
     users: array(value.users).map((entry) => {
-      const user = object(entry)
+      const user = object(entry);
       return {
         id: stringValue(user.id) || stringValue(user._id),
-        fullName: stringValue(user.fullName) || stringValue(user.name) || stringValue(user.username),
+        fullName:
+          stringValue(user.fullName) ||
+          stringValue(user.name) ||
+          stringValue(user.username),
         email: stringValue(user.email),
         username: stringValue(user.username) || null,
-      }
+      };
     }),
-  }
+  };
 }
 
 export const api = {
-  async startLogin(email: string, password: string): Promise<{ userId: string; requiresOtp: boolean }> {
-    const response = await request<unknown>('/user/management/login', {
-      method: 'POST', body: JSON.stringify({ email, password }),
-    })
-    const data = object(object(response).data)
-    return { userId: stringValue(data.userId), requiresOtp: data['2faVerified'] === true }
+  async startLogin(
+    email: string,
+    password: string,
+  ): Promise<{ userId: string; requiresOtp: boolean }> {
+    const response = await request<unknown>("/user/management/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    const data = object(object(response).data);
+    return {
+      userId: stringValue(data.userId),
+      requiresOtp: data["2faVerified"] === true,
+    };
   },
 
-  async completeLogin(email: string, userId: string, enteredOtp?: string): Promise<AdminAuth> {
-    const response = await request<unknown>('/user/management/login', {
-      method: 'PUT', body: JSON.stringify({ userId, ...(enteredOtp ? { enteredOtp } : {}) }),
-    })
-    const data = object(object(response).data)
-    const accessToken = stringValue(data.accessToken)
-    const principal = decodePrincipal(accessToken)
-    const user = identity(data.user, email)
+  async completeLogin(
+    email: string,
+    userId: string,
+    enteredOtp?: string,
+  ): Promise<AdminAuth> {
+    const response = await request<unknown>("/user/management/login", {
+      method: "PUT",
+      body: JSON.stringify({ userId, ...(enteredOtp ? { enteredOtp } : {}) }),
+    });
+    const data = object(object(response).data);
+    const accessToken = stringValue(data.accessToken);
+    const principal = decodePrincipal(accessToken);
+    const user = identity(data.user, email);
     const auth: AdminAuth = {
       accessToken,
       refreshToken: stringValue(data.refreshToken),
@@ -222,144 +321,199 @@ export const api = {
         ...user,
         id: user.id || principal.sub,
         roles: principal.roles.length ? principal.roles : user.roles,
-        permissions: principal.permissions.length ? principal.permissions : user.permissions,
+        permissions: principal.permissions.length
+          ? principal.permissions
+          : user.permissions,
       },
-    }
-    if (!auth.user.roles.includes('admin')) throw new ApiError('Administrator access is required', 403)
-    persistAuth(auth)
-    return auth
+    };
+    if (!auth.user.roles.includes("admin"))
+      throw new ApiError("Administrator access is required", 403);
+    persistAuth(auth);
+    return auth;
   },
 
   async logout(): Promise<void> {
-    const auth = readAuth()
+    const auth = readAuth();
     if (auth) {
-      await request('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
+      await request("/api/auth/logout", { method: "POST" }).catch(
+        () => undefined,
+      );
     }
-    persistAuth(null)
+    persistAuth(null);
   },
 
   async requestForgotPassword(email: string): Promise<string> {
-    const response = await request<unknown>('/user/forgot-password', {
-      method: 'POST',
+    const response = await request<unknown>("/user/forgot-password", {
+      method: "POST",
       body: JSON.stringify({ email }),
-    })
-    return stringValue(object(object(response).data).key)
+    });
+    return stringValue(object(object(response).data).key);
   },
 
-  async completeForgotPassword(key: string, otp: string, password: string): Promise<void> {
-    await request('/user/forgot-password', {
-      method: 'PUT',
+  async completeForgotPassword(
+    key: string,
+    otp: string,
+    password: string,
+  ): Promise<void> {
+    await request("/user/forgot-password", {
+      method: "PUT",
       body: JSON.stringify({ key, otp, password }),
-    })
+    });
   },
 
   async completeAdminReset(key: string, password: string): Promise<void> {
-    await request('/user/admin-reset-password-verify', {
-      method: 'PUT',
+    await request("/user/admin-reset-password-verify", {
+      method: "PUT",
       body: JSON.stringify({ key, password }),
-    })
+    });
   },
 
   async projects(): Promise<ProjectRecord[]> {
-    const response = await request<unknown>('/admin/getprojects?expand=programs')
-    return array(object(response).data).map(project)
+    const response = await request<unknown>(
+      "/admin/getprojects?expand=programs",
+    );
+    return array(object(response).data).map(project);
   },
 
   async project(id: string): Promise<ProjectRecord> {
-    const response = await request<unknown>(`/admin/getprojects/${encodeURIComponent(id)}?expand=programs`)
-    const rows = array(object(response).data).map(project)
-    if (!rows[0]) throw new ApiError('Project not found', 404)
-    return rows[0]
+    const response = await request<unknown>(
+      `/admin/getprojects/${encodeURIComponent(id)}?expand=programs`,
+    );
+    const rows = array(object(response).data).map(project);
+    if (!rows[0]) throw new ApiError("Project not found", 404);
+    return rows[0];
   },
 
   async program(id: string): Promise<ProgramRecord> {
-    const response = await request<unknown>(`/admin/getProgramById/${encodeURIComponent(id)}`)
-    const data = object(object(response).data)
-    return program({ ...object(data.program), ...data })
+    const response = await request<unknown>(
+      `/admin/getProgramById/${encodeURIComponent(id)}`,
+    );
+    const data = object(object(response).data);
+    return program({ ...object(data.program), ...data });
   },
 
   async organizations(programId?: string): Promise<OrganizationRecord[]> {
-    const query = programId ? `?programId=${encodeURIComponent(programId)}` : ''
-    const response = await request<unknown>(`/admin/getOrganizations${query}`)
-    return array(object(response).data).map(organization)
+    const query = programId
+      ? `?programId=${encodeURIComponent(programId)}`
+      : "";
+    const response = await request<unknown>(`/admin/getOrganizations${query}`);
+    return array(object(response).data).map(organization);
   },
 
   async eligibleImpersonationUsers(
     organizationId: string,
     programId: string,
   ): Promise<PortalUserRecord[]> {
-    const query = new URLSearchParams({ organizationId, programId })
+    const query = new URLSearchParams({ organizationId, programId });
     const response = await request<{ users: PortalUserRecord[] }>(
       `/admin/impersonations/eligible-users?${query.toString()}`,
-    )
-    return response.users
+    );
+    return response.users;
   },
 
   async users(): Promise<Record<string, unknown>[]> {
-    const response = await request<unknown>('/user/list?expand=projects')
-    return array(object(response).data).map(object)
+    const response = await request<unknown>("/user/list?expand=projects");
+    return array(object(response).data).map(object);
   },
 
   async roles(): Promise<Record<string, unknown>[]> {
-    const response = await request<unknown>('/admin/getroles')
-    return array(object(response).roleData ?? object(response).data).map(object)
+    const response = await request<unknown>("/admin/getroles");
+    return array(object(response).roleData ?? object(response).data).map(
+      object,
+    );
   },
 
   async createRole(roleName: string, permissions: string[]): Promise<void> {
-    await request('/admin/addrole', { method: 'POST', body: JSON.stringify({ roleName, permissions }) })
+    await request("/admin/addrole", {
+      method: "POST",
+      body: JSON.stringify({ roleName, permissions }),
+    });
   },
 
-  async createUser(input: { fullName: string; email: string; mobile?: string; roleId?: string; projects: string[] }): Promise<void> {
-    await request('/user/create', { method: 'POST', body: JSON.stringify(input) })
+  async createUser(input: {
+    fullName: string;
+    email: string;
+    username: string;
+    mobile?: string;
+    roleId: string;
+    projects: string[];
+    organizationId?: string;
+    programs?: string[];
+  }): Promise<void> {
+    await request("/user/create", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   },
 
   async resetUserPassword(userId: string): Promise<void> {
-    await request('/user/admin-reset-password', {
-      method: 'POST',
+    await request("/user/admin-reset-password", {
+      method: "POST",
       body: JSON.stringify({ userId }),
-    })
+    });
   },
 
   async orders(): Promise<Record<string, unknown>[]> {
-    const response = await request<unknown>('/admin/order/log?page=1&per_page=100&sortBy=createdAt')
-    return array(object(response).data).map(object)
+    const response = await request<unknown>(
+      "/admin/order/log?page=1&per_page=100&sortBy=createdAt",
+    );
+    return array(object(response).data).map(object);
   },
 
   async activity(): Promise<Record<string, unknown>[]> {
-    const response = await request<unknown>('/admin/system/log?page=1&limit=100')
-    return array(object(response).data).map(object)
+    const response = await request<unknown>(
+      "/admin/system/log?page=1&limit=100",
+    );
+    return array(object(response).data).map(object);
   },
 
   async sessions(): Promise<Record<string, unknown>[]> {
-    const response = await request<unknown>('/admin/loginSession/log?page=1&limit=100')
-    return array(object(response).data).map(object)
+    const response = await request<unknown>(
+      "/admin/loginSession/log?page=1&limit=100",
+    );
+    return array(object(response).data).map(object);
   },
 
   async resyncProgram(programId: string): Promise<void> {
-    await request('/webhook/massResyncByProgram', { method: 'POST', body: JSON.stringify({ programId }) })
+    await request("/webhook/massResyncByProgram", {
+      method: "POST",
+      body: JSON.stringify({ programId }),
+    });
   },
 
   async startImpersonation(
     organizationId: string,
     programId: string,
-    targetUserId: string,
+    targetUserId?: string,
   ): Promise<{ url: string }> {
-    return request<{ url: string }>('/admin/impersonations', {
-      method: 'POST',
-      body: JSON.stringify({ organizationId, programId, targetUserId, reason: 'Preview client dashboard from administration' }),
-    })
+    return request<{ url: string }>("/admin/impersonations", {
+      method: "POST",
+      body: JSON.stringify({
+        organizationId,
+        programId,
+        ...(targetUserId ? { targetUserId } : {}),
+        reason: "Preview client dashboard from administration",
+      }),
+    });
   },
-}
+};
 
 export const formatDate = (value: unknown): string => {
-  const date = typeof value === 'string' || value instanceof Date ? new Date(value) : null
-  return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('en-US') : '—'
-}
+  const date =
+    typeof value === "string" || value instanceof Date ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString("en-US")
+    : "—";
+};
 
-export const field = (row: Record<string, unknown>, ...keys: string[]): string => {
+export const field = (
+  row: Record<string, unknown>,
+  ...keys: string[]
+): string => {
   for (const key of keys) {
-    const value = row[key]
-    if (typeof value === 'string' || typeof value === 'number') return String(value)
+    const value = row[key];
+    if (typeof value === "string" || typeof value === "number")
+      return String(value);
   }
-  return '—'
-}
+  return "—";
+};
