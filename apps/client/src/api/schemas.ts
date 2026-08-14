@@ -150,6 +150,7 @@ export const demographicResponseSchema = z.object({
         z.object({
           Caption: z.string(),
           Count: z.number().int().nonnegative(),
+          Position: z.number().int().positive(),
         }),
       ),
     }),

@@ -412,10 +412,12 @@ async function responseCountByDemographic(programId: string) {
     group: item.category.toLowerCase().startsWith("personal")
       ? ("personal" as const)
       : ("workplace" as const),
-    values: item.options.map((option) => ({
-      label: option.Caption,
-      count: option.Count,
-    })),
+    values: [...item.options]
+      .sort((left, right) => left.Position - right.Position)
+      .map((option) => ({
+        label: option.Caption,
+        count: option.Count,
+      })),
   }));
 }
 
