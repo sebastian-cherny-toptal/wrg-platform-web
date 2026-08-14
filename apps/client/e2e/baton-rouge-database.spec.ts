@@ -1,13 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 import { routeMetadata } from '../src/app/metadata'
 
-const username = process.env.BATON_ROUGE_TEST_USERNAME
-const email = process.env.BATON_ROUGE_TEST_EMAIL
+const username = 'test.baton'
+const email = 'test.baton@example.test'
+const expectedProgramYears = [2024, 2025, 2026]
 
 async function login(page: Page) {
-  if (!username || !email) {
-    throw new Error('BATON_ROUGE_TEST_USERNAME and BATON_ROUGE_TEST_EMAIL are required')
-  }
   await page.goto('/login')
   await page.getByLabel('Username').fill(username)
   await page.getByRole('button', { name: 'Log In' }).click()
@@ -17,8 +15,8 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/\/dashboard$/u)
 }
 
-test('every client view uses the one-program Baton Rouge database session', async ({ page }) => {
-  test.skip(!username || !email, 'Requires BATON_ROUGE_TEST_USERNAME and BATON_ROUGE_TEST_EMAIL')
+test('every client view uses the seeded Baton Rouge database session', async ({ page }) => {
+  test.skip(process.env.BATON_ROUGE_E2E !== 'true', 'Requires the isolated Baton Rouge API test stack')
   test.setTimeout(180_000)
   const serverErrors: string[] = []
   page.on('response', (response) => {
@@ -33,13 +31,16 @@ test('every client view uses the one-program Baton Rouge database session', asyn
       user: {
         programs: {
           id: string
+          year: number
           entitlements: Record<string, 'yes' | 'no'>
         }[]
       }
     }
   })
-  expect(session.user.programs).toHaveLength(1)
-  const program = session.user.programs[0]
+  expect(session.user.programs.map((program) => program.year).sort()).toEqual(expectedProgramYears)
+  const program = session.user.programs.find((candidate) => candidate.year === Math.max(...expectedProgramYears))
+  expect(program).toBeDefined()
+  if (!program) throw new Error('Latest Baton Rouge program was not assigned to the test user')
 
   const clientRoutes = routeMetadata.filter((route) => route.access === 'client')
   for (const route of clientRoutes) {
