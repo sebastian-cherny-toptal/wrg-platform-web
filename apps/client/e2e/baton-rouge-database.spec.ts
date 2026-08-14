@@ -18,6 +18,7 @@ async function login(page: Page) {
 }
 
 test('every client view uses the one-program Baton Rouge database session', async ({ page }) => {
+  test.skip(!username || !email, 'Requires BATON_ROUGE_TEST_USERNAME and BATON_ROUGE_TEST_EMAIL')
   test.setTimeout(180_000)
   const serverErrors: string[] = []
   page.on('response', (response) => {
