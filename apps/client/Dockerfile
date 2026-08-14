@@ -1,10 +1,10 @@
 FROM node:22.13-alpine AS build
 WORKDIR /app
 
-ARG VITE_API_BASE_URL=https://api.feedbackdatadashboard.com/api/v1
-ARG VITE_API_V1_BASE_URL=https://api.feedbackdatadashboard.com/api
-ARG VITE_COMPATIBILITY_API_BASE_URL=https://api.feedbackdatadashboard.com
-ARG VITE_ADMIN_APP_URL=https://admin.feedbackdatadashboard.com/admin/projects
+ARG VITE_API_BASE_URL=https://API_BASE_URL
+ARG VITE_API_V1_BASE_URL=https://API_V1_BASE_URL
+ARG VITE_COMPATIBILITY_API_BASE_URL=https://COMPATIBILITY_API_BASE_URL
+ARG VITE_ADMIN_APP_URL=https://ADMIN_APP_URL
 ARG VITE_TEST_USERNAME_ENABLED=false
 ARG VITE_TEST_USERNAME=
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
