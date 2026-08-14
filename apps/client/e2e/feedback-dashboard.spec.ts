@@ -90,6 +90,18 @@ async function logInToFeedbackDashboard(page: Page) {
   ).toBeVisible({ timeout: 30_000 })
 }
 
+async function visibleSidebar(page: Page) {
+  let sidebar = page.locator('#side-menu-wrapper:visible, #side-menu-drawer.show').first()
+  if (await sidebar.count()) return sidebar
+
+  const mobileHeader = page.locator('#content-layout-header')
+  await expect(mobileHeader).toBeVisible()
+  await mobileHeader.locator('button').last().click()
+  sidebar = page.locator('#side-menu-wrapper:visible, #side-menu-drawer.show').first()
+  await expect(sidebar).toBeVisible()
+  return sidebar
+}
+
 test.describe('Feedback Data Dashboard', () => {
   test('downloads dashboard charts and verifies workforce feedback report data', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'The fixed PNG fixture is captured for Desktop Chrome.')
@@ -179,13 +191,7 @@ test.describe('Feedback Data Dashboard', () => {
   test('downloads detailed results charts and manages the Your Job detail panel', async ({ page }) => {
     await logInToFeedbackDashboard(page)
 
-    const mobileHeader = page.locator('#content-layout-header')
-    if (await mobileHeader.isVisible()) {
-      await mobileHeader.locator('button').last().click()
-      await expect(page.locator('#side-menu-drawer')).toHaveClass(/show/)
-    }
-
-    const sidebar = page.locator('#side-menu-wrapper:visible, #side-menu-drawer.show').first()
+    const sidebar = await visibleSidebar(page)
     const detailedResultsButton = sidebar.getByText('Detailed Results', { exact: true })
     await expect(detailedResultsButton).toHaveCount(1)
     await detailedResultsButton.press('Enter')
@@ -220,13 +226,14 @@ test.describe('Feedback Data Dashboard', () => {
   test('logs in and opens the demographic response breakdown', async ({ page }) => {
     await logInToFeedbackDashboard(page)
 
-    await expect(page.locator('#side-menu-wrapper').getByText(username, { exact: true })).toBeVisible()
+    const sidebar = await visibleSidebar(page)
+    await expect(sidebar.getByText(username, { exact: true })).toBeVisible()
     await expect(page.getByText('Welcome, Cohen & Steers!', { exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'My Reports', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Workforce Feedback Results', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Employee Verbatims', exact: true })).toBeVisible()
 
-    const breakdownButton = page.locator('#side-menu-wrapper').getByText('Employee Response Breakdown', { exact: true })
+    const breakdownButton = sidebar.getByText('Employee Response Breakdown', { exact: true })
     await expect(breakdownButton).toHaveCount(1)
     await breakdownButton.press('Enter')
 
@@ -255,7 +262,7 @@ test.describe('Feedback Data Dashboard', () => {
   test('opens detailed results, verifies percentage graphs, and opens filters', async ({ page }) => {
     await logInToFeedbackDashboard(page)
 
-    const detailedResultsButton = page.locator('#side-menu-wrapper').getByText('Detailed Results', { exact: true })
+    const detailedResultsButton = (await visibleSidebar(page)).getByText('Detailed Results', { exact: true })
     await expect(detailedResultsButton).toHaveCount(1)
     await detailedResultsButton.press('Enter')
 
@@ -275,7 +282,7 @@ test.describe('Feedback Data Dashboard', () => {
     await expect(filtersButton).toHaveCount(1)
     await filtersButton.click()
 
-    await expect(page.getByText('Select a category to view filters', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Gender', exact: true })).toBeVisible()
   })
 
   test('navigates through response patterns and annual trends', async ({ page }) => {
@@ -283,7 +290,7 @@ test.describe('Feedback Data Dashboard', () => {
 
     await logInToFeedbackDashboard(page)
 
-    const responsePatternsButton = page.locator('#side-menu-wrapper').getByText('Response Patterns', { exact: true })
+    const responsePatternsButton = (await visibleSidebar(page)).getByText('Response Patterns', { exact: true })
     await expect(responsePatternsButton).toHaveCount(1)
     await responsePatternsButton.press('Enter')
 
@@ -295,7 +302,7 @@ test.describe('Feedback Data Dashboard', () => {
     await expect(page.getByRole('button', { name: 'Preview the Report', exact: true })).toBeVisible()
     expect(await page.locator('svg').count()).toBeGreaterThan(0)
 
-    const annualTrendsButton = page.locator('#side-menu-wrapper').getByText('Annual Trends', { exact: true })
+    const annualTrendsButton = (await visibleSidebar(page)).getByText('Annual Trends', { exact: true })
     await expect(annualTrendsButton).toHaveCount(1)
     await annualTrendsButton.press('Enter')
 

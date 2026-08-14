@@ -1,14 +1,16 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
+import { installClientApiFixture } from './support/client-api-fixture'
 
 async function logIn(page: Page) {
+  await installClientApiFixture(page, { dashboard: true })
   await page.goto('/login')
   await page.getByLabel('Username').fill('demo-client')
   await page.getByRole('button', { name: 'Log In' }).click()
   await page.getByRole('button', { name: 'Yes' }).click()
   await page.getByLabel('Email').fill('client@example.invalid')
   await page.getByRole('button', { name: 'Continue Log In' }).click()
-  await expect(page.getByRole('heading', { name: /Welcome, Demo User/u })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Welcome, Demo Client/u })).toBeVisible()
 }
 
 async function downloadChart(page: Page, format: 'PNG' | 'SVG' | 'JPG') {
