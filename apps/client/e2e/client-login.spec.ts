@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
-import { installClientApiFixture } from './support/client-api-fixture'
+import { clientFixtureUsername, installClientApiFixture } from './support/client-api-fixture'
 
 test('client can enter the fixture reporting workspace', async ({ page }) => {
   await installClientApiFixture(page, { dashboard: true })
   await page.goto('/login')
-  await page.getByLabel('Username').fill('demo-client')
+  await page.getByLabel('Username').fill(clientFixtureUsername)
   await page.getByRole('button', { name: 'Log In' }).click()
   await page.getByRole('button', { name: 'Yes' }).click()
   await page.getByLabel('Email').fill('client@example.invalid')

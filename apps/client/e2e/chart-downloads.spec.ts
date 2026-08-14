@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { installClientApiFixture } from './support/client-api-fixture'
+import { clientFixtureUsername, installClientApiFixture } from './support/client-api-fixture'
 
 async function logIn(page: Page) {
   await installClientApiFixture(page, { dashboard: true })
   await page.goto('/login')
-  await page.getByLabel('Username').fill('demo-client')
+  await page.getByLabel('Username').fill(clientFixtureUsername)
   await page.getByRole('button', { name: 'Log In' }).click()
   await page.getByRole('button', { name: 'Yes' }).click()
   await page.getByLabel('Email').fill('client@example.invalid')

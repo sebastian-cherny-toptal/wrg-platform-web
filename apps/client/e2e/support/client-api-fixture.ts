@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 
 const programId = 'demo-program-2026'
+export const clientFixtureUsername = process.env.VITE_TEST_USERNAME ?? 'demo-client'
 
 export async function installClientApiFixture(page: Page, options: { dashboard?: boolean } = {}) {
   await page.route('**/user/login', async (route) => {
