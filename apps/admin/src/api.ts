@@ -44,6 +44,57 @@ export type PortalUserRecord = {
   username: string | null;
 };
 
+export type HistoricalImportMetadata = {
+  projectName: string;
+  programName: string;
+  programYear: number;
+  projectAbbreviation?: string;
+  employeeSurveyId?: string;
+  employerSurveyId?: string;
+};
+
+export type HistoricalImportValidationIssue = {
+  level: "error" | "warning";
+  message: string;
+};
+
+export type HistoricalImportWorkbookSummary = {
+  kind: "EA" | "EFS";
+  fileName: string;
+  sha256: string;
+  questions: number;
+  organizations: number;
+  respondents: number;
+  responses: number;
+};
+
+export type HistoricalImportOrganizationSummary = {
+  key: string;
+  displayName: string;
+  workbookOrganizationId?: string;
+  eaRespondents: number;
+  efsRespondents: number;
+  warnings: string[];
+};
+
+export type HistoricalImportValidationSummary = {
+  issues: HistoricalImportValidationIssue[];
+  workbooks: HistoricalImportWorkbookSummary[];
+  organizations: HistoricalImportOrganizationSummary[];
+  blockingErrorCount: number;
+  warningCount: number;
+};
+
+export type HistoricalImportStatus = {
+  importId: string;
+  status: "draft" | "validated" | "committing" | "succeeded" | "failed";
+  metadata: HistoricalImportMetadata;
+  validation?: HistoricalImportValidationSummary;
+  projectId?: string;
+  projectName?: string;
+  error?: string;
+};
+
 export type OrganizationRecord = {
   id: string;
   sourceId: string;
@@ -495,6 +546,101 @@ export const api = {
         reason: "Preview client dashboard from administration",
       }),
     });
+  },
+
+  async createHistoricalImport(
+    metadata: HistoricalImportMetadata,
+  ): Promise<{ importId: string; metadata: HistoricalImportMetadata }> {
+    const response = await request<unknown>("/admin/historicalImports", {
+      method: "POST",
+      body: JSON.stringify(metadata),
+    });
+    return object(object(response).data) as {
+      importId: string;
+      metadata: HistoricalImportMetadata;
+    };
+  },
+
+  async updateHistoricalImportMetadata(
+    importId: string,
+    metadata: HistoricalImportMetadata,
+  ): Promise<{ importId: string; metadata: HistoricalImportMetadata }> {
+    const response = await request<unknown>(
+      `/admin/historicalImports/${encodeURIComponent(importId)}/metadata`,
+      {
+        method: "PUT",
+        body: JSON.stringify(metadata),
+      },
+    );
+    return object(object(response).data) as {
+      importId: string;
+      metadata: HistoricalImportMetadata;
+    };
+  },
+
+  async uploadHistoricalImportWorkbooks(
+    importId: string,
+    eaFile: File,
+    efsFile: File,
+  ): Promise<{ importId: string; eaFileName: string; efsFileName: string }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("eaFile", eaFile);
+    formData.append("efsFile", efsFile);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/historicalImports/${encodeURIComponent(importId)}/workbooks`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401 && auth?.accessToken) persistAuth(null);
+      const body = object(payload);
+      const nested = object(body.error);
+      throw new ApiError(
+        stringValue(body.message) ||
+          stringValue(body.msg) ||
+          stringValue(nested.message) ||
+          "Request failed",
+        response.status,
+      );
+    }
+    return object(object(payload).data) as {
+      importId: string;
+      eaFileName: string;
+      efsFileName: string;
+    };
+  },
+
+  async validateHistoricalImport(
+    importId: string,
+  ): Promise<HistoricalImportValidationSummary> {
+    const response = await request<unknown>(
+      `/admin/historicalImports/${encodeURIComponent(importId)}/validate`,
+      { method: "POST" },
+    );
+    return object(object(response).data) as HistoricalImportValidationSummary;
+  },
+
+  async commitHistoricalImport(importId: string): Promise<HistoricalImportStatus> {
+    const response = await request<unknown>(
+      `/admin/historicalImports/${encodeURIComponent(importId)}/commit`,
+      { method: "POST" },
+    );
+    return object(object(response).data) as HistoricalImportStatus;
+  },
+
+  async historicalImportStatus(importId: string): Promise<HistoricalImportStatus> {
+    const response = await request<unknown>(
+      `/admin/historicalImports/${encodeURIComponent(importId)}`,
+    );
+    return object(object(response).data) as HistoricalImportStatus;
   },
 };
 

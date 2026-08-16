@@ -11,6 +11,7 @@ import {
   RolesPage,
   UsersManagementPage,
 } from './admin'
+import { HistoricalImportPage } from './historical-import'
 import { ForgotPasswordPage, LoginPage, ProtectedRoute, ResetPasswordPage, TwoFactorPage } from './auth'
 
 export function App() {
@@ -24,6 +25,7 @@ export function App() {
     <Route path="/admin" element={<ProtectedRoute><AdminShell /></ProtectedRoute>}>
       <Route index element={<Navigate replace to="projects" />} />
       <Route path="projects" element={<ProjectsPage />} />
+      <Route path="projects/import" element={<HistoricalImportPage />} />
       <Route path="projects/:projectId" element={<ProjectDetailPage />} />
       <Route path="projects/:projectId/programs/:programId" element={<ProgramDetailPage />} />
       <Route path="users" element={<PortalUsersPage />} />

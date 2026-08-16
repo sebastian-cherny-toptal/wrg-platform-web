@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  FileUp,
   KeyRound,
   LogOut,
   Menu,
@@ -57,6 +58,11 @@ const navigation = [
     label: "Projects & Programs",
     icon: BriefcaseBusiness,
   },
+  {
+    to: "/admin/projects/import",
+    label: "Import Historical Project",
+    icon: FileUp,
+  },
   { to: "/admin/users", label: "Portal Users", icon: Users },
   { to: "/admin/users-management", label: "Users Management", icon: KeyRound },
   { to: "/admin/order-log", label: "Order Log", icon: ClipboardList },
@@ -89,7 +95,7 @@ function useLoad<T>(key: string, loader: () => Promise<T>) {
   return { data, error, loading, reload };
 }
 
-function State({
+export function State({
   title,
   message,
   loading = false,
@@ -107,7 +113,7 @@ function State({
   );
 }
 
-function PageHeader({
+export function PageHeader({
   title,
   breadcrumb,
   actions,
@@ -332,7 +338,15 @@ export function ProjectsPage() {
   );
   return (
     <>
-      <PageHeader title="Projects" breadcrumb="Projects & Programs" />
+      <PageHeader
+        title="Projects"
+        breadcrumb="Projects & Programs"
+        actions={
+          <Link className="primary-button compact action-link" to="/admin/projects/import">
+            Import Historical Project
+          </Link>
+        }
+      />
       <Toolbar
         search={search}
         setSearch={setSearch}
