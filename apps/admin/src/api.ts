@@ -391,7 +391,11 @@ export const api = {
           : user.permissions,
       },
     };
-    if (!auth.user.roles.includes("admin"))
+    if (
+      !auth.user.roles.some(
+        (role) => role === "admin" || role === "super_admin",
+      )
+    )
       throw new ApiError("Administrator access is required", 403);
     persistAuth(auth);
     return auth;

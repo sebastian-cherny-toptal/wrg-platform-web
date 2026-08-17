@@ -103,6 +103,7 @@ async function visibleSidebar(page: Page) {
 }
 
 test.describe('Feedback Data Dashboard', () => {
+  test.describe.configure({ mode: 'serial' })
   test('downloads dashboard charts and verifies workforce feedback report data', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'The fixed PNG fixture is captured for Desktop Chrome.')
     await logInToFeedbackDashboard(page)
@@ -304,14 +305,30 @@ test.describe('Feedback Data Dashboard', () => {
 
     const annualTrendsButton = (await visibleSidebar(page)).getByText('Annual Trends', { exact: true })
     await expect(annualTrendsButton).toHaveCount(1)
-    await annualTrendsButton.press('Enter')
+    const categoriesLoaded = page.waitForResponse(
+      (response) =>
+        response.url().includes('employeeAnnualTrendsCategory') && response.ok(),
+      { timeout: 60_000 },
+    )
+    await annualTrendsButton.click()
 
     await expect(page).toHaveURL(/\/annual-trends$/)
+    const categoriesResponse = await categoriesLoaded
+    const categoriesPayload = (await categoriesResponse.json()) as {
+      data?: { category?: { category?: string } }[]
+    }
+    expect(categoriesPayload.data?.length ?? 0).toBeGreaterThan(0)
+    expect(
+      categoriesPayload.data?.some(
+        (item) => item.category?.category === 'Core Employee Experience',
+      ),
+    ).toBe(true)
+
     await expect(page.getByRole('heading', { name: 'Annual Trends 2025', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Survey Average', exact: true })).toBeVisible()
     await expect(page.getByText('vs last year', { exact: true })).toBeVisible()
     const categoryButton = page.getByRole('button', { name: 'Core Employee Experience', exact: true })
-    await expect(categoryButton).toBeVisible({ timeout: 30_000 })
+    await expect(categoryButton).toBeVisible({ timeout: 15_000 })
     await categoryButton.click()
     await expect(page.locator('body')).toContainText(/\d+%/)
     expect(await page.locator('svg').count()).toBeGreaterThan(0)

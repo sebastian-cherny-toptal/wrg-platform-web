@@ -451,7 +451,7 @@ const annualDistributionSchema = z.object({
   ResponseCaption: z.enum(["Agree", "Neutral", "Disagree"]),
   numberOfResponses: z.number().int().nonnegative(),
   percent: z.number().min(0).max(1),
-  percentage: z.number().int().min(0).max(100),
+  percentage: z.number().min(0).max(100),
   colorCode: z.string(),
 });
 

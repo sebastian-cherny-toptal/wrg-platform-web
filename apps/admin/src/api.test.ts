@@ -177,6 +177,44 @@ describe("admin API projections", () => {
     );
   });
 
+  it("accepts a Super Admin principal after login", async () => {
+    const payload = btoa(
+      JSON.stringify({
+        sub: "super-admin-id",
+        roles: ["super_admin"],
+        permissions: ["ops.manage"],
+      }),
+    );
+    const accessToken = `header.${payload}.signature`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: {
+              accessToken,
+              refreshToken: "refresh-token",
+              user: {
+                id: "super-admin-id",
+                email: "admin@example.com",
+                fullName: "Super Admin",
+                role: "super_admin",
+              },
+            },
+          }),
+      }),
+    );
+
+    await expect(
+      api.completeLogin("admin@example.com", "super-admin-id"),
+    ).resolves.toMatchObject({
+      user: { roles: ["super_admin"] },
+    });
+  });
+
   it("closes the admin session when an authenticated request returns 401", async () => {
     persistAuth({
       accessToken: "expired-access-token",
