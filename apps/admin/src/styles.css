@@ -497,6 +497,13 @@ a {
   text-decoration: none;
   white-space: nowrap;
 }
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 16px;
+}
 .button-link {
   border: 0;
   background: transparent;
@@ -721,6 +728,21 @@ a {
   color: #52525b;
   font-size: 14px;
   line-height: 1.5;
+}
+.modal-copy {
+  margin: -12px 0 16px;
+  color: #52525b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.current-upload {
+  margin: 0 0 16px;
+  border-radius: 6px;
+  background: #f4f4f5;
+  padding: 10px 12px;
+  color: #52525b;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 .modal-close {
   position: absolute;
@@ -965,6 +987,13 @@ a {
   inset: 0;
   opacity: 0;
   cursor: pointer;
+}
+.upload-card input:disabled {
+  cursor: wait;
+}
+.benefits-upload-card {
+  min-height: 160px;
+  margin-bottom: 18px;
 }
 .upload-card strong {
   font-size: 16px;

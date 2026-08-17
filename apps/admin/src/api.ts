@@ -33,6 +33,7 @@ export type ProgramRecord = {
   year: number | null;
   createdAt: string | null;
   organizationCount: number;
+  benefitsBestPracticesFileName: string | null;
   projectId?: string;
   details?: Record<string, unknown>;
 };
@@ -261,6 +262,9 @@ function decodePrincipal(accessToken: string): {
 function program(raw: unknown): ProgramRecord {
   const value = object(raw);
   const organizations = array(value.orgs ?? value.organizations);
+  const benefitsBestPractices = object(
+    object(value.publishedReports).benefitsBestPractices,
+  );
   return {
     id: stringValue(value._id) || stringValue(value.id),
     name: stringValue(value.Name) || stringValue(value.name),
@@ -275,6 +279,8 @@ function program(raw: unknown): ProgramRecord {
         organizations.length ??
         0,
     ),
+    benefitsBestPracticesFileName:
+      stringValue(benefitsBestPractices.sourceFile) || null,
     projectId: stringValue(object(value.Project)._id) || undefined,
     details: value,
   };
@@ -696,6 +702,52 @@ export const api = {
       importId: string;
       eaFileName: string;
       efsFileName: string;
+    };
+  },
+
+  async uploadBenefitsBestPracticesWorkbook(
+    programId: string,
+    file: File,
+  ): Promise<{
+    programId: string;
+    sourceFile: string;
+    headerCount: number;
+    sectionCount: number;
+    uploadedAt: string;
+  }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("workbook", file);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/programs/${encodeURIComponent(programId)}/benefits-best-practices`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401 && auth?.accessToken) persistAuth(null);
+      const body = object(payload);
+      const nested = object(body.error);
+      throw new ApiError(
+        stringValue(body.message) ||
+          stringValue(body.msg) ||
+          stringValue(nested.message) ||
+          "Request failed",
+        response.status,
+      );
+    }
+    return object(object(payload).data) as {
+      programId: string;
+      sourceFile: string;
+      headerCount: number;
+      sectionCount: number;
+      uploadedAt: string;
     };
   },
 

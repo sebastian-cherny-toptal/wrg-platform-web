@@ -422,10 +422,16 @@ export function ProjectsPage() {
 
 export function ProjectDetailPage() {
   const { projectId = "" } = useParams();
+  const { auth } = useAuth();
   const loaded = useLoad(`project:${projectId}`, () => api.project(projectId));
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [uploadProgram, setUploadProgram] = useState<ProgramRecord | null>(null);
+  const [uploadNotice, setUploadNotice] = useState("");
+  const canUploadBenefits =
+    auth?.user.roles.some((role) => role === "admin" || role === "super_admin") ||
+    auth?.user.permissions.includes("ops.manage");
   if (loaded.loading)
     return (
       <State loading title="Loading project" message="Retrieving programs." />
@@ -477,6 +483,7 @@ export function ProjectDetailPage() {
         date={date}
         setDate={setDate}
       />
+      {uploadNotice ? <div className="notice">{uploadNotice}</div> : null}
       <DataTable
         headers={[
           "Program Name",
@@ -488,15 +495,41 @@ export function ProjectDetailPage() {
           <strong>{item.name}</strong>,
           formatDate(item.createdAt),
           item.organizationCount,
-          <Link
-            className="action-link"
-            to={`/admin/projects/${project.id}/programs/${item.id}`}
-          >
-            View Details <ChevronRight size={18} />
-          </Link>,
+          <div className="row-actions">
+            <Link
+              className="action-link"
+              to={`/admin/projects/${project.id}/programs/${item.id}`}
+            >
+              View Details <ChevronRight size={18} />
+            </Link>
+            {canUploadBenefits ? (
+              <button
+                className="action-link button-link"
+                onClick={() => {
+                  setUploadNotice("");
+                  setUploadProgram(item);
+                }}
+              >
+                Upload B&amp;BP <FileUp size={17} />
+              </button>
+            ) : null}
+          </div>,
         ])}
       />
       <Pager count={programs.length} shown={10} />
+      {uploadProgram ? (
+        <BenefitsBestPracticesUploadModal
+          program={uploadProgram}
+          onClose={() => setUploadProgram(null)}
+          onUploaded={(fileName) => {
+            setUploadNotice(
+              `${fileName} is now the Benefits & Best Practices workbook for ${uploadProgram.name}.`,
+            );
+            setUploadProgram(null);
+            loaded.reload();
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -702,6 +735,93 @@ function Modal({
         {children}
       </section>
     </div>
+  );
+}
+
+function BenefitsBestPracticesUploadModal({
+  program,
+  onClose,
+  onUploaded,
+}: {
+  program: ProgramRecord;
+  onClose: () => void;
+  onUploaded: (fileName: string) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!file) {
+      setError("Choose an .xlsx workbook to upload.");
+      return;
+    }
+    if (!/\.xlsx$/iu.test(file.name)) {
+      setError("The selected file must be an .xlsx workbook.");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setError("The selected workbook must be 25 MB or smaller.");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    try {
+      await api.uploadBenefitsBestPracticesWorkbook(program.id, file);
+      onUploaded(file.name);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The workbook could not be uploaded.",
+      );
+      setUploading(false);
+    }
+  };
+  return (
+    <Modal title="Upload Benefits & Best Practices" onClose={onClose}>
+      <form onSubmit={(event) => void submit(event)}>
+        <p className="modal-copy">
+          Upload the report workbook for <strong>{program.name}</strong>. A new
+          upload replaces the program&apos;s current Benefits &amp; Best
+          Practices data.
+        </p>
+        {program.benefitsBestPracticesFileName ? (
+          <p className="current-upload">
+            Current workbook:{" "}
+            <strong>{program.benefitsBestPracticesFileName}</strong>
+          </p>
+        ) : null}
+        <label className="upload-card benefits-upload-card">
+          <FileUp size={34} aria-hidden="true" />
+          <strong>{file ? "Workbook selected" : "Choose an XLSX workbook"}</strong>
+          <span>{file?.name ?? "Maximum file size: 25 MB"}</span>
+          <input
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            disabled={uploading}
+            onChange={(event) => {
+              setError("");
+              setFile(event.target.files?.[0] ?? null);
+            }}
+          />
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={uploading}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button className="primary-button" type="submit" disabled={uploading}>
+            {uploading ? "Uploading…" : "Upload workbook"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

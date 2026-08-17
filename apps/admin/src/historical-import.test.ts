@@ -82,3 +82,40 @@ describe("historical import API client", () => {
     expect(options.body).toBeInstanceOf(FormData);
   });
 });
+
+describe("Benefits & Best Practices API client", () => {
+  it("uploads one program workbook as multipart form data", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            programId: "program-id",
+            sourceFile: "benefits.xlsx",
+            headerCount: 2,
+            sectionCount: 1,
+            uploadedAt: "2026-08-17T12:00:00.000Z",
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["workbook"], "benefits.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    await api.uploadBenefitsBestPracticesWorkbook("program-id", file);
+
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain(
+      "/admin/programs/program-id/benefits-best-practices",
+    );
+    expect(options.method).toBe("POST");
+    expect(options.body).toBeInstanceOf(FormData);
+    expect((options.body as FormData).get("workbook")).toBe(file);
+    expect((options.headers as Record<string, string>)["Content-Type"]).toBe(
+      undefined,
+    );
+  });
+});
