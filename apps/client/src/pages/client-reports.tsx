@@ -1126,7 +1126,7 @@ export function ResponsePatternsPage() {
                     key={config.title}
                   >
                     <span className="block text-zinc-600">{config.title}</span>
-                    <strong className="mt-1 block text-xl">{percentage}%</strong>
+                    <strong className="mt-1 block text-xl">{Math.round(percentage)}%</strong>
                   </div>
                 );
               })}
@@ -1262,11 +1262,11 @@ export function AnnualTrendsPage() {
             ) : (
               <div className="mt-3 grid lg:grid-cols-2 lg:divide-x lg:divide-zinc-200">
                 <DonutScore
-                  delta={currentAverage - previousAverage}
-                  value={currentAverage}
+                  delta={Math.round(currentAverage - previousAverage)}
+                  value={Math.round(currentAverage)}
                   year={Number(currentYear)}
                 />
-                <DonutScore value={previousAverage} year={Number(previousYear)} />
+                <DonutScore value={Math.round(previousAverage)} year={Number(previousYear)} />
               </div>
             )}
           </Card>
@@ -1319,9 +1319,9 @@ export function AnnualTrendsPage() {
                       <div className="rounded-xl bg-zinc-50 p-5" key={year}>
                         <h3 className="font-semibold">{year}</h3>
                         <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                          <span>{percentage(yearSnapshot, "Agree")}% Agreement</span>
-                          <span>{percentage(yearSnapshot, "Neutral")}% Neutral</span>
-                          <span>{percentage(yearSnapshot, "Disagree")}% Disagreement</span>
+                          <span>{Math.round(percentage(yearSnapshot, "Agree"))}% Agreement</span>
+                          <span>{Math.round(percentage(yearSnapshot, "Neutral"))}% Neutral</span>
+                          <span>{Math.round(percentage(yearSnapshot, "Disagree"))}% Disagreement</span>
                         </div>
                       </div>
                     );
@@ -1370,8 +1370,8 @@ export function AnnualTrendsPage() {
                       return (
                         <div className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_80px_80px]" key={question.questionId}>
                           <span>{question.question}</span>
-                          <span className="font-semibold">{valueFor(currentYear)}%</span>
-                          <span className="font-semibold text-zinc-500">{valueFor(previousYear) ?? "—"}{valueFor(previousYear) === null ? "" : "%"}</span>
+                          <span className="font-semibold">{valueFor(currentYear) ? Math.round(valueFor(currentYear) ?? 0) : "—"}%</span>
+                          <span className="font-semibold text-zinc-500">{valueFor(previousYear) ? Math.round(valueFor(previousYear) ?? 0) : "—"}{valueFor(previousYear) === null ? "" : "%"}</span>
                         </div>
                       );
                     })}

@@ -184,7 +184,7 @@ const sectionResponseSchema = z.object({
   percentOfAgreement: z.number().min(0).max(1).optional(),
   colorCode: z.string(),
   percent: z.number().min(0).max(1),
-  percentage: z.number().int().min(0).max(100),
+  percentage: z.number().min(0).max(100),
 });
 
 const sectionTotalsSchema = z.object({
