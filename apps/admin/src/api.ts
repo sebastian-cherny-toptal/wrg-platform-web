@@ -65,6 +65,20 @@ export type HistoricalImportMetadata = {
   projectAbbreviation?: string;
   employeeSurveyId?: string;
   employerSurveyId?: string;
+  reportCatalog?: ReportProduct[];
+};
+
+export type ReportProduct = {
+  id: string;
+  name: string;
+  description: string;
+  priceCents: number;
+  available: boolean;
+};
+
+export type OrganizationCatalog = {
+  inherited: boolean;
+  products: ReportProduct[];
 };
 
 export type HistoricalImportValidationIssue = {
@@ -636,6 +650,37 @@ export const api = {
         reason: "Preview client dashboard from administration",
       }),
     });
+  },
+
+  async reportProductTemplates(): Promise<ReportProduct[]> {
+    const response = await request<unknown>("/admin/report-product-templates");
+    return array(object(response).data) as ReportProduct[];
+  },
+
+  async programCatalog(programId: string): Promise<ReportProduct[]> {
+    const response = await request<unknown>(`/admin/programs/${encodeURIComponent(programId)}/report-catalog`);
+    return array(object(response).data) as ReportProduct[];
+  },
+
+  async saveProgramCatalog(programId: string, products: ReportProduct[]): Promise<ReportProduct[]> {
+    const response = await request<unknown>(`/admin/programs/${encodeURIComponent(programId)}/report-catalog`, {
+      method: "PUT",
+      body: JSON.stringify({ products }),
+    });
+    return array(object(response).data) as ReportProduct[];
+  },
+
+  async organizationCatalog(organizationProgramId: string): Promise<OrganizationCatalog> {
+    const response = await request<unknown>(`/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/report-catalog`);
+    return object(object(response).data) as OrganizationCatalog;
+  },
+
+  async saveOrganizationCatalog(organizationProgramId: string, products: ReportProduct[], inherit: boolean): Promise<OrganizationCatalog> {
+    const response = await request<unknown>(`/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/report-catalog`, {
+      method: "PUT",
+      body: JSON.stringify(inherit ? { inherit: true } : { products }),
+    });
+    return object(object(response).data) as OrganizationCatalog;
   },
 
   async createHistoricalImport(

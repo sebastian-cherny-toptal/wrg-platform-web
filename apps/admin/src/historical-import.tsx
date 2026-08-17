@@ -21,10 +21,11 @@ import {
   type HistoricalImportValidationSummary,
 } from "./api";
 import { PageHeader, State } from "./admin";
+import { CatalogEditor } from "./catalog-editor";
 
 const storageKey = "wrg-historical-import-draft";
 
-type WizardStep = 1 | 2 | 3;
+type WizardStep = 1 | 2 | 3 | 4;
 
 type DraftState = {
   importId: string;
@@ -65,7 +66,8 @@ function StepIndicator({
   const steps = [
     { number: 1, label: "Project & Program" },
     { number: 2, label: "Upload EA/EFS" },
-    { number: 3, label: "Review & Create" },
+    { number: 3, label: "Report Store" },
+    { number: 4, label: "Review & Create" },
   ] as const;
   return (
     <ol className="wizard-steps">
@@ -557,6 +559,31 @@ function ReviewStep({
   );
 }
 
+function CatalogStep({ draft, onComplete, onBack }: { draft: DraftState; onComplete: (next: DraftState) => void; onBack: () => void }) {
+  const [products, setProducts] = useState<import("./api").ReportProduct[]>(draft.metadata.reportCatalog ?? []);
+  const [loading, setLoading] = useState(!draft.metadata.reportCatalog?.length);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (products.length) return;
+    void api.reportProductTemplates().then(setProducts).catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load products")).finally(() => setLoading(false));
+  }, [products.length]);
+  const save = async () => {
+    setSaving(true); setError("");
+    try {
+      const response = await api.updateHistoricalImportMetadata(draft.importId, { ...draft.metadata, reportCatalog: products });
+      const next = { ...draft, metadata: response.metadata };
+      storeDraft(next); onComplete(next);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save catalog"); setSaving(false); }
+  };
+  return <div className="wizard-panel">
+    <p className="wizard-copy">Set the report products and prices that every organization in this imported program will see. You can customize an individual organization later.</p>
+    {loading ? <p>Loading product options…</p> : <CatalogEditor products={products} onChange={setProducts} />}
+    {error ? <p className="form-error">{error}</p> : null}
+    <div className="wizard-actions"><button type="button" className="secondary-button" onClick={onBack} disabled={saving}><ChevronLeft size={16} /> Back</button><button type="button" className="primary-button compact" onClick={() => void save()} disabled={saving || loading}>{saving ? "Saving…" : "Continue"} <ChevronRight size={16} /></button></div>
+  </div>;
+}
+
 export function HistoricalImportPage() {
   const stored = readStoredDraft();
   const [step, setStep] = useState<WizardStep>(stored?.importId ? 2 : 1);
@@ -605,9 +632,11 @@ export function HistoricalImportPage() {
         onBack={() => setStep(1)}
       />
     );
+  } else if (step === 3) {
+    content = <CatalogStep draft={draft as DraftState} onComplete={(next) => { setDraft(next); setStep(4); }} onBack={() => setStep(2)} />;
   } else {
     content = (
-      <ReviewStep draft={draft as DraftState} onBack={() => setStep(2)} />
+      <ReviewStep draft={draft as DraftState} onBack={() => setStep(3)} />
     );
   }
 
@@ -626,7 +655,7 @@ export function HistoricalImportPage() {
       <StepIndicator
         step={step}
         maxStep={
-          draft.validation ? 3 : draft.importId && draft.metadata ? 2 : 1
+          draft.metadata?.reportCatalog ? 4 : draft.validation ? 3 : draft.importId && draft.metadata ? 2 : 1
         }
         onStepChange={setStep}
       />

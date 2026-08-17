@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   Pencil,
   Search,
+  ShoppingBag,
   ShieldCheck,
   Trash2,
   Users,
@@ -45,6 +46,7 @@ import {
   type UserRecord,
 } from "./api";
 import { useAuth } from "./auth";
+import { CatalogEditor } from "./catalog-editor";
 
 const permissionLabels: Record<string, string> = {
   clientsProjectsProgramsAccess: "Access Shared Projects, Programs & Clients",
@@ -426,6 +428,7 @@ export function ProjectDetailPage() {
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [catalogProgram, setCatalogProgram] = useState<ProgramRecord | null>(null);
   if (loaded.loading)
     return (
       <State loading title="Loading project" message="Retrieving programs." />
@@ -488,15 +491,14 @@ export function ProjectDetailPage() {
           <strong>{item.name}</strong>,
           formatDate(item.createdAt),
           item.organizationCount,
-          <Link
-            className="action-link"
-            to={`/admin/projects/${project.id}/programs/${item.id}`}
-          >
-            View Details <ChevronRight size={18} />
-          </Link>,
+          <div className="row-actions">
+            <button className="action-link button-link" onClick={() => setCatalogProgram(item)}>Configure store <ShoppingBag size={17} /></button>
+            <Link className="action-link" to={`/admin/projects/${project.id}/programs/${item.id}`}>View Details <ChevronRight size={18} /></Link>
+          </div>,
         ])}
       />
       <Pager count={programs.length} shown={10} />
+      {catalogProgram ? <CatalogModal scope={{ kind: "program", id: catalogProgram.id, label: catalogProgram.name }} onClose={() => setCatalogProgram(null)} onSaved={() => undefined} /> : null}
     </>
   );
 }
@@ -528,6 +530,9 @@ export function ProgramDetailPage() {
     useState<OrganizationRecord | null>(null);
   const [previewOrganization, setPreviewOrganization] =
     useState<OrganizationRecord | null>(null);
+  const [catalogOrganization, setCatalogOrganization] =
+    useState<OrganizationRecord | null>(null);
+  const [programCatalogOpen, setProgramCatalogOpen] = useState(false);
   const program = programLoaded.data;
   const canUploadBenefits =
     auth?.user.roles.some(
@@ -625,12 +630,10 @@ export function ProgramDetailPage() {
       ) : null}
       <div className="section-row">
         <h2 className="section-title">Organization</h2>
-        <button
-          className="primary-button compact"
-          onClick={() => void resync()}
-        >
-          Re-Sync All Deals
-        </button>
+        <div className="row-actions">
+          <button className="secondary-button compact" onClick={() => setProgramCatalogOpen(true)}><ShoppingBag size={16} /> Configure store</button>
+          <button className="primary-button compact" onClick={() => void resync()}>Re-Sync All Deals</button>
+        </div>
       </div>
       {notice ? <div className="notice">{notice}</div> : null}
       <Toolbar
@@ -672,6 +675,11 @@ export function ProgramDetailPage() {
               View Dashboard <ChevronRight size={18} />
             </button>
             {canUploadBenefits ? (
+              <button className="action-link button-link" onClick={() => setCatalogOrganization(item)}>
+                Configure store <ShoppingBag size={17} />
+              </button>
+            ) : null}
+            {canUploadBenefits ? (
               <button
                 className="action-link button-link"
                 onClick={() => setUploadOrganization(item)}
@@ -704,8 +712,43 @@ export function ProgramDetailPage() {
           }}
         />
       ) : null}
+      {programCatalogOpen ? <CatalogModal scope={{ kind: "program", id: program.id, label: program.name }} onClose={() => setProgramCatalogOpen(false)} onSaved={() => setNotice(`The report store was updated for every organization in ${program.name}.`)} /> : null}
+      {catalogOrganization ? <CatalogModal scope={{ kind: "organization", id: catalogOrganization.organizationProgramId, label: `${catalogOrganization.name} — ${program.name}` }} onClose={() => setCatalogOrganization(null)} onSaved={() => setNotice(`The report store was updated for ${catalogOrganization.name}.`)} /> : null}
     </>
   );
+}
+
+function CatalogModal({ scope, onClose, onSaved }: { scope: { kind: "program" | "organization"; id: string; label: string }; onClose: () => void; onSaved: () => void }) {
+  const [products, setProducts] = useState<import("./api").ReportProduct[]>([]);
+  const [inherit, setInherit] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.reportProductTemplates(), scope.kind === "program" ? api.programCatalog(scope.id) : api.organizationCatalog(scope.id)])
+      .then(([templates, configured]) => {
+        if (!active) return;
+        const selected = Array.isArray(configured) ? configured : configured.products;
+        setProducts(templates.map((template) => selected.find(({ id }) => id === template.id) ?? { ...template, available: false }));
+        if (!Array.isArray(configured)) setInherit(configured.inherited);
+      }).catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load catalog")).finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [scope.id, scope.kind]);
+  const save = async () => {
+    setSaving(true); setError("");
+    try {
+      if (scope.kind === "program") await api.saveProgramCatalog(scope.id, products);
+      else await api.saveOrganizationCatalog(scope.id, products, inherit);
+      onSaved(); onClose();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save catalog"); setSaving(false); }
+  };
+  return <Modal title={`Configure report store — ${scope.label}`} onClose={onClose}>
+    {scope.kind === "organization" ? <label className="inherit-catalog"><input type="checkbox" checked={inherit} onChange={(event) => setInherit(event.target.checked)} /><span><strong>Use program catalog</strong><small>Keep this organization synchronized with program-wide products and prices.</small></span></label> : null}
+    {loading ? <p className="modal-copy">Loading catalog…</p> : inherit ? <p className="notice">This organization currently uses the program catalog. Turn off the option above to customize it.</p> : <CatalogEditor products={products} onChange={setProducts} />}
+    {error ? <p className="form-error">{error}</p> : null}
+    <div className="modal-actions"><button className="secondary-button" onClick={onClose} disabled={saving}>Cancel</button><button className="primary-button" onClick={() => void save()} disabled={saving || loading}>{saving ? "Saving…" : "Save catalog"}</button></div>
+  </Modal>;
 }
 
 function Modal({

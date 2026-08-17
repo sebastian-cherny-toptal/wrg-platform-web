@@ -475,6 +475,14 @@ export function CatalogPage() {
       <div className="p-5 lg:p-6">
         {catalog.isPending ? <StatePanel kind="loading" title="Loading catalog" message="Checking currently available reports." /> : null}
         {catalog.isError ? <StatePanel kind="error" title="Catalog unavailable" message={catalog.error.message} /> : null}
+        {catalog.data?.length === 0 ? (
+          <StatePanel
+            kind="empty"
+            title="No report products configured"
+            message="There are no additional reports available for this program yet. Please contact a Survey Professional at SurveyPro@workforcerg.com for assistance."
+            action={<a href="mailto:SurveyPro@workforcerg.com"><Button>Contact a Survey Professional</Button></a>}
+          />
+        ) : null}
         {catalog.data ? (
           <div className="grid gap-5 md:grid-cols-2">
             {sortedVerbatims ? (
