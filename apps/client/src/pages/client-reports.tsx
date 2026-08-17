@@ -1779,13 +1779,13 @@ export function BenchmarkDataPage() {
               >
                 <h2 className="min-h-10 text-[13px] font-semibold">{average.title}</h2>
                 <p className="mt-3 text-xs text-zinc-500">{average.subTitle}</p>
-                <strong className="mt-1 block text-2xl">{typeof average.winner === "number" ? `${average.winner}%` : average.winner}</strong>
+                <strong className="mt-1 block text-2xl">{typeof average.winner === "number" ? `${Math.round(average.winner)}%` : average.winner}</strong>
                 <div className="mt-3 flex justify-center gap-3 text-xs">
                   <span className="flex items-center gap-1 text-emerald-600">
                     <Check className="size-4" /> Winners
                   </span>
                   <span className="flex items-center gap-1 text-red-500">
-                    <XCircle className="size-4" /> {typeof average.nonWinner === "number" ? `${average.nonWinner}%` : average.nonWinner}
+                    <XCircle className="size-4" /> {typeof average.nonWinner === "number" ? `${Math.round(average.nonWinner)}%` : average.nonWinner}
                   </span>
                 </div>
               </div>
@@ -1823,7 +1823,7 @@ export function BenchmarkDataPage() {
 }
 
 function AgreementDonut({ value, label }: { value: number | string; label: string }) {
-  const numeric = typeof value === "number" ? value : 0;
+  const numeric = typeof value === "number" ? Math.round(value) : 0;
   return (
     <div className="grid justify-items-center gap-3">
       <div className="relative grid size-44 place-items-center rounded-full" style={{ background: `conic-gradient(#7c3aed ${numeric * 3.6}deg, #ede9fe 0deg)` }}>
