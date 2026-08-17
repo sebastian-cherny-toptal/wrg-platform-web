@@ -53,7 +53,15 @@ function clearDraft(): void {
   window.sessionStorage.removeItem(storageKey);
 }
 
-function StepIndicator({ step }: { step: WizardStep }) {
+function StepIndicator({
+  step,
+  maxStep,
+  onStepChange,
+}: {
+  step: WizardStep;
+  maxStep: WizardStep;
+  onStepChange: (step: WizardStep) => void;
+}) {
   const steps = [
     { number: 1, label: "Project & Program" },
     { number: 2, label: "Upload EA/EFS" },
@@ -72,8 +80,14 @@ function StepIndicator({ step }: { step: WizardStep }) {
                 : "wizard-step"
           }
         >
-          <span>{entry.number}</span>
-          <strong>{entry.label}</strong>
+          <button
+            type="button"
+            disabled={entry.number > maxStep}
+            onClick={() => onStepChange(entry.number)}
+          >
+            <span>{entry.number}</span>
+            <strong>{entry.label}</strong>
+          </button>
         </li>
       ))}
     </ol>
@@ -273,7 +287,11 @@ function UploadStep({
     setWorking(true);
     setError("");
     try {
-      await api.uploadHistoricalImportWorkbooks(draft.importId, eaFile, efsFile);
+      await api.uploadHistoricalImportWorkbooks(
+        draft.importId,
+        eaFile,
+        efsFile,
+      );
       const summary = await api.validateHistoricalImport(draft.importId);
       setValidation(summary);
       const nextDraft = {
@@ -286,7 +304,9 @@ function UploadStep({
       if (summary.blockingErrorCount === 0) onComplete(nextDraft);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Unable to validate workbooks",
+        caught instanceof Error
+          ? caught.message
+          : "Unable to validate workbooks",
       );
     } finally {
       setWorking(false);
@@ -297,8 +317,8 @@ function UploadStep({
     <div className="wizard-panel">
       <p className="wizard-copy">
         Upload exactly one Employer Assessment workbook and one Employee
-        Feedback Survey workbook. The import validates headers, respondents,
-        and organization consistency across both files.
+        Feedback Survey workbook. The import validates headers, respondents, and
+        organization consistency across both files.
       </p>
       <div className="upload-grid">
         <label className="upload-card">
@@ -314,7 +334,9 @@ function UploadStep({
         <label className="upload-card">
           <Upload size={28} />
           <strong>Employee Feedback Survey (EFS)</strong>
-          <span>{efsFile?.name ?? draft.efsFileName ?? "Choose .xlsx file"}</span>
+          <span>
+            {efsFile?.name ?? draft.efsFileName ?? "Choose .xlsx file"}
+          </span>
           <input
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -435,6 +457,14 @@ function ReviewStep({
       setError(
         caught instanceof Error ? caught.message : "Historical import failed",
       );
+      if (draft.importId) {
+        void api
+          .historicalImportStatus(draft.importId)
+          .then((latest) => {
+            if (latest.error) setError(latest.error);
+          })
+          .catch(() => undefined);
+      }
     } finally {
       setCommitting(false);
     }
@@ -515,7 +545,9 @@ function ReviewStep({
         <button
           type="button"
           className="primary-button compact"
-          disabled={committing || !validation || validation.blockingErrorCount > 0}
+          disabled={
+            committing || !validation || validation.blockingErrorCount > 0
+          }
           onClick={() => void commit()}
         >
           {committing ? "Creating project…" : "Create historical project"}
@@ -591,7 +623,13 @@ export function HistoricalImportPage() {
           </>
         }
       />
-      <StepIndicator step={step} />
+      <StepIndicator
+        step={step}
+        maxStep={
+          draft.validation ? 3 : draft.importId && draft.metadata ? 2 : 1
+        }
+        onStepChange={setStep}
+      />
       {content}
     </>
   );

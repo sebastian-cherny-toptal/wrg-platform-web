@@ -44,6 +44,20 @@ export type PortalUserRecord = {
   username: string | null;
 };
 
+export type UserRecord = {
+  id: string;
+  fullName: string;
+  email: string;
+  username: string | null;
+  role: string | null;
+  roleId: string | null;
+  organization: { id: string; name: string } | null;
+  projects: Array<{ id: string; name: string }>;
+  createdAt: string | null;
+  lastLogin: string | null;
+  status: string;
+};
+
 export type HistoricalImportMetadata = {
   projectName: string;
   programName: string;
@@ -462,9 +476,37 @@ export const api = {
     return response.users;
   },
 
-  async users(): Promise<Record<string, unknown>[]> {
+  async users(): Promise<UserRecord[]> {
     const response = await request<unknown>("/user/list?expand=projects");
-    return array(object(response).data).map(object);
+    return array(object(response).data).map((entry) => {
+      const value = object(entry);
+      const organizationValue = object(value.organization);
+      return {
+        id: stringValue(value.id) || stringValue(value._id),
+        fullName: stringValue(value.fullName) || stringValue(value.name),
+        email: stringValue(value.email),
+        username: stringValue(value.username) || null,
+        role: stringValue(value.role) || null,
+        roleId: stringValue(value.roleId) || null,
+        organization: stringValue(organizationValue.id)
+          ? {
+              id: stringValue(organizationValue.id),
+              name: stringValue(organizationValue.name),
+            }
+          : null,
+        projects: array(value.projects).map((projectValue) => {
+          const project = object(projectValue);
+          return {
+            id: stringValue(project.id) || stringValue(project._id),
+            name: stringValue(project.name) || stringValue(project.Name),
+          };
+        }),
+        createdAt:
+          stringValue(value.createdAt) || stringValue(value.createAt) || null,
+        lastLogin: stringValue(value.lastLogin) || null,
+        status: stringValue(value.status),
+      };
+    });
   },
 
   async roles(): Promise<Record<string, unknown>[]> {
@@ -497,11 +539,46 @@ export const api = {
     });
   },
 
-  async resetUserPassword(userId: string): Promise<void> {
-    await request("/user/admin-reset-password", {
-      method: "POST",
-      body: JSON.stringify({ userId }),
+  async updateUser(
+    userId: string,
+    input: {
+      fullName: string;
+      email: string;
+      username: string;
+      roleId?: string;
+      projects?: string[];
+    },
+  ): Promise<void> {
+    await request(`/user/update/${encodeURIComponent(userId)}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
     });
+  },
+
+  async deleteUser(userId: string): Promise<void> {
+    await request(`/user/delete/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+  },
+
+  async resetUserPassword(userId: string): Promise<{
+    username: string;
+    email: string;
+    temporaryPassword: string;
+  }> {
+    const response = await request<unknown>(
+      "/user/admin-generate-temp-password",
+      {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      },
+    );
+    const data = object(object(response).data);
+    return {
+      username: stringValue(data.username),
+      email: stringValue(data.email),
+      temporaryPassword: stringValue(data.temporaryPassword),
+    };
   },
 
   async orders(): Promise<Record<string, unknown>[]> {
@@ -628,7 +705,9 @@ export const api = {
     return object(object(response).data) as HistoricalImportValidationSummary;
   },
 
-  async commitHistoricalImport(importId: string): Promise<HistoricalImportStatus> {
+  async commitHistoricalImport(
+    importId: string,
+  ): Promise<HistoricalImportStatus> {
     const response = await request<unknown>(
       `/admin/historicalImports/${encodeURIComponent(importId)}/commit`,
       { method: "POST" },
@@ -636,7 +715,9 @@ export const api = {
     return object(object(response).data) as HistoricalImportStatus;
   },
 
-  async historicalImportStatus(importId: string): Promise<HistoricalImportStatus> {
+  async historicalImportStatus(
+    importId: string,
+  ): Promise<HistoricalImportStatus> {
     const response = await request<unknown>(
       `/admin/historicalImports/${encodeURIComponent(importId)}`,
     );
@@ -649,6 +730,17 @@ export const formatDate = (value: unknown): string => {
     typeof value === "string" || value instanceof Date ? new Date(value) : null;
   return date && !Number.isNaN(date.getTime())
     ? date.toLocaleDateString("en-US")
+    : "—";
+};
+
+export const formatDateTime = (value: unknown): string => {
+  const date =
+    typeof value === "string" || value instanceof Date ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleString("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
     : "—";
 };
 

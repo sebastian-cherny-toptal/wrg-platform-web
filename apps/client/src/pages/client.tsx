@@ -264,7 +264,7 @@ export function DashboardPage() {
                 {[
                   ['# of Surveys Completed', String(dashboard.data.responseRate.completedSurvey)],
                   ['# of Surveys Sent', String(dashboard.data.responseRate.sendSurvey)],
-                  ['Response Rate', `${dashboard.data.responseRate.responseRate}%`],
+                  ['Response Rate', `${Math.round(dashboard.data.responseRate.responseRate)}%`],
                 ].map(([label, value], index) => (
                   <div className={cn('flex h-[106px] flex-col items-center justify-center rounded-xl border border-zinc-200 bg-white p-2 text-center', index === 2 && 'border-violet-100 bg-violet-100')} key={label}>
                     <p className="order-1 text-[12px] font-semibold leading-4 text-zinc-900">{label}</p>

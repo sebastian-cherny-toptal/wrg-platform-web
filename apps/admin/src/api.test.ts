@@ -147,6 +147,36 @@ describe("admin API projections", () => {
     });
   });
 
+  it("returns the one-time temporary password from an administrator reset", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            username: "client.person",
+            email: "client@example.com",
+            temporaryPassword: "one-time-secret",
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.resetUserPassword("user-id")).resolves.toEqual({
+      username: "client.person",
+      email: "client@example.com",
+      temporaryPassword: "one-time-secret",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/user/admin-generate-temp-password"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ userId: "user-id" }),
+      }),
+    );
+  });
+
   it("closes the admin session when an authenticated request returns 401", async () => {
     persistAuth({
       accessToken: "expired-access-token",

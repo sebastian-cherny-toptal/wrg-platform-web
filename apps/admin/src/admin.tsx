@@ -5,14 +5,16 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  Copy,
   FileUp,
   KeyRound,
   LogOut,
   Menu,
   MoreHorizontal,
+  Pencil,
   Search,
   ShieldCheck,
-  UserRound,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -35,10 +37,12 @@ import {
   api,
   field,
   formatDate,
+  formatDateTime,
   type OrganizationRecord,
   type PortalUserRecord,
   type ProgramRecord,
   type ProjectRecord,
+  type UserRecord,
 } from "./api";
 import { useAuth } from "./auth";
 
@@ -63,15 +67,9 @@ const navigation = [
     label: "Import Historical Project",
     icon: FileUp,
   },
-  { to: "/admin/users", label: "Portal Users", icon: Users },
-  { to: "/admin/users-management", label: "Users Management", icon: KeyRound },
+  { to: "/admin/users", label: "Users Management", icon: Users },
   { to: "/admin/order-log", label: "Order Log", icon: ClipboardList },
   { to: "/admin/system-log", label: "Activity Log", icon: Activity },
-  {
-    to: "/admin/user-login-sessions",
-    label: "User Login Sessions",
-    icon: UserRound,
-  },
   { to: "/admin/role-permissions", label: "Roles", icon: ShieldCheck },
 ];
 
@@ -140,6 +138,9 @@ function Toolbar({
   date,
   setDate,
   extra,
+  sort,
+  setSort,
+  sortOptions,
 }: {
   search: string;
   setSearch: (value: string) => void;
@@ -147,13 +148,27 @@ function Toolbar({
   date?: string;
   setDate?: (value: string) => void;
   extra?: ReactNode;
+  sort?: string;
+  setSort?: (value: string) => void;
+  sortOptions?: Array<{ value: string; label: string }>;
 }) {
   return (
     <div className="toolbar">
       <div className="toolbar-left">
-        <button className="select-button">
-          Sort by Date <ChevronDown size={15} />
-        </button>
+        {setSort && sortOptions ? (
+          <select
+            className="select-button"
+            aria-label="Sort records"
+            value={sort}
+            onChange={(event) => setSort(event.target.value)}
+          >
+            {sortOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : null}
         {setDate ? (
           <label className="date-control">
             <CalendarDays size={16} />
@@ -266,6 +281,7 @@ export function AdminShell() {
             <NavLink
               key={to}
               to={to}
+              end
               className={({ isActive }) => (isActive ? "active" : "")}
               onClick={() => setMenuOpen(false)}
             >
@@ -327,22 +343,30 @@ export function ProjectsPage() {
   const loaded = useLoad("projects", api.projects);
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
-  const rows = useMemo(
-    () =>
-      (loaded.data ?? []).filter(
-        (item) =>
-          item.name.toLowerCase().includes(search.toLowerCase()) &&
-          (!date || item.createdAt?.slice(0, 10) === date),
-      ),
-    [loaded.data, search, date],
-  );
+  const [sort, setSort] = useState("createdAt:desc");
+  const rows = useMemo(() => {
+    const filtered = (loaded.data ?? []).filter(
+      (item) =>
+        item.name.toLowerCase().includes(search.toLowerCase()) &&
+        (!date || item.createdAt?.slice(0, 10) === date),
+    );
+    return [...filtered].sort((left, right) => {
+      if (sort === "name:asc") return left.name.localeCompare(right.name);
+      if (sort === "programs:desc")
+        return right.programs.length - left.programs.length;
+      return (
+        new Date(right.createdAt ?? 0).getTime() -
+        new Date(left.createdAt ?? 0).getTime()
+      );
+    });
+  }, [loaded.data, search, date, sort]);
   return (
     <>
       <PageHeader
         title="Projects"
         breadcrumb="Projects & Programs"
         actions={
-          <Link className="primary-button compact action-link" to="/admin/projects/import">
+          <Link className="primary-button compact" to="/admin/projects/import">
             Import Historical Project
           </Link>
         }
@@ -353,6 +377,13 @@ export function ProjectsPage() {
         placeholder="Search Projects"
         date={date}
         setDate={setDate}
+        sort={sort}
+        setSort={setSort}
+        sortOptions={[
+          { value: "createdAt:desc", label: "Newest first" },
+          { value: "name:asc", label: "Name A–Z" },
+          { value: "programs:desc", label: "Most programs" },
+        ]}
       />
       {loaded.loading ? (
         <State
@@ -368,12 +399,14 @@ export function ProjectsPage() {
             headers={[
               "Project Name",
               "Date of Creation",
+              "# Programs",
               "Programs",
               "Actions",
             ]}
             rows={rows.slice(0, 10).map((item) => [
               <strong>{item.name}</strong>,
               formatDate(item.createdAt),
+              item.programs.length,
               item.programs.map((entry) => entry.name).join(", ") || "—",
               <Link className="action-link" to={`/admin/projects/${item.id}`}>
                 View Details <ChevronRight size={18} />
@@ -487,19 +520,28 @@ export function ProgramDetailPage() {
   );
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
+  const [sort, setSort] = useState("id:asc");
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState("");
   const [previewOrganization, setPreviewOrganization] =
     useState<OrganizationRecord | null>(null);
   const program = programLoaded.data;
   const normalizedSearch = search.toLowerCase();
-  const organizations = (organizationsLoaded.data ?? []).filter(
-    (item) =>
-      (item.name.toLowerCase().includes(normalizedSearch) ||
-        item.sourceId.toLowerCase().includes(normalizedSearch) ||
-        item.sourceName?.toLowerCase().includes(normalizedSearch)) &&
-      (!date || item.createdAt?.slice(0, 10) === date),
-  );
+  const organizations = [...(organizationsLoaded.data ?? [])]
+    .filter(
+      (item) =>
+        (item.name.toLowerCase().includes(normalizedSearch) ||
+          item.sourceId.toLowerCase().includes(normalizedSearch) ||
+          item.sourceName?.toLowerCase().includes(normalizedSearch)) &&
+        (!date || item.createdAt?.slice(0, 10) === date),
+    )
+    .sort((left, right) => {
+      if (sort === "name:asc") return left.name.localeCompare(right.name);
+      if (sort === "surveys:desc") return right.surveysSent - left.surveysSent;
+      return left.sourceId.localeCompare(right.sourceId, undefined, {
+        numeric: true,
+      });
+    });
   if (programLoaded.loading)
     return (
       <State
@@ -590,6 +632,13 @@ export function ProgramDetailPage() {
         placeholder="Search organization IDs or names"
         date={date}
         setDate={setDate}
+        sort={sort}
+        setSort={setSort}
+        sortOptions={[
+          { value: "id:asc", label: "Organization ID" },
+          { value: "name:asc", label: "Organization name" },
+          { value: "surveys:desc", label: "Most surveys sent" },
+        ]}
       />
       <DataTable
         headers={[
@@ -903,7 +952,7 @@ function AddUserModal({
           {(roles.data ?? []).map((role) => {
             const roleKey = field(role, "role");
             const unavailableAdmin =
-              roleKey === "admin" && Number(field(role, "userCount")) > 0;
+              roleKey === "super_admin" && Number(field(role, "userCount")) > 0;
             return (
               <option
                 key={field(role, "_id", "id")}
@@ -948,8 +997,8 @@ function AddUserModal({
                   availablePrograms.map((program) => {
                     const disabled = Boolean(
                       selectedProjectId &&
-                        program.projectId !== selectedProjectId &&
-                        !form.programs.includes(program.id),
+                      program.projectId !== selectedProjectId &&
+                      !form.programs.includes(program.id),
                     );
                     return (
                       <label key={program.id}>
@@ -970,9 +1019,7 @@ function AddUserModal({
                         />{" "}
                         {program.name}
                         {program.year ? ` (${program.year})` : ""}
-                        {program.projectName
-                          ? ` — ${program.projectName}`
-                          : ""}
+                        {program.projectName ? ` — ${program.projectName}` : ""}
                       </label>
                     );
                   })
@@ -1018,78 +1065,144 @@ function AddUserModal({
   );
 }
 
-export function PortalUsersPage() {
-  const loaded = useLoad("portal-users", api.organizations);
-  const [search, setSearch] = useState("");
-  const users = (loaded.data ?? [])
-    .flatMap((organization) =>
-      organization.users.map((user) => ({
-        ...user,
-        organization: organization.name,
-      })),
-    )
-    .filter((user) =>
-      `${user.fullName} ${user.email} ${user.organization}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-    );
+function EditUserModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: UserRecord;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    fullName: user.fullName,
+    email: user.email,
+    username: user.username ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await api.updateUser(user.id, {
+        fullName: form.fullName.trim(),
+        email: form.email.trim(),
+        username: form.username.trim(),
+      });
+      onSaved();
+      onClose();
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Unable to update user",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
-    <>
-      <PageHeader title="Users" />
-      <Toolbar
-        search={search}
-        setSearch={setSearch}
-        placeholder="User Search"
-      />
-      {loaded.loading ? (
-        <State
-          loading
-          title="Loading users"
-          message="Retrieving portal users."
+    <Modal title={`Edit ${user.fullName}`} onClose={onClose}>
+      <form className="modal-form" onSubmit={submit}>
+        <input
+          aria-label="Full Name"
+          value={form.fullName}
+          onChange={(event) =>
+            setForm({ ...form, fullName: event.target.value })
+          }
+          required
         />
-      ) : (
-        <>
-          <DataTable
-            headers={[
-              "User Full Name",
-              "Email",
-              "Organization",
-              "Username",
-              "Actions",
-            ]}
-            rows={users.map((user) => [
-              <strong>{user.fullName}</strong>,
-              user.email,
-              user.organization,
-              user.username ?? "—",
-              <button
-                className="more-button"
-                aria-label={`Actions for ${user.fullName}`}
-              >
-                <MoreHorizontal size={18} />
-              </button>,
-            ])}
-          />
-          <Pager count={users.length} shown={10} />
-        </>
-      )}
-    </>
+        <input
+          aria-label="Email"
+          type="email"
+          value={form.email}
+          onChange={(event) => setForm({ ...form, email: event.target.value })}
+          required
+        />
+        <input
+          aria-label="Username"
+          value={form.username}
+          onChange={(event) =>
+            setForm({ ...form, username: event.target.value })
+          }
+        />
+        {error ? <p className="form-error">{error}</p> : null}
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary-button compact" disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
+}
+
+function TemporaryPasswordModal({
+  credential,
+  onClose,
+}: {
+  credential: {
+    username: string;
+    email: string;
+    temporaryPassword: string;
+  };
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(credential.temporaryPassword);
+    setCopied(true);
+  };
+  return (
+    <Modal title="Temporary password" onClose={onClose}>
+      <p className="modal-description">
+        This password is shown only once. Copy it now and send it to{" "}
+        <strong>{credential.email}</strong> through a secure channel.
+      </p>
+      <div className="temporary-password">
+        <code>{credential.temporaryPassword}</code>
+        <button className="secondary-button small" onClick={() => void copy()}>
+          <Copy size={15} /> {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <div className="modal-actions">
+        <button className="primary-button compact" onClick={onClose}>
+          I have saved it
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+export function PortalUsersPage() {
+  return <UsersManagementPage />;
 }
 
 export function UsersManagementPage() {
   const loaded = useLoad("management-users", api.users);
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<UserRecord | null>(null);
+  const [credential, setCredential] = useState<{
+    username: string;
+    email: string;
+    temporaryPassword: string;
+  } | null>(null);
   const [resetting, setResetting] = useState("");
   const [notice, setNotice] = useState("");
-  const resetPassword = async (user: Record<string, unknown>) => {
-    const id = field(user, "id", "_id");
-    if (id === "—") return;
-    setResetting(id);
+  const [search, setSearch] = useState("");
+  const users = (loaded.data ?? []).filter((user) =>
+    `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.role ?? ""}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+  const resetPassword = async (user: UserRecord) => {
+    setResetting(user.id);
     setNotice("");
     try {
-      await api.resetUserPassword(id);
-      setNotice(`Password reset sent to ${field(user, "email")}.`);
+      setCredential(await api.resetUserPassword(user.id));
     } catch (caught) {
       setNotice(
         caught instanceof Error
@@ -1113,6 +1226,11 @@ export function UsersManagementPage() {
           </button>
         }
       />
+      <Toolbar
+        search={search}
+        setSearch={setSearch}
+        placeholder="Search users"
+      />
       {notice ? <div className="notice">{notice}</div> : null}
       {loaded.loading ? (
         <State
@@ -1130,26 +1248,67 @@ export function UsersManagementPage() {
               "Email",
               "Username",
               "Role",
+              "Organization",
               "Date Created",
-              "Credentials",
-              "Password",
+              "Last Login",
+              "Status",
+              "Actions",
             ]}
-            rows={(loaded.data ?? []).map((user) => {
-              const id = field(user, "id", "_id");
+            rows={users.map((user) => {
               return [
-                <strong>{field(user, "fullName", "name")}</strong>,
-                field(user, "email"),
-                field(user, "username"),
-                field(user, "role"),
+                <strong>{user.fullName}</strong>,
+                user.email,
+                user.username ?? "—",
+                user.role === "super_admin"
+                  ? "Super Admin"
+                  : user.role === "admin"
+                    ? "Admin"
+                    : (user.role ?? "—"),
+                user.organization?.name ?? "—",
                 formatDate(user.createdAt),
+                formatDateTime(user.lastLogin),
                 <span className="status-pill">Active</span>,
-                <button
-                  className="secondary-button small"
-                  disabled={resetting === id}
-                  onClick={() => void resetPassword(user)}
-                >
-                  {resetting === id ? "Sending…" : "Reset"}
-                </button>,
+                <div className="row-actions">
+                  <button
+                    className="icon-button"
+                    aria-label={`Edit ${user.fullName}`}
+                    onClick={() => setEditing(user)}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    aria-label={`Reset password for ${user.fullName}`}
+                    disabled={resetting === user.id}
+                    onClick={() => void resetPassword(user)}
+                  >
+                    <KeyRound size={16} />
+                  </button>
+                  <button
+                    className="icon-button danger-text"
+                    aria-label={`Delete ${user.fullName}`}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Delete ${user.fullName}? This will disable their account and sign them out.`,
+                        )
+                      ) {
+                        void api
+                          .deleteUser(user.id)
+                          .then(loaded.reload)
+                          .catch((caught: unknown) =>
+                            setNotice(
+                              caught instanceof Error
+                                ? caught.message
+                                : "User could not be deleted.",
+                            ),
+                          );
+                      }
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>,
               ];
             })}
           />
@@ -1162,6 +1321,19 @@ export function UsersManagementPage() {
           onCreated={loaded.reload}
         />
       ) : null}
+      {editing ? (
+        <EditUserModal
+          user={editing}
+          onClose={() => setEditing(null)}
+          onSaved={loaded.reload}
+        />
+      ) : null}
+      {credential ? (
+        <TemporaryPasswordModal
+          credential={credential}
+          onClose={() => setCredential(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -1171,14 +1343,9 @@ function GenericLogPage({
   kind,
 }: {
   title: string;
-  kind: "orders" | "activity" | "sessions";
+  kind: "orders" | "activity";
 }) {
-  const loader =
-    kind === "orders"
-      ? api.orders
-      : kind === "activity"
-        ? api.activity
-        : api.sessions;
+  const loader = kind === "orders" ? api.orders : api.activity;
   const loaded = useLoad(kind, loader);
   const [search, setSearch] = useState("");
   const rows = (loaded.data ?? []).filter((row) =>
@@ -1194,9 +1361,7 @@ function GenericLogPage({
           "Program",
           "Stripe Status",
         ]
-      : kind === "activity"
-        ? ["Date", "Description", "Status"]
-        : ["Username", "Organization", "Email", "Login session time"];
+      : ["Date", "Event", "Metadata"];
   const cells = (row: Record<string, unknown>) =>
     kind === "orders"
       ? [
@@ -1209,20 +1374,13 @@ function GenericLogPage({
             {field(row, "status", "stripeStatus")}
           </span>,
         ]
-      : kind === "activity"
-        ? [
-            formatDate(row.createdAt ?? row.createAt),
-            field(row, "description", "action", "message"),
-            <span className="status-pill">
-              {field(row, "status", "outcome")}
-            </span>,
-          ]
-        : [
-            field(row, "username"),
-            field(row, "organization", "organizationName"),
-            field(row, "email"),
-            formatDate(row.loginTime ?? row.createdAt),
-          ];
+      : [
+          formatDateTime(row.createdAt ?? row.createAt),
+          field(row, "description", "action", "message"),
+          <code className="metadata-cell">
+            {JSON.stringify(row.after ?? row.metadata ?? {})}
+          </code>,
+        ];
   return (
     <>
       <PageHeader title={title} />
@@ -1230,13 +1388,7 @@ function GenericLogPage({
       <Toolbar
         search={search}
         setSearch={setSearch}
-        placeholder={
-          kind === "orders"
-            ? "Product Search"
-            : kind === "sessions"
-              ? "Hit Enter To Search"
-              : "Search Activity"
-        }
+        placeholder={kind === "orders" ? "Product Search" : "Search Activity"}
       />
       {loaded.loading ? (
         <State
@@ -1264,10 +1416,7 @@ export const OrderLogPage = () => (
   <GenericLogPage title="Order Log" kind="orders" />
 );
 export const ActivityLogPage = () => (
-  <GenericLogPage title="System Log" kind="activity" />
-);
-export const LoginSessionsPage = () => (
-  <GenericLogPage title="User Login Sessions" kind="sessions" />
+  <GenericLogPage title="Activity Log" kind="activity" />
 );
 
 function AddRoleModal({
