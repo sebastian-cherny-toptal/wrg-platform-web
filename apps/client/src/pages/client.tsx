@@ -569,14 +569,19 @@ export function CheckoutPage() {
   const cart = useAppStore((state) => state.cart)
   const program = useSelectedProgram()
   const total = cart.reduce((sum, item) => sum + item.priceCents * item.quantity, 0)
-  const [clientSecret, setClientSecret] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const paymentKey = `${program?.id ?? 'none'}:${cart.map((item) => `${item.productId}:${item.quantity}:${item.priceCents}`).join(',')}`
+  const [paymentState, setPaymentState] = useState<{
+    key: string
+    clientSecret: string | null
+    error: string | null
+  } | null>(null)
+  const currentPayment = paymentState?.key === paymentKey ? paymentState : null
+  const clientSecret = currentPayment?.clientSecret ?? null
+  const error = currentPayment?.error ?? null
 
   useEffect(() => {
     if (!program || total <= 0) return
     let active = true
-    setClientSecret(null)
-    setError(null)
     api.commerce.createPaymentIntent({
       programId: program.id,
       amount: total / 100,
@@ -587,12 +592,16 @@ export function CheckoutPage() {
         keys: { productId: item.productId },
       })),
     }).then((intent) => {
-      if (active) setClientSecret(intent.client_secret)
+      if (active) setPaymentState({ key: paymentKey, clientSecret: intent.client_secret, error: null })
     }).catch((reason: unknown) => {
-      if (active) setError(reason instanceof Error ? reason.message : 'Unable to start secure checkout')
+      if (active) setPaymentState({
+        key: paymentKey,
+        clientSecret: null,
+        error: reason instanceof Error ? reason.message : 'Unable to start secure checkout',
+      })
     })
     return () => { active = false }
-  }, [cart, program, total])
+  }, [cart, paymentKey, program, total])
 
   if (cart.length === 0) {
     return <div className="p-6"><StatePanel kind="empty" title="Your cart is empty" message="Add a report before checking out." action={<Link to={routeMap.catalog}><Button>Browse reports</Button></Link>} /></div>
@@ -643,7 +652,7 @@ function StripeCheckoutForm() {
       setPaying(false)
       return
     }
-    if (result.paymentIntent?.status === 'succeeded' || result.paymentIntent?.status === 'processing') {
+    if (result.paymentIntent.status === 'succeeded' || result.paymentIntent.status === 'processing') {
       clearCart()
       window.location.assign(routeMap.dashboard)
     }
