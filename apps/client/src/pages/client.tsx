@@ -291,7 +291,7 @@ export function DashboardPage() {
                   {dashboard.data.statements.top.map((statement) => (
                     <div className="flex min-h-[118px] flex-col items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-center" key={statement.title}>
                       <p className="text-[13px] leading-[18px] text-emerald-950">{statement.title}</p>
-                      <span className="mt-2 rounded-lg bg-emerald-100 px-2 py-1 text-[13px] text-emerald-700">(Math.round({statement.percentage})% Agree)</span>
+                      <span className="mt-2 rounded-lg bg-emerald-100 px-2 py-1 text-[13px] text-emerald-700">{Math.round(statement.percentage)}% Agree</span>
                     </div>
                   ))}
                   {dashboard.data.statements.top.length === 0 ? <p className="py-10 text-sm text-zinc-500">Not enough responses to display statements.</p> : null}
@@ -300,7 +300,7 @@ export function DashboardPage() {
                   {dashboard.data.statements.bottom.map((statement) => (
                     <div className="flex min-h-[118px] flex-col items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-center" key={statement.title}>
                       <p className="text-[13px] leading-[18px] text-orange-950">{statement.title}</p>
-                      <span className="mt-2 rounded-lg bg-orange-100 px-2 py-1 text-[13px] text-orange-600">(Math.round({statement.percentage})% Agree)</span>
+                      <span className="mt-2 rounded-lg bg-orange-100 px-2 py-1 text-[13px] text-orange-600">{Math.round(statement.percentage)}% Agree</span>
                     </div>
                   ))}
                   {dashboard.data.statements.bottom.length === 0 ? <p className="py-10 text-sm text-zinc-500">Not enough responses to display statements.</p> : null}

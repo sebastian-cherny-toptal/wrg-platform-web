@@ -610,7 +610,7 @@ function PieChartCard({
           <div className="grid size-[102px] place-items-center rounded-full bg-white text-center">
             <span>
               <strong className="block text-[28px] leading-8">
-                {agreement}%
+                {Math.round(agreement)}%
               </strong>
               <span className="text-[11px] text-zinc-500">Agreement</span>
             </span>
@@ -619,15 +619,15 @@ function PieChartCard({
         <div className="mt-auto flex flex-wrap justify-center gap-x-4 gap-y-1 pt-5 text-[11px] text-zinc-500">
           <span className="flex items-center gap-1.5">
             <i className="size-2.5 rounded-full bg-violet-600" />
-            Agreement {agreement}%
+            Agreement {Math.round(agreement)}%
           </span>
           <span className="flex items-center gap-1.5">
             <i className="size-2.5 rounded-full bg-[#a99bea]" />
-            Neutral {neutral}%
+            Neutral {Math.round(neutral)}%
           </span>
           <span className="flex items-center gap-1.5">
             <i className="size-2.5 rounded-full bg-red-500" />
-            Disagreement {disagreement}%
+            Disagreement {Math.round(disagreement)}%
           </span>
         </div>
       </Card>
@@ -1587,9 +1587,9 @@ type BenchmarkCategory = {
 };
 
 function benchmarkValue(value: number | string | undefined): number | "x" {
-  if (typeof value === "number") return value;
+  if (typeof value === "number") return Math.round(value);
   const parsed = Number.parseFloat(value ?? "");
-  return Number.isFinite(parsed) ? parsed : "x";
+  return Number.isFinite(parsed) ? Math.round(parsed) : "x";
 }
 
 function benchmarkPairs(category: BenchmarkCategory) {
@@ -1645,14 +1645,14 @@ function BenchmarkCategoryCard({
           <div className="flex min-w-0 flex-1 flex-col items-center gap-2" key={`${value.winner}-${value.nonWinner}-${index}`}>
             <div className="flex h-[180px] items-end gap-1.5">
               <div className="flex h-full flex-col items-center justify-end gap-1">
-                <span className="shrink-0 whitespace-nowrap text-xs">{typeof value.winner === "number" ? `${value.winner}%` : "x"}</span>
+                <span className="shrink-0 whitespace-nowrap text-xs">{typeof value.winner === "number" ? `${Math.round(value.winner)}%` : "x"}</span>
                 <div
                   className="w-7 shrink-0 rounded-t-lg bg-violet-900"
                   style={{ height: `${typeof value.winner === "number" ? Math.round((value.winner / 100) * 160) : 0}px` }}
                 />
               </div>
               <div className="flex h-full flex-col items-center justify-end gap-1">
-                <span className="shrink-0 text-xs">{typeof value.nonWinner === "number" ? `${value.nonWinner}%` : "x"}</span>
+                <span className="shrink-0 text-xs">{typeof value.nonWinner === "number" ? `${Math.round(value.nonWinner)}%` : "x"}</span>
                 <div
                   className="w-7 shrink-0 rounded-t-lg bg-violet-400"
                   style={{ height: `${typeof value.nonWinner === "number" ? Math.round((value.nonWinner / 100) * 160) : 0}px` }}
@@ -1714,8 +1714,8 @@ function BenchmarkDetailsTable({
                   const winners = row.dataValues[groupIndex * 2];
                   const nonWinners = row.dataValues[groupIndex * 2 + 1];
                   return [
-                    <td className="px-2 py-4 text-center font-semibold" key={`${label}-winner`}>{typeof winners === "number" ? `${winners}%` : winners ?? "x"}</td>,
-                    <td className="border-r border-violet-200 px-2 py-4 text-center font-semibold last:border-r-0" key={`${label}-non-winner`}>{typeof nonWinners === "number" ? `${nonWinners}%` : nonWinners ?? "x"}</td>,
+                    <td className="px-2 py-4 text-center font-semibold" key={`${label}-winner`}>{typeof winners === "number" ? `${Math.round(winners)}%` : winners ?? "x"}</td>,
+                    <td className="border-r border-violet-200 px-2 py-4 text-center font-semibold last:border-r-0" key={`${label}-non-winner`}>{typeof nonWinners === "number" ? `${Math.round(nonWinners)}%` : nonWinners ?? "x"}</td>,
                   ];
                 })}
               </tr>
