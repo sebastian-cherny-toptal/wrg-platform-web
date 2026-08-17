@@ -422,16 +422,10 @@ export function ProjectsPage() {
 
 export function ProjectDetailPage() {
   const { projectId = "" } = useParams();
-  const { auth } = useAuth();
   const loaded = useLoad(`project:${projectId}`, () => api.project(projectId));
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const [uploadProgram, setUploadProgram] = useState<ProgramRecord | null>(null);
-  const [uploadNotice, setUploadNotice] = useState("");
-  const canUploadBenefits =
-    auth?.user.roles.some((role) => role === "admin" || role === "super_admin") ||
-    auth?.user.permissions.includes("ops.manage");
   if (loaded.loading)
     return (
       <State loading title="Loading project" message="Retrieving programs." />
@@ -483,7 +477,6 @@ export function ProjectDetailPage() {
         date={date}
         setDate={setDate}
       />
-      {uploadNotice ? <div className="notice">{uploadNotice}</div> : null}
       <DataTable
         headers={[
           "Program Name",
@@ -495,41 +488,15 @@ export function ProjectDetailPage() {
           <strong>{item.name}</strong>,
           formatDate(item.createdAt),
           item.organizationCount,
-          <div className="row-actions">
-            <Link
-              className="action-link"
-              to={`/admin/projects/${project.id}/programs/${item.id}`}
-            >
-              View Details <ChevronRight size={18} />
-            </Link>
-            {canUploadBenefits ? (
-              <button
-                className="action-link button-link"
-                onClick={() => {
-                  setUploadNotice("");
-                  setUploadProgram(item);
-                }}
-              >
-                Upload B&amp;BP <FileUp size={17} />
-              </button>
-            ) : null}
-          </div>,
+          <Link
+            className="action-link"
+            to={`/admin/projects/${project.id}/programs/${item.id}`}
+          >
+            View Details <ChevronRight size={18} />
+          </Link>,
         ])}
       />
       <Pager count={programs.length} shown={10} />
-      {uploadProgram ? (
-        <BenefitsBestPracticesUploadModal
-          program={uploadProgram}
-          onClose={() => setUploadProgram(null)}
-          onUploaded={(fileName) => {
-            setUploadNotice(
-              `${fileName} is now the Benefits & Best Practices workbook for ${uploadProgram.name}.`,
-            );
-            setUploadProgram(null);
-            loaded.reload();
-          }}
-        />
-      ) : null}
     </>
   );
 }
@@ -545,6 +512,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 export function ProgramDetailPage() {
   const { projectId = "", programId = "" } = useParams();
+  const { auth } = useAuth();
   const programLoaded = useLoad(`program:${programId}`, () =>
     api.program(programId),
   );
@@ -556,9 +524,15 @@ export function ProgramDetailPage() {
   const [sort, setSort] = useState("id:asc");
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState("");
+  const [uploadOrganization, setUploadOrganization] =
+    useState<OrganizationRecord | null>(null);
   const [previewOrganization, setPreviewOrganization] =
     useState<OrganizationRecord | null>(null);
   const program = programLoaded.data;
+  const canUploadBenefits =
+    auth?.user.roles.some(
+      (role) => role === "admin" || role === "super_admin",
+    ) || auth?.user.permissions.includes("ops.manage");
   const normalizedSearch = search.toLowerCase();
   const organizations = [...(organizationsLoaded.data ?? [])]
     .filter(
@@ -690,12 +664,22 @@ export function ProgramDetailPage() {
           item.stage ?? "—",
           formatDate(item.lastSyncedAt),
           item.surveysSent,
-          <button
-            className="action-link button-link"
-            onClick={() => setPreviewOrganization(item)}
-          >
-            View Dashboard <ChevronRight size={18} />
-          </button>,
+          <div className="row-actions">
+            <button
+              className="action-link button-link"
+              onClick={() => setPreviewOrganization(item)}
+            >
+              View Dashboard <ChevronRight size={18} />
+            </button>
+            {canUploadBenefits ? (
+              <button
+                className="action-link button-link"
+                onClick={() => setUploadOrganization(item)}
+              >
+                Upload B&amp;BP <FileUp size={17} />
+              </button>
+            ) : null}
+          </div>,
         ])}
       />
       <Pager count={organizations.length} shown={10} />
@@ -704,6 +688,20 @@ export function ProgramDetailPage() {
           organization={previewOrganization}
           program={program}
           onClose={() => setPreviewOrganization(null)}
+        />
+      ) : null}
+      {uploadOrganization ? (
+        <BenefitsBestPracticesUploadModal
+          organization={uploadOrganization}
+          program={program}
+          onClose={() => setUploadOrganization(null)}
+          onUploaded={(fileName) => {
+            setNotice(
+              `${fileName} is now the Benefits & Best Practices workbook for ${uploadOrganization.name} in ${program.name}.`,
+            );
+            setUploadOrganization(null);
+            organizationsLoaded.reload();
+          }}
         />
       ) : null}
     </>
@@ -739,10 +737,12 @@ function Modal({
 }
 
 function BenefitsBestPracticesUploadModal({
+  organization,
   program,
   onClose,
   onUploaded,
 }: {
+  organization: OrganizationRecord;
   program: ProgramRecord;
   onClose: () => void;
   onUploaded: (fileName: string) => void;
@@ -767,7 +767,10 @@ function BenefitsBestPracticesUploadModal({
     setUploading(true);
     setError("");
     try {
-      await api.uploadBenefitsBestPracticesWorkbook(program.id, file);
+      await api.uploadBenefitsBestPracticesWorkbook(
+        organization.organizationProgramId,
+        file,
+      );
       onUploaded(file.name);
     } catch (caught) {
       setError(
@@ -782,19 +785,21 @@ function BenefitsBestPracticesUploadModal({
     <Modal title="Upload Benefits & Best Practices" onClose={onClose}>
       <form onSubmit={(event) => void submit(event)}>
         <p className="modal-copy">
-          Upload the report workbook for <strong>{program.name}</strong>. A new
-          upload replaces the program&apos;s current Benefits &amp; Best
-          Practices data.
+          Upload the report workbook for <strong>{organization.name}</strong> in{" "}
+          <strong>{program.name}</strong>. A new upload replaces this
+          organization&apos;s current Benefits &amp; Best Practices data.
         </p>
-        {program.benefitsBestPracticesFileName ? (
+        {organization.benefitsBestPracticesFileName ? (
           <p className="current-upload">
             Current workbook:{" "}
-            <strong>{program.benefitsBestPracticesFileName}</strong>
+            <strong>{organization.benefitsBestPracticesFileName}</strong>
           </p>
         ) : null}
         <label className="upload-card benefits-upload-card">
           <FileUp size={34} aria-hidden="true" />
-          <strong>{file ? "Workbook selected" : "Choose an XLSX workbook"}</strong>
+          <strong>
+            {file ? "Workbook selected" : "Choose an XLSX workbook"}
+          </strong>
           <span>{file?.name ?? "Maximum file size: 25 MB"}</span>
           <input
             type="file"

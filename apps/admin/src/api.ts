@@ -33,7 +33,6 @@ export type ProgramRecord = {
   year: number | null;
   createdAt: string | null;
   organizationCount: number;
-  benefitsBestPracticesFileName: string | null;
   projectId?: string;
   details?: Record<string, unknown>;
 };
@@ -119,6 +118,8 @@ export type OrganizationRecord = {
   stage: string | null;
   lastSyncedAt: string | null;
   surveysSent: number;
+  organizationProgramId: string;
+  benefitsBestPracticesFileName: string | null;
   programs: Array<{
     id: string;
     name: string;
@@ -262,9 +263,6 @@ function decodePrincipal(accessToken: string): {
 function program(raw: unknown): ProgramRecord {
   const value = object(raw);
   const organizations = array(value.orgs ?? value.organizations);
-  const benefitsBestPractices = object(
-    object(value.publishedReports).benefitsBestPractices,
-  );
   return {
     id: stringValue(value._id) || stringValue(value.id),
     name: stringValue(value.Name) || stringValue(value.name),
@@ -279,8 +277,6 @@ function program(raw: unknown): ProgramRecord {
         organizations.length ??
         0,
     ),
-    benefitsBestPracticesFileName:
-      stringValue(benefitsBestPractices.sourceFile) || null,
     projectId: stringValue(object(value.Project)._id) || undefined,
     details: value,
   };
@@ -301,6 +297,9 @@ export function organization(raw: unknown): OrganizationRecord {
   const value = object(raw);
   const organizationPrograms = array(value.orgPrograms);
   const enrollment = object(object(organizationPrograms[0]).orgs);
+  const benefitsBestPractices = object(
+    object(enrollment.publishedReports).benefitsBestPractices,
+  );
   const id = stringValue(value._id) || stringValue(value.id);
   const sourceId =
     stringValue(value.sourceOrganizationId) ||
@@ -327,6 +326,10 @@ export function organization(raw: unknown): OrganizationRecord {
     stage: stringValue(enrollment.Stage) || null,
     lastSyncedAt: stringValue(enrollment.Last_time_deal_synced) || null,
     surveysSent: Number(enrollment.Surveys_Sent ?? 0),
+    organizationProgramId:
+      stringValue(enrollment._id) || stringValue(enrollment.id),
+    benefitsBestPracticesFileName:
+      stringValue(benefitsBestPractices.sourceFile) || null,
     programs: organizationPrograms
       .map((entry) => {
         const access = object(object(entry).orgs);
@@ -706,9 +709,11 @@ export const api = {
   },
 
   async uploadBenefitsBestPracticesWorkbook(
-    programId: string,
+    organizationProgramId: string,
     file: File,
   ): Promise<{
+    organizationId: string;
+    organizationProgramId: string;
     programId: string;
     sourceFile: string;
     headerCount: number;
@@ -719,7 +724,7 @@ export const api = {
     const formData = new FormData();
     formData.append("workbook", file);
     const response = await fetch(
-      `${apiBaseUrl}/admin/programs/${encodeURIComponent(programId)}/benefits-best-practices`,
+      `${apiBaseUrl}/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/benefits-best-practices`,
       {
         method: "POST",
         headers: {
@@ -743,6 +748,8 @@ export const api = {
       );
     }
     return object(object(payload).data) as {
+      organizationId: string;
+      organizationProgramId: string;
       programId: string;
       sourceFile: string;
       headerCount: number;

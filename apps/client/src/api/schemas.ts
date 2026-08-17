@@ -274,9 +274,7 @@ export const workforceComparisonSchema = z.object({
             dataValues: z.array(benchmarkValueSchema),
           }),
         ),
-        legends: z.array(
-          z.object({ color: z.string(), title: z.string() }),
-        ),
+        legends: z.array(z.object({ color: z.string(), title: z.string() })),
       }),
     ),
     surveyAverage: z.array(z.record(z.string(), z.unknown())),
@@ -361,6 +359,7 @@ export const employerBenchmarkSchema = z.object({
     tableHeaders: z.array(
       z.object({
         title: z.string(),
+        subTitle: z.string().optional(),
         type: z.string().optional(),
         color: z.string().optional(),
       }),
@@ -410,23 +409,27 @@ export const customReportsSchema = z.object({
   success: z.literal(true),
   message: z.string(),
   data: z.array(
-    z.object({
-      _id: z.string(),
-      ReportTitle: z.string(),
-      ReportDescription: z.string(),
-      createAt: z.union([z.string(), z.date()]).optional(),
-      createdAt: z.union([z.string(), z.date()]).optional(),
-      reportFormats: z.array(
-        z.object({
-          _id: z.string().optional(),
-          fileName: z.string().optional(),
-          filename: z.string().optional(),
-          fileUrl: z.string().optional(),
-          signedUrl: z.string().optional(),
-          url: z.string().optional(),
-        }),
-      ).default([]),
-    }).passthrough(),
+    z
+      .object({
+        _id: z.string(),
+        ReportTitle: z.string(),
+        ReportDescription: z.string(),
+        createAt: z.union([z.string(), z.date()]).optional(),
+        createdAt: z.union([z.string(), z.date()]).optional(),
+        reportFormats: z
+          .array(
+            z.object({
+              _id: z.string().optional(),
+              fileName: z.string().optional(),
+              filename: z.string().optional(),
+              fileUrl: z.string().optional(),
+              signedUrl: z.string().optional(),
+              url: z.string().optional(),
+            }),
+          )
+          .default([]),
+      })
+      .passthrough(),
   ),
 });
 
@@ -469,9 +472,11 @@ export const annualResponseRateSchema = z.object({
 export const annualCategoriesSchema = z.object({
   success: z.literal(true),
   data: z.array(
-    z.object({ category: z.object({ category: z.string() }) }).catchall(
-      z.union([annualSnapshotSchema, z.object({ category: z.string() })]),
-    ),
+    z
+      .object({ category: z.object({ category: z.string() }) })
+      .catchall(
+        z.union([annualSnapshotSchema, z.object({ category: z.string() })]),
+      ),
   ),
 });
 
@@ -486,9 +491,9 @@ export const annualDetailsSchema = z.object({
   message: z.string(),
   category: z.string(),
   data: z.array(
-    z.object({ question: z.string(), questionId: z.string() }).catchall(
-      z.union([z.string(), annualQuestionYearSchema]),
-    ),
+    z
+      .object({ question: z.string(), questionId: z.string() })
+      .catchall(z.union([z.string(), annualQuestionYearSchema])),
   ),
 });
 

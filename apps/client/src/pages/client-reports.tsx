@@ -21,6 +21,7 @@ import {
   type SurveyFilter,
 } from "../api/client";
 import { routeMap } from "../app/metadata";
+import { BenefitsBenchmarkTable } from "../components/benefits-benchmark-table";
 import { ImageDownloadMenu } from "../components/image-download-menu";
 import { Button, Card, PageHeader, StatePanel, cn } from "../components/ui";
 import { useAppStore, useSelectedProgram } from "../store/app-store";
@@ -70,10 +71,7 @@ function useCategoryResults(queryFilter: ReportQueryFilter = {}) {
       queryFilter,
     ],
     queryFn: () =>
-      api.reports.responseBreakdownBySection(
-        program?.id ?? "",
-        queryFilter,
-      ),
+      api.reports.responseBreakdownBySection(program?.id ?? "", queryFilter),
     enabled: Boolean(program),
   });
   return {
@@ -255,7 +253,9 @@ export function DetailedResultsFilters({
 }) {
   const [open, setOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
-  const [openMobileCategories, setOpenMobileCategories] = useState<string[]>([]);
+  const [openMobileCategories, setOpenMobileCategories] = useState<string[]>(
+    [],
+  );
   const rootRef = useRef<HTMLDivElement>(null);
   const mobile = useMobileFilterLayout();
   const selectedKeys = new Set(selectedFilters.map(selectedFilterKey));
@@ -315,8 +315,7 @@ export function DetailedResultsFilters({
                   aria-pressed={activeCategory === index}
                   className={cn(
                     "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-semibold transition-colors hover:bg-violet-50 hover:text-violet-600",
-                    activeCategory === index &&
-                      "bg-violet-50 text-violet-600",
+                    activeCategory === index && "bg-violet-50 text-violet-600",
                   )}
                   key={filter.questionId}
                   onClick={() => setActiveCategory(index)}
@@ -359,9 +358,7 @@ export function DetailedResultsFilters({
                         ) : null}
                       </span>
                       <span
-                        className={cn(
-                          selected && "font-bold text-violet-600",
-                        )}
+                        className={cn(selected && "font-bold text-violet-600")}
                       >
                         {option.label}
                       </span>
@@ -394,7 +391,9 @@ export function DetailedResultsFilters({
             >
               <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-5">
                 <div>
-                  <h2 className="text-xl font-semibold text-zinc-900">Filters</h2>
+                  <h2 className="text-xl font-semibold text-zinc-900">
+                    Filters
+                  </h2>
                   {selectedFilters.length ? (
                     <p className="mt-1 text-xs text-violet-600">
                       {selectedFilters.length} selected
@@ -547,9 +546,18 @@ function FilterButton({
         <div className="absolute left-0 top-12 z-20 w-64 rounded-xl border border-zinc-200 bg-white p-4 shadow-xl">
           <label className="grid gap-2 text-xs font-semibold text-zinc-600">
             Compare by
-            <select className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-normal text-zinc-900" disabled={loading} onChange={(event) => onChange(event.target.value)} value={value}>
+            <select
+              className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-normal text-zinc-900"
+              disabled={loading}
+              onChange={(event) => onChange(event.target.value)}
+              value={value}
+            >
               <option value="">Select a demographic</option>
-              {filters.map((filter) => <option key={filter.questionId} value={filter.questionId}>{filter.label}</option>)}
+              {filters.map((filter) => (
+                <option key={filter.questionId} value={filter.questionId}>
+                  {filter.label}
+                </option>
+              ))}
             </select>
           </label>
           <Button className="mt-3 w-full" onClick={() => setOpen(false)}>
@@ -744,9 +752,7 @@ export function DetailedResultsPage() {
   }>({ programId: program?.id, filters: [] });
   const selectedFilters = useMemo(
     () =>
-      filterSelection.programId === program?.id
-        ? filterSelection.filters
-        : [],
+      filterSelection.programId === program?.id ? filterSelection.filters : [],
     [filterSelection, program?.id],
   );
   const queryFilter = useMemo<ReportQueryFilter>(() => {
@@ -773,8 +779,7 @@ export function DetailedResultsPage() {
   const toggleFilter = (selection: SelectedFilter) => {
     const key = selectedFilterKey(selection);
     setFilterSelection((current) => {
-      const filters =
-        current.programId === program?.id ? current.filters : [];
+      const filters = current.programId === program?.id ? current.filters : [];
       return {
         programId: program?.id,
         filters: filters.some((item) => selectedFilterKey(item) === key)
@@ -811,7 +816,9 @@ export function DetailedResultsPage() {
       <div className="p-6">
         <div className="mb-6 flex flex-col items-stretch justify-between gap-3 lg:flex-row lg:items-center">
           <DetailedResultsFilters
-            error={filterOptions.isError ? filterOptions.error.message : undefined}
+            error={
+              filterOptions.isError ? filterOptions.error.message : undefined
+            }
             filters={filterOptions.data ?? []}
             loading={filterOptions.isPending}
             onToggle={toggleFilter}
@@ -955,9 +962,9 @@ export function ResponsePatternsPage() {
   const report = useCategoryResults();
   const [enabled, setEnabled] = useState<boolean[]>([false, false, false]);
   const [ranges, setRanges] = useState(["", "", ""]);
-  const [preview, setPreview] = useState<
-    Awaited<ReturnType<typeof api.reports.previewResponsePatterns>> | null
-  >(null);
+  const [preview, setPreview] = useState<Awaited<
+    ReturnType<typeof api.reports.previewResponsePatterns>
+  > | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const parsedRanges = ranges.map(parsePercentageRange);
@@ -1126,7 +1133,9 @@ export function ResponsePatternsPage() {
                     key={config.title}
                   >
                     <span className="block text-zinc-600">{config.title}</span>
-                    <strong className="mt-1 block text-xl">{Math.round(percentage)}%</strong>
+                    <strong className="mt-1 block text-xl">
+                      {Math.round(percentage)}%
+                    </strong>
                   </div>
                 );
               })}
@@ -1221,10 +1230,7 @@ export function AnnualTrendsPage() {
   const averageData = averages.data?.data?.[0] ?? {};
   const currentAverage = Number(averageData[currentYear] ?? 0);
   const previousAverage = Number(averageData[previousYear] ?? 0);
-  const percentage = (
-    yearSnapshot: typeof currentSnapshot,
-    caption: string,
-  ) =>
+  const percentage = (yearSnapshot: typeof currentSnapshot, caption: string) =>
     yearSnapshot?.data.find((item) => item.ResponseCaption === caption)
       ?.percentage ?? 0;
   return (
@@ -1254,11 +1260,23 @@ export function AnnualTrendsPage() {
               />
             </div>
             {averages.isPending ? (
-              <StatePanel kind="loading" title="Loading survey averages" message="Comparing overall agreement for both survey years." />
+              <StatePanel
+                kind="loading"
+                title="Loading survey averages"
+                message="Comparing overall agreement for both survey years."
+              />
             ) : averages.isError ? (
-              <StatePanel kind="error" title="Survey averages unavailable" message={averages.error.message} />
+              <StatePanel
+                kind="error"
+                title="Survey averages unavailable"
+                message={averages.error.message}
+              />
             ) : averages.data.data === null ? (
-              <StatePanel kind="empty" title="No prior survey average" message="A prior year is required for the annual comparison." />
+              <StatePanel
+                kind="empty"
+                title="No prior survey average"
+                message="A prior year is required for the annual comparison."
+              />
             ) : (
               <div className="mt-3 grid lg:grid-cols-2 lg:divide-x lg:divide-zinc-200">
                 <DonutScore
@@ -1266,7 +1284,10 @@ export function AnnualTrendsPage() {
                   value={Math.round(currentAverage)}
                   year={Number(currentYear)}
                 />
-                <DonutScore value={Math.round(previousAverage)} year={Number(previousYear)} />
+                <DonutScore
+                  value={Math.round(previousAverage)}
+                  year={Number(previousYear)}
+                />
               </div>
             )}
           </Card>
@@ -1313,19 +1334,30 @@ export function AnnualTrendsPage() {
                   />
                 </div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  {[currentSnapshot, previousSnapshot].map((yearSnapshot, index) => {
-                    const year = index === 0 ? currentYear : previousYear;
-                    return (
-                      <div className="rounded-xl bg-zinc-50 p-5" key={year}>
-                        <h3 className="font-semibold">{year}</h3>
-                        <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                          <span>{Math.round(percentage(yearSnapshot, "Agree"))}% Agreement</span>
-                          <span>{Math.round(percentage(yearSnapshot, "Neutral"))}% Neutral</span>
-                          <span>{Math.round(percentage(yearSnapshot, "Disagree"))}% Disagreement</span>
+                  {[currentSnapshot, previousSnapshot].map(
+                    (yearSnapshot, index) => {
+                      const year = index === 0 ? currentYear : previousYear;
+                      return (
+                        <div className="rounded-xl bg-zinc-50 p-5" key={year}>
+                          <h3 className="font-semibold">{year}</h3>
+                          <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                            <span>
+                              {Math.round(percentage(yearSnapshot, "Agree"))}%
+                              Agreement
+                            </span>
+                            <span>
+                              {Math.round(percentage(yearSnapshot, "Neutral"))}%
+                              Neutral
+                            </span>
+                            <span>
+                              {Math.round(percentage(yearSnapshot, "Disagree"))}
+                              % Disagreement
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    },
+                  )}
                 </div>
               </Card>
             </div>
@@ -1346,7 +1378,11 @@ export function AnnualTrendsPage() {
                         onClick={() => setMetric(item)}
                         type="button"
                       >
-                        {item === "Agree" ? "Agreement" : item === "Disagree" ? "Disagreement" : item}
+                        {item === "Agree"
+                          ? "Agreement"
+                          : item === "Disagree"
+                            ? "Disagreement"
+                            : item}
                       </button>
                     ))}
                     <ImageDownloadMenu
@@ -1357,27 +1393,62 @@ export function AnnualTrendsPage() {
                   </div>
                 </div>
                 {details.isPending ? (
-                  <p className="p-5 text-sm text-zinc-500">Loading question trends…</p>
+                  <p className="p-5 text-sm text-zinc-500">
+                    Loading question trends…
+                  </p>
                 ) : details.data?.data.length ? (
                   <div className="divide-y divide-zinc-100">
                     {details.data.data.map((question) => {
                       const valueFor = (year: string) => {
-                        const yearData = (question as Record<string, unknown>)[year];
-                        if (!yearData || typeof yearData !== "object" || !("responses" in yearData)) return null;
-                        const responses = (yearData as { responses: { ResponseCaption: string; percentage: number }[] }).responses;
-                        return responses.find((response) => response.ResponseCaption === metric)?.percentage ?? 0;
+                        const yearData = (question as Record<string, unknown>)[
+                          year
+                        ];
+                        if (
+                          !yearData ||
+                          typeof yearData !== "object" ||
+                          !("responses" in yearData)
+                        )
+                          return null;
+                        const responses = (
+                          yearData as {
+                            responses: {
+                              ResponseCaption: string;
+                              percentage: number;
+                            }[];
+                          }
+                        ).responses;
+                        return (
+                          responses.find(
+                            (response) => response.ResponseCaption === metric,
+                          )?.percentage ?? 0
+                        );
                       };
                       return (
-                        <div className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_80px_80px]" key={question.questionId}>
+                        <div
+                          className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_80px_80px]"
+                          key={question.questionId}
+                        >
                           <span>{question.question}</span>
-                          <span className="font-semibold">{valueFor(currentYear) ? Math.round(valueFor(currentYear) ?? 0) : "—"}%</span>
-                          <span className="font-semibold text-zinc-500">{valueFor(previousYear) ? Math.round(valueFor(previousYear) ?? 0) : "—"}{valueFor(previousYear) === null ? "" : "%"}</span>
+                          <span className="font-semibold">
+                            {valueFor(currentYear)
+                              ? Math.round(valueFor(currentYear) ?? 0)
+                              : "—"}
+                            %
+                          </span>
+                          <span className="font-semibold text-zinc-500">
+                            {valueFor(previousYear)
+                              ? Math.round(valueFor(previousYear) ?? 0)
+                              : "—"}
+                            {valueFor(previousYear) === null ? "" : "%"}
+                          </span>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <p className="p-5 text-sm text-zinc-500">No question-level comparison is available for this category.</p>
+                  <p className="p-5 text-sm text-zinc-500">
+                    No question-level comparison is available for this category.
+                  </p>
                 )}
               </Card>
             </div>
@@ -1593,10 +1664,13 @@ function benchmarkValue(value: number | string | undefined): number | "x" {
 }
 
 function benchmarkPairs(category: BenchmarkCategory) {
-  return Array.from({ length: Math.ceil(category.dataValues.length / 2) }, (_, index) => ({
-    winner: benchmarkValue(category.dataValues[index * 2]),
-    nonWinner: benchmarkValue(category.dataValues[index * 2 + 1]),
-  }));
+  return Array.from(
+    { length: Math.ceil(category.dataValues.length / 2) },
+    (_, index) => ({
+      winner: benchmarkValue(category.dataValues[index * 2]),
+      nonWinner: benchmarkValue(category.dataValues[index * 2 + 1]),
+    }),
+  );
 }
 
 function BenchmarkCategoryCard({
@@ -1633,29 +1707,42 @@ function BenchmarkCategoryCard({
       tabIndex={0}
     >
       <div className="flex items-start justify-between gap-4">
-        <h2 className="max-w-[350px] text-[15px] font-semibold">{category.title}</h2>
-        <ImageDownloadMenu
-          iconOnly
-          name={category.title}
-          targetRef={cardRef}
-        />
+        <h2 className="max-w-[350px] text-[15px] font-semibold">
+          {category.title}
+        </h2>
+        <ImageDownloadMenu iconOnly name={category.title} targetRef={cardRef} />
       </div>
       <div className="mt-6 flex flex-1 items-end gap-2">
         {values.map((value, index) => (
-          <div className="flex min-w-0 flex-1 flex-col items-center gap-2" key={`${value.winner}-${value.nonWinner}-${index}`}>
+          <div
+            className="flex min-w-0 flex-1 flex-col items-center gap-2"
+            key={`${value.winner}-${value.nonWinner}-${index}`}
+          >
             <div className="flex h-[180px] items-end gap-1.5">
               <div className="flex h-full flex-col items-center justify-end gap-1">
-                <span className="shrink-0 whitespace-nowrap text-xs">{typeof value.winner === "number" ? `${Math.round(value.winner)}%` : "x"}</span>
+                <span className="shrink-0 whitespace-nowrap text-xs">
+                  {typeof value.winner === "number"
+                    ? `${Math.round(value.winner)}%`
+                    : "x"}
+                </span>
                 <div
                   className="w-7 shrink-0 rounded-t-lg bg-violet-900"
-                  style={{ height: `${typeof value.winner === "number" ? Math.round((value.winner / 100) * 160) : 0}px` }}
+                  style={{
+                    height: `${typeof value.winner === "number" ? Math.round((value.winner / 100) * 160) : 0}px`,
+                  }}
                 />
               </div>
               <div className="flex h-full flex-col items-center justify-end gap-1">
-                <span className="shrink-0 text-xs">{typeof value.nonWinner === "number" ? `${Math.round(value.nonWinner)}%` : "x"}</span>
+                <span className="shrink-0 text-xs">
+                  {typeof value.nonWinner === "number"
+                    ? `${Math.round(value.nonWinner)}%`
+                    : "x"}
+                </span>
                 <div
                   className="w-7 shrink-0 rounded-t-lg bg-violet-400"
-                  style={{ height: `${typeof value.nonWinner === "number" ? Math.round((value.nonWinner / 100) * 160) : 0}px` }}
+                  style={{
+                    height: `${typeof value.nonWinner === "number" ? Math.round((value.nonWinner / 100) * 160) : 0}px`,
+                  }}
                 />
               </div>
             </div>
@@ -1666,8 +1753,14 @@ function BenchmarkCategoryCard({
         ))}
       </div>
       <div className="mt-5 flex justify-center gap-6 text-xs text-zinc-700">
-        <span className="flex items-center gap-1.5"><i className="size-2 rounded-sm bg-violet-900" />Winners</span>
-        <span className="flex items-center gap-1.5"><i className="size-2 rounded-sm bg-violet-400" />Non-Winners</span>
+        <span className="flex items-center gap-1.5">
+          <i className="size-2 rounded-sm bg-violet-900" />
+          Winners
+        </span>
+        <span className="flex items-center gap-1.5">
+          <i className="size-2 rounded-sm bg-violet-400" />
+          Non-Winners
+        </span>
       </div>
     </section>
   );
@@ -1686,7 +1779,11 @@ function BenchmarkDetailsTable({
     <section className="overflow-hidden rounded-2xl border border-violet-300 bg-violet-50 shadow-sm">
       <div className="flex items-center justify-between px-6 py-5">
         <h2 className="font-semibold">{category.title}</h2>
-        <button aria-label="Close" className="grid size-8 place-items-center rounded-full hover:bg-white" onClick={onClose}>
+        <button
+          aria-label="Close"
+          className="grid size-8 place-items-center rounded-full hover:bg-white"
+          onClick={onClose}
+        >
           <X className="size-4" />
         </button>
       </div>
@@ -1694,28 +1791,70 @@ function BenchmarkDetailsTable({
         <table className="w-full min-w-[1120px] border-collapse text-xs">
           <thead>
             <tr>
-              <th className="w-[300px] px-6 py-3 text-left" rowSpan={2}>Question</th>
+              <th className="w-[300px] px-6 py-3 text-left" rowSpan={2}>
+                Question
+              </th>
               {employerLabels.map((label) => (
-                <th className="px-2 py-3 text-center" colSpan={2} key={label}>{label}</th>
+                <th className="px-2 py-3 text-center" colSpan={2} key={label}>
+                  {label}
+                </th>
               ))}
             </tr>
             <tr>
               {employerLabels.flatMap((label) => [
-                <th className="whitespace-nowrap px-2 py-3 font-medium" key={`${label}-winner`}><span className="inline-flex items-center gap-1"><i className="size-2 rounded-sm bg-violet-900" />Winners</span></th>,
-                <th className="whitespace-nowrap px-2 py-3 font-medium" key={`${label}-non-winner`}><span className="inline-flex items-center gap-1"><i className="size-2 rounded-sm bg-violet-400" />Non-Winners</span></th>,
+                <th
+                  className="whitespace-nowrap px-2 py-3 font-medium"
+                  key={`${label}-winner`}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <i className="size-2 rounded-sm bg-violet-900" />
+                    Winners
+                  </span>
+                </th>,
+                <th
+                  className="whitespace-nowrap px-2 py-3 font-medium"
+                  key={`${label}-non-winner`}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <i className="size-2 rounded-sm bg-violet-400" />
+                    Non-Winners
+                  </span>
+                </th>,
               ])}
             </tr>
           </thead>
           <tbody>
             {category.nestedData.map((row, rowIndex) => (
-              <tr className={cn("border-t border-violet-200", rowIndex % 2 === 0 && "bg-white/45")} key={row.id ?? row.title}>
-                <td className="px-6 py-4 leading-5 text-zinc-600">{row.title}</td>
+              <tr
+                className={cn(
+                  "border-t border-violet-200",
+                  rowIndex % 2 === 0 && "bg-white/45",
+                )}
+                key={row.id ?? row.title}
+              >
+                <td className="px-6 py-4 leading-5 text-zinc-600">
+                  {row.title}
+                </td>
                 {employerLabels.flatMap((label, groupIndex) => {
                   const winners = row.dataValues[groupIndex * 2];
                   const nonWinners = row.dataValues[groupIndex * 2 + 1];
                   return [
-                    <td className="px-2 py-4 text-center font-semibold" key={`${label}-winner`}>{typeof winners === "number" ? `${Math.round(winners)}%` : winners ?? "x"}</td>,
-                    <td className="border-r border-violet-200 px-2 py-4 text-center font-semibold last:border-r-0" key={`${label}-non-winner`}>{typeof nonWinners === "number" ? `${Math.round(nonWinners)}%` : nonWinners ?? "x"}</td>,
+                    <td
+                      className="px-2 py-4 text-center font-semibold"
+                      key={`${label}-winner`}
+                    >
+                      {typeof winners === "number"
+                        ? `${Math.round(winners)}%`
+                        : (winners ?? "x")}
+                    </td>,
+                    <td
+                      className="border-r border-violet-200 px-2 py-4 text-center font-semibold last:border-r-0"
+                      key={`${label}-non-winner`}
+                    >
+                      {typeof nonWinners === "number"
+                        ? `${Math.round(nonWinners)}%`
+                        : (nonWinners ?? "x")}
+                    </td>,
                   ];
                 })}
               </tr>
@@ -1739,18 +1878,32 @@ export function BenchmarkDataPage() {
   const employerLabels = (comparison.data?.data.tableHeaders ?? [])
     .filter((header) => header.type.includes("Yes"))
     .map((header) => header.title);
-  const averages = (comparison.data?.data.surveyAverage ?? []).map((average) => {
-    const yes = average.Yes;
-    const no = average.No;
-    const winner = yes && typeof yes === "object" && "value" in yes ? yes.value : "x";
-    const nonWinner = no && typeof no === "object" && "value" in no ? no.value : "x";
-    return {
-      title: typeof average.title === "string" ? average.title : "Employer group",
-      subTitle: typeof average.subTitle === "string" ? average.subTitle : "Survey Average",
-      winner: typeof winner === "number" || typeof winner === "string" ? winner : "x",
-      nonWinner: typeof nonWinner === "number" || typeof nonWinner === "string" ? nonWinner : "x",
-    };
-  });
+  const averages = (comparison.data?.data.surveyAverage ?? []).map(
+    (average) => {
+      const yes = average.Yes;
+      const no = average.No;
+      const winner =
+        yes && typeof yes === "object" && "value" in yes ? yes.value : "x";
+      const nonWinner =
+        no && typeof no === "object" && "value" in no ? no.value : "x";
+      return {
+        title:
+          typeof average.title === "string" ? average.title : "Employer group",
+        subTitle:
+          typeof average.subTitle === "string"
+            ? average.subTitle
+            : "Survey Average",
+        winner:
+          typeof winner === "number" || typeof winner === "string"
+            ? winner
+            : "x",
+        nonWinner:
+          typeof nonWinner === "number" || typeof nonWinner === "string"
+            ? nonWinner
+            : "x",
+      };
+    },
+  );
   const categoryRows = Array.from(
     { length: Math.ceil(categories.length / 2) },
     (_, index) => categories.slice(index * 2, index * 2 + 2),
@@ -1762,73 +1915,142 @@ export function BenchmarkDataPage() {
         title="Benchmark Data"
       />
       <div className="p-6">
-        <div className="flex justify-end"><DownloadReportButton onDownload={() => api.reports.downloadBenchmarkWorkbook(program?.id ?? "")} /></div>
-        {comparison.isPending ? (
-          <StatePanel kind="loading" title="Loading benchmark data" message="Retrieving comparison results for the selected program." />
-        ) : comparison.isError ? (
-          <StatePanel kind="error" title="Benchmark data unavailable" message={comparison.error.message} action={<Button onClick={() => void comparison.refetch()}>Try again</Button>} />
-        ) : categories.length === 0 ? (
-          <StatePanel kind="empty" title="No benchmark data" message="The backend returned no benchmark results for this program." />
-        ) : (<>
-        <Card className="mt-6 p-5 shadow-none">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            {averages.map((average) => (
-              <div
-                className="rounded-xl bg-zinc-100 p-4 text-center"
-                key={average.title}
-              >
-                <h2 className="min-h-10 text-[13px] font-semibold">{average.title}</h2>
-                <p className="mt-3 text-xs text-zinc-500">{average.subTitle}</p>
-                <strong className="mt-1 block text-2xl">{typeof average.winner === "number" ? `${Math.round(average.winner)}%` : average.winner}</strong>
-                <div className="mt-3 flex justify-center gap-3 text-xs">
-                  <span className="flex items-center gap-1 text-emerald-600">
-                    <Check className="size-4" /> Winners
-                  </span>
-                  <span className="flex items-center gap-1 text-red-500">
-                    <XCircle className="size-4" /> {typeof average.nonWinner === "number" ? `${Math.round(average.nonWinner)}%` : average.nonWinner}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <div className="mt-6 grid gap-5">
-          {categoryRows.map((row) => {
-            const selected = row.find((category) => category.title === selectedCategory);
-            return (
-              <div className="grid gap-5" key={row.map(({ title }) => title).join("-")}>
-                <div className="grid gap-5 lg:grid-cols-2">
-                  {row.map((category) => (
-                    <BenchmarkCategoryCard
-                      category={category}
-                      employerLabels={employerLabels}
-                      key={category.title}
-                      onSelect={() => setSelectedCategory((current) => current === category.title ? null : category.title)}
-                      selected={selectedCategory === category.title}
-                    />
-                  ))}
-                </div>
-                {selected ? <BenchmarkDetailsTable category={selected} employerLabels={employerLabels} onClose={() => setSelectedCategory(null)} /> : null}
-              </div>
-            );
-          })}
+        <div className="flex justify-end">
+          <DownloadReportButton
+            onDownload={() =>
+              api.reports.downloadBenchmarkWorkbook(program?.id ?? "")
+            }
+          />
         </div>
-        <p className="mt-4 text-xs text-zinc-500">
-          x – Insufficient data to provide meaningful feedback.
-        </p>
-        </>)}
+        {comparison.isPending ? (
+          <StatePanel
+            kind="loading"
+            title="Loading benchmark data"
+            message="Retrieving comparison results for the selected program."
+          />
+        ) : comparison.isError ? (
+          <StatePanel
+            kind="error"
+            title="Benchmark data unavailable"
+            message={comparison.error.message}
+            action={
+              <Button onClick={() => void comparison.refetch()}>
+                Try again
+              </Button>
+            }
+          />
+        ) : categories.length === 0 ? (
+          <StatePanel
+            kind="empty"
+            title="No benchmark data"
+            message="The backend returned no benchmark results for this program."
+          />
+        ) : (
+          <>
+            <Card className="mt-6 p-5 shadow-none">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+                {averages.map((average) => (
+                  <div
+                    className="rounded-xl bg-zinc-100 p-4 text-center"
+                    key={average.title}
+                  >
+                    <h2 className="min-h-10 text-[13px] font-semibold">
+                      {average.title}
+                    </h2>
+                    <p className="mt-3 text-xs text-zinc-500">
+                      {average.subTitle}
+                    </p>
+                    <strong className="mt-1 block text-2xl">
+                      {typeof average.winner === "number"
+                        ? `${Math.round(average.winner)}%`
+                        : average.winner}
+                    </strong>
+                    <div className="mt-3 flex justify-center gap-3 text-xs">
+                      <span className="flex items-center gap-1 text-emerald-600">
+                        <Check className="size-4" /> Winners
+                      </span>
+                      <span className="flex items-center gap-1 text-red-500">
+                        <XCircle className="size-4" />{" "}
+                        {typeof average.nonWinner === "number"
+                          ? `${Math.round(average.nonWinner)}%`
+                          : average.nonWinner}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <div className="mt-6 grid gap-5">
+              {categoryRows.map((row) => {
+                const selected = row.find(
+                  (category) => category.title === selectedCategory,
+                );
+                return (
+                  <div
+                    className="grid gap-5"
+                    key={row.map(({ title }) => title).join("-")}
+                  >
+                    <div className="grid gap-5 lg:grid-cols-2">
+                      {row.map((category) => (
+                        <BenchmarkCategoryCard
+                          category={category}
+                          employerLabels={employerLabels}
+                          key={category.title}
+                          onSelect={() =>
+                            setSelectedCategory((current) =>
+                              current === category.title
+                                ? null
+                                : category.title,
+                            )
+                          }
+                          selected={selectedCategory === category.title}
+                        />
+                      ))}
+                    </div>
+                    {selected ? (
+                      <BenchmarkDetailsTable
+                        category={selected}
+                        employerLabels={employerLabels}
+                        onClose={() => setSelectedCategory(null)}
+                      />
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-4 text-xs text-zinc-500">
+              x – Insufficient data to provide meaningful feedback.
+            </p>
+          </>
+        )}
       </div>
     </>
   );
 }
 
-function AgreementDonut({ value, label }: { value: number | string; label: string }) {
+function AgreementDonut({
+  value,
+  label,
+}: {
+  value: number | string;
+  label: string;
+}) {
   const numeric = typeof value === "number" ? Math.round(value) : 0;
   return (
     <div className="grid justify-items-center gap-3">
-      <div className="relative grid size-44 place-items-center rounded-full" style={{ background: `conic-gradient(#7c3aed ${numeric * 3.6}deg, #ede9fe 0deg)` }}>
+      <div
+        className="relative grid size-44 place-items-center rounded-full"
+        style={{
+          background: `conic-gradient(#7c3aed ${numeric * 3.6}deg, #ede9fe 0deg)`,
+        }}
+      >
         <div className="grid size-32 place-items-center rounded-full bg-white text-center shadow-inner">
-          <div><strong className="block text-3xl">{typeof value === "number" && value > 0 ? `${value}%` : "x"}</strong><span className="text-[11px] text-zinc-500">Agreement</span></div>
+          <div>
+            <strong className="block text-3xl">
+              {typeof value === "number" && value > 0 ? `${value}%` : "x"}
+            </strong>
+            <span className="text-[11px] text-zinc-500">Agreement</span>
+          </div>
         </div>
       </div>
       <span className="text-sm font-semibold text-zinc-700">{label}</span>
@@ -1854,8 +2076,14 @@ function ComparisonQuestionDetails({
     <section className="border-t border-zinc-200 bg-white" ref={detailRef}>
       <div className="flex items-center justify-between gap-4 px-5 py-5">
         <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-zinc-700">
-          <span className="flex items-center gap-2"><i className="size-2.5 rounded-sm bg-violet-900" />Your Results</span>
-          <span className="flex items-center gap-2"><i className="size-2.5 rounded-sm bg-violet-400" />{compareLabel}</span>
+          <span className="flex items-center gap-2">
+            <i className="size-2.5 rounded-sm bg-violet-900" />
+            Your Results
+          </span>
+          <span className="flex items-center gap-2">
+            <i className="size-2.5 rounded-sm bg-violet-400" />
+            {compareLabel}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <ImageDownloadMenu
@@ -1863,14 +2091,23 @@ function ComparisonQuestionDetails({
             name={`${title} comparison details`}
             targetRef={detailRef}
           />
-          <button aria-label="Close chart" className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" onClick={onClose}>
+          <button
+            aria-label="Close chart"
+            className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+            onClick={onClose}
+          >
             <X className="size-4" />
           </button>
         </div>
       </div>
       {loading ? (
         <div className="grid gap-4 border-t border-zinc-200 p-5">
-          {Array.from({ length: 3 }, (_, index) => <div className="h-24 animate-pulse rounded-xl bg-zinc-100" key={index} />)}
+          {Array.from({ length: 3 }, (_, index) => (
+            <div
+              className="h-24 animate-pulse rounded-xl bg-zinc-100"
+              key={index}
+            />
+          ))}
         </div>
       ) : (
         <div className="divide-y divide-zinc-200 border-t border-zinc-200">
@@ -1886,12 +2123,26 @@ function ComparisonQuestionDetails({
                 ].map(([value, color, label]) => {
                   const numericValue = Math.round(Number(value));
                   return (
-                    <div aria-label={`${label}: ${numericValue}%`} className="h-9 overflow-hidden rounded-xl bg-zinc-50" key={String(label)}>
+                    <div
+                      aria-label={`${label}: ${numericValue}%`}
+                      className="h-9 overflow-hidden rounded-xl bg-zinc-50"
+                      key={String(label)}
+                    >
                       {numericValue > 0 ? (
-                        <div className={cn("flex h-full items-center rounded-r-xl px-3 text-[11px] font-semibold text-white", String(color))} style={{ width: `${numericValue}%` }}>
+                        <div
+                          className={cn(
+                            "flex h-full items-center rounded-r-xl px-3 text-[11px] font-semibold text-white",
+                            String(color),
+                          )}
+                          style={{ width: `${numericValue}%` }}
+                        >
                           {numericValue}%
                         </div>
-                      ) : <span className="flex h-full items-center px-3 text-xs text-zinc-500">x</span>}
+                      ) : (
+                        <span className="flex h-full items-center px-3 text-xs text-zinc-500">
+                          x
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -1919,15 +2170,25 @@ function ComparisonCategoryCard({
   compareLabel: string;
   selected: boolean;
   onToggle: () => void;
-  details: UseQueryResult<Awaited<ReturnType<typeof api.reports.comparisonQuestions>>>;
+  details: UseQueryResult<
+    Awaited<ReturnType<typeof api.reports.comparisonQuestions>>
+  >;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   return (
     <div ref={cardRef}>
-      <Card className={cn("shadow-none transition", selected && "border-violet-300 shadow-md")}>
+      <Card
+        className={cn(
+          "shadow-none transition",
+          selected && "border-violet-300 shadow-md",
+        )}
+      >
         <div
           aria-expanded={selected}
-          className={cn("cursor-pointer transition", selected && "bg-violet-50")}
+          className={cn(
+            "cursor-pointer transition",
+            selected && "bg-violet-50",
+          )}
           onClick={onToggle}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
@@ -1944,7 +2205,9 @@ function ComparisonCategoryCard({
           </div>
           <div className="grid gap-8 p-7 md:grid-cols-2 md:divide-x md:divide-zinc-200">
             <AgreementDonut label="Your Results" value={currentValue} />
-            <div className="md:pl-8"><AgreementDonut label={compareLabel} value={benchmark} /></div>
+            <div className="md:pl-8">
+              <AgreementDonut label={compareLabel} value={benchmark} />
+            </div>
           </div>
         </div>
         {selected ? (
@@ -1973,17 +2236,29 @@ export function ComparisonDataPage() {
     enabled: Boolean(program),
   });
   const cohorts = (comparison.data?.data.tableHeaders ?? [])
-    .map((header, index) => ({ label: header.title, key: header.type.replace("_", ""), index }))
+    .map((header, index) => ({
+      label: header.title,
+      key: header.type.replace("_", ""),
+      index,
+    }))
     .filter((cohort) => cohort.key.endsWith("Yes"));
-  const categories = categoryResults.filter(({ title }) => title !== "Supplementary Questions");
+  const categories = categoryResults.filter(
+    ({ title }) => title !== "Supplementary Questions",
+  );
   const selectedCohort = cohorts[active];
   const details = useQuery({
-    queryKey: ["comparison-question-details", program?.id, selectedCategory, active],
-    queryFn: () => api.reports.comparisonQuestions(
-      program?.id ?? "",
-      selectedCategory ?? "",
-      selectedCohort?.key ?? "",
-    ),
+    queryKey: [
+      "comparison-question-details",
+      program?.id,
+      selectedCategory,
+      active,
+    ],
+    queryFn: () =>
+      api.reports.comparisonQuestions(
+        program?.id ?? "",
+        selectedCategory ?? "",
+        selectedCohort?.key ?? "",
+      ),
     enabled: Boolean(program && selectedCategory && selectedCohort),
   });
   return (
@@ -1993,7 +2268,13 @@ export function ComparisonDataPage() {
         title="Comparison Data"
       />
       <div className="p-6">
-        <div className="flex justify-end"><DownloadReportButton onDownload={() => api.reports.downloadBenchmarkWorkbook(program?.id ?? "")} /></div>
+        <div className="flex justify-end">
+          <DownloadReportButton
+            onDownload={() =>
+              api.reports.downloadBenchmarkWorkbook(program?.id ?? "")
+            }
+          />
+        </div>
         <div className="mt-6 flex items-center gap-2 rounded-xl bg-violet-50 p-3">
           <button
             aria-label="Previous comparison group"
@@ -2022,41 +2303,69 @@ export function ComparisonDataPage() {
             aria-label="Next comparison group"
             className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-zinc-500"
             onClick={() =>
-              setActive((value) =>
-                Math.min(cohorts.length - 1, value + 1),
-              )
+              setActive((value) => Math.min(cohorts.length - 1, value + 1))
             }
           >
             <ChevronRight className="size-4" />
           </button>
         </div>
         {categoryReport.isPending || comparison.isPending ? (
-          <StatePanel kind="loading" title="Loading comparison data" message="Retrieving your results and comparison cohorts." />
+          <StatePanel
+            kind="loading"
+            title="Loading comparison data"
+            message="Retrieving your results and comparison cohorts."
+          />
         ) : categoryReport.isError || comparison.isError ? (
-          <StatePanel kind="error" title="Comparison data unavailable" message={(categoryReport.error ?? comparison.error)?.message ?? "The comparison could not be loaded."} />
+          <StatePanel
+            kind="error"
+            title="Comparison data unavailable"
+            message={
+              (categoryReport.error ?? comparison.error)?.message ??
+              "The comparison could not be loaded."
+            }
+          />
         ) : categories.length === 0 || cohorts.length === 0 ? (
-          <StatePanel kind="empty" title="No comparison data" message="The backend returned no comparison results for this program." />
-        ) : <div className="mt-6 grid gap-5">
-          {categories.map((category) => {
-            const benchmarkCategory = comparison.data.data.data.find((item) => item.title === category.title);
-            const rawBenchmark = selectedCohort ? benchmarkCategory?.dataValues[selectedCohort.index] : undefined;
-            const benchmark = typeof rawBenchmark === "number" ? rawBenchmark : Number.parseFloat(rawBenchmark ?? "") || 0;
-            const selected = selectedCategory === category.title;
-            return (
-              <ComparisonCategoryCard
-                benchmark={Math.round(benchmark)}
-                compareLabel={selectedCohort?.label ?? "Comparison group"}
-                currentValue={Math.round(category.agreement)}
-                details={details}
-                key={category.title}
-                onToggle={() => setSelectedCategory((current) => current === category.title ? null : category.title)}
-                selected={selected}
-                title={category.title}
-              />
-            );
-          })}
-        </div>}
-        <p className="mt-4 text-xs text-zinc-500">x – Insufficient data to provide meaningful feedback.</p>
+          <StatePanel
+            kind="empty"
+            title="No comparison data"
+            message="The backend returned no comparison results for this program."
+          />
+        ) : (
+          <div className="mt-6 grid gap-5">
+            {categories.map((category) => {
+              const benchmarkCategory = comparison.data.data.data.find(
+                (item) => item.title === category.title,
+              );
+              const rawBenchmark = selectedCohort
+                ? benchmarkCategory?.dataValues[selectedCohort.index]
+                : undefined;
+              const benchmark =
+                typeof rawBenchmark === "number"
+                  ? rawBenchmark
+                  : Number.parseFloat(rawBenchmark ?? "") || 0;
+              const selected = selectedCategory === category.title;
+              return (
+                <ComparisonCategoryCard
+                  benchmark={Math.round(benchmark)}
+                  compareLabel={selectedCohort?.label ?? "Comparison group"}
+                  currentValue={Math.round(category.agreement)}
+                  details={details}
+                  key={category.title}
+                  onToggle={() =>
+                    setSelectedCategory((current) =>
+                      current === category.title ? null : category.title,
+                    )
+                  }
+                  selected={selected}
+                  title={category.title}
+                />
+              );
+            })}
+          </div>
+        )}
+        <p className="mt-4 text-xs text-zinc-500">
+          x – Insufficient data to provide meaningful feedback.
+        </p>
       </div>
     </>
   );
@@ -2070,55 +2379,52 @@ export function BenefitsBestPracticesPage() {
     enabled: Boolean(program),
   });
   const headers = report.data?.data.tableHeaders ?? [];
-  type BenchmarkNode = NonNullable<Awaited<ReturnType<typeof api.reports.employerBenchmark>>["data"]["tableData"][number]["nestedData"]>[number];
-  type BenefitsRow = { format: string; section: string; question: string; response: string; values: (number | string)[] };
-  const flattenNode = (section: string, node: BenchmarkNode, parents: string[] = []): BenefitsRow[] => {
-    if (node.dataValues) {
-      return [{
-        format: node.type ?? "%",
-        section,
-        question: parents[0] ?? node.title,
-        response: [...parents.slice(1), ...(parents.length ? [node.title] : [])].join(" / "),
-        values: node.dataValues,
-      }];
-    }
-    return (node.nestedData ?? []).flatMap((child) => flattenNode(section, child, [...parents, node.title]));
-  };
-  const rows = (report.data?.data.tableData ?? []).flatMap((section) =>
-    section.nestedData.flatMap((node) => flattenNode(section.title, node)),
+  const questions = (report.data?.data.tableData ?? []).flatMap(
+    (section) => section.nestedData,
   );
   return (
     <>
       <ReportHeader title="Benefits & Best Practices" />
       <div className="p-6">
-        <div className="flex justify-end"><DownloadReportButton onDownload={() => api.reports.downloadBenefitsWorkbook(program?.id ?? "")} /></div>
+        <div className="flex justify-end">
+          <DownloadReportButton
+            onDownload={() =>
+              api.reports.downloadBenefitsWorkbook(program?.id ?? "")
+            }
+          />
+        </div>
         {report.isPending ? (
-          <StatePanel kind="loading" title="Loading benefits and practices" message="Retrieving employer benchmark data." />
+          <StatePanel
+            kind="loading"
+            title="Loading benefits and practices"
+            message="Retrieving employer benchmark data."
+          />
         ) : report.isError ? (
-          <StatePanel kind="error" title="Benefits data unavailable" message={report.error.message} action={<Button onClick={() => void report.refetch()}>Try again</Button>} />
-        ) : rows.length === 0 ? (
-          <StatePanel kind="empty" title="No benefits data" message="The backend returned no benefits or best-practice results." />
-        ) : <Card className="mt-6 overflow-hidden shadow-none">
-          <div className="overflow-x-auto">
-            <table className="min-w-[1050px] w-full text-left text-xs">
-              <thead className="bg-zinc-100 text-zinc-600"><tr><th className="w-[390px] px-5 py-4">Question / Response</th>{headers.map((header, index) => <th className="px-3 py-4 text-center" key={`${header.title}-${header.type ?? index}`}>{header.title}</th>)}</tr></thead>
-              <tbody>
-                {rows.map((row, index) => (
-                  <tr className={cn("border-t border-zinc-100", index % 2 === 1 && "bg-zinc-50/60")} key={`${row.section}-${row.question}-${row.response}`}>
-                    <td className="px-5 py-4"><span className="text-[10px] font-semibold uppercase tracking-wide text-violet-600">{row.section}</span><span className="mt-1 block font-medium leading-5 text-zinc-800">{row.question}</span><span className="mt-1 block text-zinc-500">{row.response}</span></td>
-                    {headers.map((header, valueIndex) => { const value = row.values[valueIndex] ?? "x"; return <td className="px-3 py-4 text-center font-semibold" key={`${header.title}-${valueIndex}`}>{typeof value === "number" ? `${Math.round(value)}${row.format === "%" ? "%" : ""}` : value}</td>; })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>}
+          <StatePanel
+            kind="error"
+            title="Benefits data unavailable"
+            message={report.error.message}
+            action={
+              <Button onClick={() => void report.refetch()}>Try again</Button>
+            }
+          />
+        ) : questions.length === 0 ? (
+          <StatePanel
+            kind="empty"
+            title="No benefits data"
+            message="The backend returned no benefits or best-practice results."
+          />
+        ) : (
+          <BenefitsBenchmarkTable headers={headers} questions={questions} />
+        )}
       </div>
     </>
   );
 }
 
-type ResponseDetailData = Awaited<ReturnType<typeof api.reports.responseDetailResult>>["data"];
+type ResponseDetailData = Awaited<
+  ReturnType<typeof api.reports.responseDetailResult>
+>["data"];
 
 function ResponseDetailTable({ data }: { data: ResponseDetailData }) {
   const [headerRow, ...rows] = data;
@@ -2128,17 +2434,48 @@ function ResponseDetailTable({ data }: { data: ResponseDetailData }) {
   const renderCell = (cell: ResponseDetailData[number][number]) => {
     if (typeof cell === "object") {
       const value = cell.percentile ?? cell.average ?? "—";
-      return <><strong>{value}</strong><span className="ml-1 text-zinc-400">({cell.respondentCount})</span></>;
+      return (
+        <>
+          <strong>{value}</strong>
+          <span className="ml-1 text-zinc-400">({cell.respondentCount})</span>
+        </>
+      );
     }
     return <strong>{cell}</strong>;
   };
   return (
     <div className="overflow-x-auto py-2">
       <table className="min-w-[690px] w-full text-xs">
-        <thead><tr className="bg-zinc-100 text-zinc-600"><th className="px-3 py-3 text-left">Response</th>{headers.map((header) => <th className="px-3 py-3 text-center" key={header}>{header}</th>)}</tr></thead>
+        <thead>
+          <tr className="bg-zinc-100 text-zinc-600">
+            <th className="px-3 py-3 text-left">Response</th>
+            {headers.map((header) => (
+              <th className="px-3 py-3 text-center" key={header}>
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
         <tbody>
           {rows.map((row, rowIndex) => (
-            <tr className={cn("border-t border-zinc-100", cellText(row[0]) === "Question Total" && "border-t-2 border-zinc-200 bg-violet-50")} key={`${cellText(row[0])}-${rowIndex}`}><td className="px-3 py-3 font-medium">{cellText(row[0])}</td>{row.slice(1).map((cell, column) => <td className="px-3 py-3 text-center" key={`${headers[column] ?? column}-${column}`}>{renderCell(cell)}</td>)}</tr>
+            <tr
+              className={cn(
+                "border-t border-zinc-100",
+                cellText(row[0]) === "Question Total" &&
+                  "border-t-2 border-zinc-200 bg-violet-50",
+              )}
+              key={`${cellText(row[0])}-${rowIndex}`}
+            >
+              <td className="px-3 py-3 font-medium">{cellText(row[0])}</td>
+              {row.slice(1).map((cell, column) => (
+                <td
+                  className="px-3 py-3 text-center"
+                  key={`${headers[column] ?? column}-${column}`}
+                >
+                  {renderCell(cell)}
+                </td>
+              ))}
+            </tr>
           ))}
         </tbody>
       </table>
@@ -2157,21 +2494,43 @@ function ResponseDetailQuestion({
 }) {
   const [open, setOpen] = useState(false);
   const result = useQuery({
-    queryKey: ["response-detail-result", programId, question.QuestionId, filterQuestion],
-    queryFn: () => api.reports.responseDetailResult(programId, String(question.QuestionId), filterQuestion),
+    queryKey: [
+      "response-detail-result",
+      programId,
+      question.QuestionId,
+      filterQuestion,
+    ],
+    queryFn: () =>
+      api.reports.responseDetailResult(
+        programId,
+        String(question.QuestionId),
+        filterQuestion,
+      ),
     enabled: open,
   });
   return (
-    <details className="group/question rounded-lg bg-white" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details
+      className="group/question rounded-lg bg-white"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       <summary className="flex cursor-pointer items-center gap-3 p-4 text-sm">
         <span className="flex-1">{question.Caption}</span>
         <ChevronRight className="size-4 transition group-open/question:rotate-90" />
       </summary>
       <div className="border-t border-zinc-100 px-4 pb-5">
-        {result.isPending ? <p className="py-5 text-sm text-zinc-500">Loading response distribution…</p>
-          : result.isError ? <p className="py-5 text-sm text-red-600">{result.error.message}</p>
-          : result.data.data.length ? <ResponseDetailTable data={result.data.data} />
-          : <p className="py-5 text-sm text-zinc-500">No response distribution is available.</p>}
+        {result.isPending ? (
+          <p className="py-5 text-sm text-zinc-500">
+            Loading response distribution…
+          </p>
+        ) : result.isError ? (
+          <p className="py-5 text-sm text-red-600">{result.error.message}</p>
+        ) : result.data.data.length ? (
+          <ResponseDetailTable data={result.data.data} />
+        ) : (
+          <p className="py-5 text-sm text-zinc-500">
+            No response distribution is available.
+          </p>
+        )}
       </div>
     </details>
   );
@@ -2190,8 +2549,13 @@ export function ResponseDetailPage() {
     queryFn: () => api.reports.responseDetailSections(program?.id ?? ""),
     enabled: Boolean(program),
   });
-  const effectiveFilterQuestion = filterQuestion !== "" ? filterQuestion : (filters.data?.[0]?.questionId ?? "");
-  const selectedFilter = filters.data?.find((filter) => filter.questionId === effectiveFilterQuestion);
+  const effectiveFilterQuestion =
+    filterQuestion !== ""
+      ? filterQuestion
+      : (filters.data?.[0]?.questionId ?? "");
+  const selectedFilter = filters.data?.find(
+    (filter) => filter.questionId === effectiveFilterQuestion,
+  );
   return (
     <>
       <ReportHeader
@@ -2200,35 +2564,78 @@ export function ResponseDetailPage() {
       />
       <div className="p-6">
         <div className="flex items-center justify-between gap-3">
-          <FilterButton filters={filters.data ?? []} loading={filters.isPending} onChange={setFilterQuestion} value={effectiveFilterQuestion} />
-          <DownloadReportButton onDownload={() => api.reports.downloadResponseDetailWorkbook(program?.id ?? "")} />
+          <FilterButton
+            filters={filters.data ?? []}
+            loading={filters.isPending}
+            onChange={setFilterQuestion}
+            value={effectiveFilterQuestion}
+          />
+          <DownloadReportButton
+            onDownload={() =>
+              api.reports.downloadResponseDetailWorkbook(program?.id ?? "")
+            }
+          />
         </div>
-        {selectedFilter ? <span className="mt-4 inline-flex rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">Filter: {selectedFilter.label}</span> : null}
+        {selectedFilter ? (
+          <span className="mt-4 inline-flex rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">
+            Filter: {selectedFilter.label}
+          </span>
+        ) : null}
         <div className="mt-5 grid gap-3">
           {filters.isError || sections.isError ? (
-            <StatePanel kind="error" title="Response detail unavailable" message={(filters.error ?? sections.error)?.message ?? "The response detail could not be loaded."} />
+            <StatePanel
+              kind="error"
+              title="Response detail unavailable"
+              message={
+                (filters.error ?? sections.error)?.message ??
+                "The response detail could not be loaded."
+              }
+            />
           ) : filters.isPending || sections.isPending ? (
-            <StatePanel kind="loading" title="Loading response detail" message="Retrieving questions and demographic filters." />
+            <StatePanel
+              kind="loading"
+              title="Loading response detail"
+              message="Retrieving questions and demographic filters."
+            />
           ) : !effectiveFilterQuestion ? (
-            <StatePanel kind="empty" title="No demographic filters" message="The backend returned no demographics to compare." />
+            <StatePanel
+              kind="empty"
+              title="No demographic filters"
+              message="The backend returned no demographics to compare."
+            />
           ) : sections.data.data.length === 0 ? (
-            <StatePanel kind="empty" title="No response detail" message={sections.data.message} />
-          ) : sections.data.data.flatMap((section) => Object.entries(section)).map(([title, questions]) => (
-            <details
-              className="group rounded-xl border border-zinc-200 bg-white"
-              key={title}
-            >
-              <summary className="flex cursor-pointer items-center justify-between p-5 font-semibold">
-                <span>{title}</span>
-                <span className="grid size-8 place-items-center rounded-full border border-zinc-300">
-                  <ChevronDown className="size-4 transition group-open:rotate-180" />
-                </span>
-              </summary>
-              <div className="grid gap-2 border-t border-zinc-200 bg-zinc-50 p-4">
-                {questions.map((question) => <ResponseDetailQuestion filterQuestion={effectiveFilterQuestion} key={String(question.QuestionId)} programId={program?.id ?? ""} question={question} />)}
-              </div>
-            </details>
-          ))}
+            <StatePanel
+              kind="empty"
+              title="No response detail"
+              message={sections.data.message}
+            />
+          ) : (
+            sections.data.data
+              .flatMap((section) => Object.entries(section))
+              .map(([title, questions]) => (
+                <details
+                  className="group rounded-xl border border-zinc-200 bg-white"
+                  key={title}
+                >
+                  <summary className="flex cursor-pointer items-center justify-between p-5 font-semibold">
+                    <span>{title}</span>
+                    <span className="grid size-8 place-items-center rounded-full border border-zinc-300">
+                      <ChevronDown className="size-4 transition group-open:rotate-180" />
+                    </span>
+                  </summary>
+                  <div className="grid gap-2 border-t border-zinc-200 bg-zinc-50 p-4">
+                    {questions.map((question) => (
+                      <ResponseDetailQuestion
+                        filterQuestion={effectiveFilterQuestion}
+                        key={String(question.QuestionId)}
+                        programId={program?.id ?? ""}
+                        question={question}
+                      />
+                    ))}
+                  </div>
+                </details>
+              ))
+          )}
         </div>
       </div>
     </>
@@ -2243,7 +2650,10 @@ export function KeyImpactAnalysisPage() {
     enabled: Boolean(program),
   });
   const report = analysis.data?.data.report ?? [];
-  const maxValue = Math.max(1, ...report.map((item) => Number(item.value) || 0));
+  const maxValue = Math.max(
+    1,
+    ...report.map((item) => Number(item.value) || 0),
+  );
   return (
     <>
       <ReportHeader
@@ -2251,23 +2661,65 @@ export function KeyImpactAnalysisPage() {
         title="Key Impact Analysis"
       />
       <div className="p-6">
-        {analysis.data?.data.data.signedUrl ? <DownloadReportButton onDownload={() => api.reports.downloadCustomReport(analysis.data.data.data.signedUrl ?? "", analysis.data.data.fileName ?? "Key_Impact_Analysis.pdf")} /> : null}
+        {analysis.data?.data.data.signedUrl ? (
+          <DownloadReportButton
+            onDownload={() =>
+              api.reports.downloadCustomReport(
+                analysis.data.data.data.signedUrl ?? "",
+                analysis.data.data.fileName ?? "Key_Impact_Analysis.pdf",
+              )
+            }
+          />
+        ) : null}
         {analysis.isPending ? (
-          <StatePanel kind="loading" title="Loading key impact analysis" message="Retrieving the analysis for the selected program." />
+          <StatePanel
+            kind="loading"
+            title="Loading key impact analysis"
+            message="Retrieving the analysis for the selected program."
+          />
         ) : analysis.isError ? (
-          <StatePanel kind="error" title="Key impact analysis unavailable" message={analysis.error.message} action={<Button onClick={() => void analysis.refetch()}>Try again</Button>} />
+          <StatePanel
+            kind="error"
+            title="Key impact analysis unavailable"
+            message={analysis.error.message}
+            action={
+              <Button onClick={() => void analysis.refetch()}>Try again</Button>
+            }
+          />
         ) : report.length === 0 ? (
-          <StatePanel kind="empty" title="No key impact analysis" message="The backend returned no key-impact results for this program." />
-        ) : <Card className="mt-10 p-6 shadow-none">
-          <div className="grid gap-5">
-            {report.map((item) => { const value = Number(item.value) || 0; return (
-              <div key={`${item.label}-${item.key}`}>
-                <div className="mb-2 flex items-start justify-between gap-4 text-sm"><div><strong>{item.label}</strong><p className="mt-1 text-zinc-500">{item.key}</p></div><strong>{value}</strong></div>
-                <div className="h-3 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.max(0, Math.min(100, (value / maxValue) * 100))}%` }} /></div>
-              </div>
-            ); })}
-          </div>
-        </Card>}
+          <StatePanel
+            kind="empty"
+            title="No key impact analysis"
+            message="The backend returned no key-impact results for this program."
+          />
+        ) : (
+          <Card className="mt-10 p-6 shadow-none">
+            <div className="grid gap-5">
+              {report.map((item) => {
+                const value = Number(item.value) || 0;
+                return (
+                  <div key={`${item.label}-${item.key}`}>
+                    <div className="mb-2 flex items-start justify-between gap-4 text-sm">
+                      <div>
+                        <strong>{item.label}</strong>
+                        <p className="mt-1 text-zinc-500">{item.key}</p>
+                      </div>
+                      <strong>{value}</strong>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-zinc-100">
+                      <div
+                        className="h-full rounded-full bg-violet-600"
+                        style={{
+                          width: `${Math.max(0, Math.min(100, (value / maxValue) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
       </div>
     </>
   );
@@ -2280,9 +2732,14 @@ export function CustomReportsPage() {
     queryFn: () => api.reports.customReports(program?.id ?? ""),
     enabled: Boolean(program),
   });
-  const formatDate = (value: string | Date | undefined) => value
-    ? new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value))
-    : "—";
+  const formatDate = (value: string | Date | undefined) =>
+    value
+      ? new Intl.DateTimeFormat("en-US", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date(value))
+      : "—";
   return (
     <>
       <PageHeader
@@ -2306,34 +2763,74 @@ export function CustomReportsPage() {
           .
         </p>
         {reports.isPending ? (
-          <StatePanel kind="loading" title="Loading custom reports" message="Retrieving files for the selected program." />
+          <StatePanel
+            kind="loading"
+            title="Loading custom reports"
+            message="Retrieving files for the selected program."
+          />
         ) : reports.isError ? (
-          <StatePanel kind="error" title="Custom reports unavailable" message={reports.error.message} action={<Button onClick={() => void reports.refetch()}>Try again</Button>} />
+          <StatePanel
+            kind="error"
+            title="Custom reports unavailable"
+            message={reports.error.message}
+            action={
+              <Button onClick={() => void reports.refetch()}>Try again</Button>
+            }
+          />
         ) : reports.data.data.length === 0 ? (
-          <StatePanel kind="empty" title="No custom reports" message="Your custom reports will appear here when they are available." />
-        ) : <Card className="overflow-hidden shadow-none">
-          <div className="grid grid-cols-[1fr_1.4fr_130px_100px] gap-4 bg-zinc-100 p-4 text-xs font-semibold text-zinc-500">
-            <span>Report Name</span>
-            <span>Description</span>
-            <span>Upload Date</span>
-            <span>Action</span>
-          </div>
-          {reports.data.data.map((report) => (
-            <div className="grid grid-cols-[1fr_1.4fr_130px_100px] items-center gap-4 border-t border-zinc-100 p-4 text-sm first:border-t-0" key={report._id}>
-              <strong>{report.ReportTitle}</strong>
-              <span className="leading-5 text-zinc-500">{report.ReportDescription}</span>
-              <span className="text-zinc-500">{formatDate(report.createAt ?? report.createdAt)}</span>
-              <div className="grid gap-2">
-                {report.reportFormats.map((format, index) => {
-                  const url = format.signedUrl ?? format.fileUrl ?? format.url;
-                  const filename = format.fileName ?? format.filename ?? `${report.ReportTitle}-${index + 1}`;
-                  return url ? <button className="h-9 rounded bg-red-600 px-3 text-xs font-semibold text-white" key={format._id ?? `${url}-${index}`} onClick={() => void api.reports.downloadCustomReport(url, filename)}>DOWNLOAD</button> : null;
-                })}
-                {report.reportFormats.length === 0 ? <span className="text-xs text-zinc-500">Pending</span> : null}
-              </div>
+          <StatePanel
+            kind="empty"
+            title="No custom reports"
+            message="Your custom reports will appear here when they are available."
+          />
+        ) : (
+          <Card className="overflow-hidden shadow-none">
+            <div className="grid grid-cols-[1fr_1.4fr_130px_100px] gap-4 bg-zinc-100 p-4 text-xs font-semibold text-zinc-500">
+              <span>Report Name</span>
+              <span>Description</span>
+              <span>Upload Date</span>
+              <span>Action</span>
             </div>
-          ))}
-        </Card>}
+            {reports.data.data.map((report) => (
+              <div
+                className="grid grid-cols-[1fr_1.4fr_130px_100px] items-center gap-4 border-t border-zinc-100 p-4 text-sm first:border-t-0"
+                key={report._id}
+              >
+                <strong>{report.ReportTitle}</strong>
+                <span className="leading-5 text-zinc-500">
+                  {report.ReportDescription}
+                </span>
+                <span className="text-zinc-500">
+                  {formatDate(report.createAt ?? report.createdAt)}
+                </span>
+                <div className="grid gap-2">
+                  {report.reportFormats.map((format, index) => {
+                    const url =
+                      format.signedUrl ?? format.fileUrl ?? format.url;
+                    const filename =
+                      format.fileName ??
+                      format.filename ??
+                      `${report.ReportTitle}-${index + 1}`;
+                    return url ? (
+                      <button
+                        className="h-9 rounded bg-red-600 px-3 text-xs font-semibold text-white"
+                        key={format._id ?? `${url}-${index}`}
+                        onClick={() =>
+                          void api.reports.downloadCustomReport(url, filename)
+                        }
+                      >
+                        DOWNLOAD
+                      </button>
+                    ) : null;
+                  })}
+                  {report.reportFormats.length === 0 ? (
+                    <span className="text-xs text-zinc-500">Pending</span>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </Card>
+        )}
       </div>
     </>
   );

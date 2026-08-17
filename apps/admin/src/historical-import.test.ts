@@ -105,11 +105,14 @@ describe("Benefits & Best Practices API client", () => {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
-    await api.uploadBenefitsBestPracticesWorkbook("program-id", file);
+    await api.uploadBenefitsBestPracticesWorkbook(
+      "organization-program-id",
+      file,
+    );
 
     const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain(
-      "/admin/programs/program-id/benefits-best-practices",
+      "/admin/organization-programs/organization-program-id/benefits-best-practices",
     );
     expect(options.method).toBe("POST");
     expect(options.body).toBeInstanceOf(FormData);

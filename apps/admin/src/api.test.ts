@@ -33,7 +33,17 @@ describe("admin API projections", () => {
         Account_Name: "Baton Rouge Organization D6EA749C",
         sourceOrganizationId: "19",
         sourceOrganizationName: "19",
-        orgPrograms: [{ orgs: { Surveys_Sent: 200 } }],
+        orgPrograms: [
+          {
+            orgs: {
+              _id: "organization-program-uuid",
+              Surveys_Sent: 200,
+              publishedReports: {
+                benefitsBestPractices: { sourceFile: "benefits.xlsx" },
+              },
+            },
+          },
+        ],
         users: [],
       }),
     ).toMatchObject({
@@ -42,6 +52,8 @@ describe("admin API projections", () => {
       sourceName: "19",
       name: "Baton Rouge Organization D6EA749C",
       surveysSent: 200,
+      organizationProgramId: "organization-program-uuid",
+      benefitsBestPracticesFileName: "benefits.xlsx",
     });
   });
 
