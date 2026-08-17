@@ -18,6 +18,7 @@ import {
   openResponseQuestionsSchema,
   employerBenchmarkSchema,
   reportProductSchema,
+  paymentIntentSchema,
   responseDetailResultSchema,
   responseDetailSectionsSchema,
   sessionSchema,
@@ -518,8 +519,8 @@ export const api = {
   reports: {
     demographics: (programId: string) => responseCountByDemographic(programId),
     surveyFilters,
-    catalog: () =>
-      request("/reports/catalog", { schema: z.array(reportProductSchema) }),
+    catalog: (programId?: string) =>
+      request(`/reports/catalog${programId ? `?programId=${encodeURIComponent(programId)}` : ""}`, { schema: z.array(reportProductSchema) }),
     responseBreakdownBySection: (
       programId: string,
       queryFilter: ReportQueryFilter = {},
@@ -705,5 +706,17 @@ export const api = {
         `/client/responseDetailReportExcel?selectedProgramId=${encodeURIComponent(programId)}`,
         "Response_Detail_Report.xlsx",
       ),
+  },
+  commerce: {
+    createPaymentIntent: (input: {
+      programId: string;
+      amount: number;
+      currency: string;
+      items: Array<{ title: string; amount: number; keys: Record<string, unknown> }>;
+    }) => request(`/payment/stripePaymentIntent?selectedProgramId=${encodeURIComponent(input.programId)}`, {
+      method: "POST",
+      body: { amount: input.amount, currency: input.currency, items: input.items },
+      schema: paymentIntentSchema,
+    }),
   },
 };

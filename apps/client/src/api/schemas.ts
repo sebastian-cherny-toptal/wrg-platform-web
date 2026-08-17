@@ -505,6 +505,10 @@ export const reportProductSchema = z.object({
   available: z.boolean(),
 });
 
+export const paymentIntentSchema = z.object({
+  client_secret: z.string().min(1),
+});
+
 export type Program = z.infer<typeof programSchema>;
 export type Session = z.infer<typeof sessionSchema>;
 export type LoginResult = z.infer<typeof loginResultSchema>;

@@ -1472,8 +1472,9 @@ export function EmployeeVerbatimsPage() {
     enabled: Boolean(program),
   });
   const catalog = useQuery({
-    queryKey: ["report-catalog"],
-    queryFn: api.reports.catalog,
+    queryKey: ["report-catalog", program?.id],
+    queryFn: () => api.reports.catalog(program?.id),
+    enabled: Boolean(program),
   });
   const availableFilters = useQuery({
     queryKey: ["survey-filters", program?.id],

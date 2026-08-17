@@ -1,3 +1,5 @@
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
+import { loadStripe } from '@stripe/stripe-js'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
@@ -26,7 +28,8 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { routeMap } from '../app/metadata'
@@ -443,8 +446,12 @@ export function WorkforceFeedbackPage() {
 }
 
 export function CatalogPage() {
-  const catalog = useQuery({ queryKey: ['report-catalog'], queryFn: api.reports.catalog })
   const program = useSelectedProgram()
+  const catalog = useQuery({
+    queryKey: ['report-catalog', program?.id],
+    queryFn: () => api.reports.catalog(program?.id),
+    enabled: Boolean(program),
+  })
   const surveyFilters = useQuery({
     queryKey: ['survey-filters', program?.id],
     queryFn: () => api.reports.surveyFilters(program?.id ?? ''),
@@ -560,20 +567,46 @@ export function CartPage() {
 
 export function CheckoutPage() {
   const cart = useAppStore((state) => state.cart)
+  const program = useSelectedProgram()
   const total = cart.reduce((sum, item) => sum + item.priceCents * item.quantity, 0)
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!program || total <= 0) return
+    let active = true
+    setClientSecret(null)
+    setError(null)
+    api.commerce.createPaymentIntent({
+      programId: program.id,
+      amount: total / 100,
+      currency: 'USD',
+      items: cart.map((item) => ({
+        title: item.name,
+        amount: item.priceCents * item.quantity / 100,
+        keys: { productId: item.productId },
+      })),
+    }).then((intent) => {
+      if (active) setClientSecret(intent.client_secret)
+    }).catch((reason: unknown) => {
+      if (active) setError(reason instanceof Error ? reason.message : 'Unable to start secure checkout')
+    })
+    return () => { active = false }
+  }, [cart, program, total])
+
+  if (cart.length === 0) {
+    return <div className="p-6"><StatePanel kind="empty" title="Your cart is empty" message="Add a report before checking out." action={<Link to={routeMap.catalog}><Button>Browse reports</Button></Link>} /></div>
+  }
   return (
     <>
       <PageHeader title="Checkout" description="Confirm the reports and billing summary for the selected survey program." />
       <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
         <Card className="p-6">
-          <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 text-violet-600" /><div><h2 className="text-xl font-bold">Secure checkout</h2><p className="mt-1 text-sm text-zinc-500">Payment collection is not connected in this preview.</p></div></div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm font-medium">Billing name<input className="h-11 rounded-lg border border-zinc-300 px-3" placeholder="Name on card" /></label>
-            <label className="grid gap-2 text-sm font-medium">Billing email<input className="h-11 rounded-lg border border-zinc-300 px-3" placeholder="name@company.com" type="email" /></label>
-            <label className="grid gap-2 text-sm font-medium sm:col-span-2">Card information<input className="h-11 rounded-lg border border-zinc-300 px-3" disabled placeholder="Payment provider connection required" /></label>
-          </div>
-          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">No card details are collected and no order can be submitted from this frontend preview.</div>
-          <Button className="mt-6" disabled>Complete Purchase</Button>
+          <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 text-violet-600" /><div><h2 className="text-xl font-bold">Secure checkout</h2><p className="mt-1 text-sm text-zinc-500">Credit and debit card details are collected securely by Stripe.</p></div></div>
+          {error ? <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+          {!clientSecret && !error ? <div className="mt-6"><StatePanel kind="loading" title="Preparing payment" message="Opening the secure card form." /></div> : null}
+          {clientSecret && stripePromise ? <Elements stripe={stripePromise} options={{ clientSecret }}><StripeCheckoutForm /></Elements> : null}
+          {!stripePromise ? <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Stripe is not configured. Set VITE_STRIPE_PUBLISHABLE_KEY to enable card payments.</div> : null}
         </Card>
         <aside className="h-fit rounded-2xl bg-slate-900 p-6 text-white">
           <h2 className="font-bold">Order summary</h2>
@@ -583,4 +616,42 @@ export function CheckoutPage() {
       </div>
     </>
   )
+}
+
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null
+
+function StripeCheckoutForm() {
+  const stripe = useStripe()
+  const elements = useElements()
+  const clearCart = useAppStore((state) => state.clearCart)
+  const [paying, setPaying] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!stripe || !elements) return
+    setPaying(true)
+    setError(null)
+    const result = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: `${window.location.origin}${routeMap.dashboard}` },
+      redirect: 'if_required',
+    })
+    if (result.error) {
+      setError(result.error.message ?? 'Payment could not be completed')
+      setPaying(false)
+      return
+    }
+    if (result.paymentIntent?.status === 'succeeded' || result.paymentIntent?.status === 'processing') {
+      clearCart()
+      window.location.assign(routeMap.dashboard)
+    }
+  }
+
+  return <form className="mt-6" onSubmit={submit}>
+    <PaymentElement />
+    {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
+    <Button className="mt-6" disabled={!stripe || paying} type="submit">{paying ? 'Processing…' : 'Complete Purchase'}</Button>
+  </form>
 }
