@@ -712,7 +712,7 @@ export const api = {
       programId: string;
       amount: number;
       currency: string;
-      items: Array<{ title: string; amount: number; keys: Record<string, unknown> }>;
+      items: { title: string; amount: number; keys: Record<string, unknown> }[];
     }) => request(`/payment/stripePaymentIntent?selectedProgramId=${encodeURIComponent(input.programId)}`, {
       method: "POST",
       body: { amount: input.amount, currency: input.currency, items: input.items },
