@@ -1884,7 +1884,7 @@ function ComparisonQuestionDetails({
                   [row.currentOrg, "bg-violet-900", "Your Results"],
                   [row.otherOrg, "bg-violet-400", compareLabel],
                 ].map(([value, color, label]) => {
-                  const numericValue = Number(value);
+                  const numericValue = Math.round(Number(value));
                   return (
                     <div aria-label={`${label}: ${numericValue}%`} className="h-9 overflow-hidden rounded-xl bg-zinc-50" key={String(label)}>
                       {numericValue > 0 ? (
@@ -2044,9 +2044,9 @@ export function ComparisonDataPage() {
             const selected = selectedCategory === category.title;
             return (
               <ComparisonCategoryCard
-                benchmark={benchmark}
+                benchmark={Math.round(benchmark)}
                 compareLabel={selectedCohort?.label ?? "Comparison group"}
-                currentValue={category.agreement}
+                currentValue={Math.round(category.agreement)}
                 details={details}
                 key={category.title}
                 onToggle={() => setSelectedCategory((current) => current === category.title ? null : category.title)}
