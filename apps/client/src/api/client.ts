@@ -265,7 +265,7 @@ async function request<T>(
   path: string,
   options: RequestOptions<T>,
 ): Promise<T> {
-  const baseUrl = path.startsWith("/client/") || path.startsWith("/user/")
+  const baseUrl = path.startsWith("/client/") || path.startsWith("/user/") || path.startsWith("/payment/")
     ? env.compatibilityApiBaseUrl
     : env.apiBaseUrl;
   const accessToken = impersonationToken() ?? clientToken();
