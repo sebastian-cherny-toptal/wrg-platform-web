@@ -522,6 +522,31 @@ export function CatalogPage() {
         description="Purchase additional reports and data segmented by demographics to gain deeper insights into your workforce."
       />
       <div className="p-5 lg:p-6">
+        <Card className="mb-5 p-6 shadow-none lg:p-8">
+          <div className="max-w-5xl">
+            <h2 className="text-2xl font-semibold">Employee Feedback Data Dashboard</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-600">
+              This report identifies key motivators of employee engagement within your unique population. This information is vital to knowing what workplace attributes are most important. <strong className="text-zinc-900">Here&apos;s what you get:</strong>
+            </p>
+            <ul className="mt-6 grid gap-5">
+              <li className="text-sm leading-6 text-zinc-600">
+                <strong className="text-zinc-900">Phone Call.</strong> A 30-minute phone call with our Survey Specialist will help you go through the results and get answers to questions.
+              </li>
+              <li className="text-sm leading-6 text-zinc-600">
+                <strong className="text-zinc-900">Online Data Dashboard.</strong> This is a place where you can get all your data in the ways you need it, including downloading it in charts and graphs.
+              </li>
+              {reportCards.map((report) => (
+                <li className="border-t border-zinc-100 pt-5 text-sm leading-6 text-zinc-600" key={report.path}>
+                  <strong className="text-zinc-900">{report.title}{report.title === 'Benefits & Best Practices' ? ' Report' : ''}.</strong>{' '}
+                  {report.description}{' '}
+                  <Link className="ml-2 inline-flex items-center whitespace-nowrap font-semibold text-red-600" to={report.path}>
+                    View Report <ArrowRight className="ml-1 size-4" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
         {catalog.isPending ? <StatePanel kind="loading" title="Loading catalog" message="Checking currently available reports." /> : null}
         {catalog.isError ? <StatePanel kind="error" title="Catalog unavailable" message={catalog.error.message} /> : null}
         {catalog.data?.length === 0 ? (

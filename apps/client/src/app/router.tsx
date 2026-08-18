@@ -23,14 +23,17 @@ import { Button, StatePanel } from '../components/ui'
 function Guard({
   role,
   entitlement,
+  allowPromotional = false,
 }: {
   role: AccessRole
   entitlement?: ClientEntitlement
+  allowPromotional?: boolean
 }) {
   const session = useAppStore((state) => state.session)
   if (role === 'guest' && session) return <Navigate replace to={routeMap.dashboard} />
   if (role === 'client' && !session) return <Navigate replace to={routeMap.clientLogin} />
-  if (entitlement && !hasEntitlement(entitlement)) return <Navigate replace to={routeMap.forbidden} />
+  const promotionalAccess = allowPromotional && session?.user.role === 'promotional'
+  if (entitlement && !promotionalAccess && !hasEntitlement(entitlement)) return <Navigate replace to={routeMap.forbidden} />
   return <Outlet />
 }
 
@@ -83,28 +86,34 @@ export const router = createBrowserRouter([
           { path: routeMap.dashboard, element: <DashboardPage /> },
           { path: routeMap.programs, element: <ProgramsPage /> },
           {
-            element: <Guard role="client" entitlement="WFR_Access" />,
+            element: <Guard role="client" entitlement="WFR_Access" allowPromotional />,
             children: [
               { path: routeMap.wfr, element: <WorkforceFeedbackPage /> },
               { path: '/reports/workforce-feedback', element: <Navigate replace to={routeMap.wfr} /> },
+            ],
+          },
+          {
+            element: <Guard role="client" entitlement="WFR_Access" />,
+            children: [
               { path: routeMap.detailedResults, element: <DetailedResultsPage /> },
               { path: routeMap.responsePatterns, element: <ResponsePatternsPage /> },
               { path: routeMap.annualTrends, element: <AnnualTrendsPage /> },
             ],
           },
           {
-            element: <Guard role="client" entitlement="EV_Access" />,
+            element: <Guard role="client" entitlement="EV_Access" allowPromotional />,
             children: [{ path: routeMap.employeeVerbatims, element: <EmployeeVerbatimsPage /> }],
           },
           {
-            element: <Guard role="client" entitlement="WBC_Access" />,
-            children: [
-              { path: routeMap.benchmarkData, element: <BenchmarkDataPage /> },
-              { path: routeMap.comparisonData, element: <ComparisonDataPage /> },
-            ],
+            element: <Guard role="client" entitlement="WBC_Access" allowPromotional />,
+            children: [{ path: routeMap.benchmarkData, element: <BenchmarkDataPage /> }],
           },
           {
-            element: <Guard role="client" entitlement="BBP_Access" />,
+            element: <Guard role="client" entitlement="WBC_Access" />,
+            children: [{ path: routeMap.comparisonData, element: <ComparisonDataPage /> }],
+          },
+          {
+            element: <Guard role="client" entitlement="BBP_Access" allowPromotional />,
             children: [{ path: routeMap.benefitsBestPractices, element: <BenefitsBestPracticesPage /> }],
           },
           {
