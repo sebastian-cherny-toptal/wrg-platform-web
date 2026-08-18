@@ -1019,7 +1019,7 @@ function AddUserModal({
   const selectedRole = (roles.data ?? []).find(
     (role) => field(role, "_id", "id") === form.roleId,
   );
-  const isClient = field(selectedRole ?? {}, "role") === "client";
+  const isClient = ["client", "promotional"].includes(field(selectedRole ?? {}, "role") as string);
   const selectedOrganization = (organizations.data ?? []).find(
     (organization) => organization.id === form.organizationId,
   );
