@@ -140,6 +140,16 @@ export function DashboardPage() {
   const responseRateRef = useRef<HTMLElement>(null)
   const statementsRef = useRef<HTMLDivElement>(null)
   const session = useAppStore((state) => state.session)
+  const isPromotional = session?.user.role === 'promotional'
+  const [promotionalModalOpen, setPromotionalModalOpen] = useState(isPromotional)
+  useEffect(() => {
+    if (!isPromotional || !promotionalModalOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPromotionalModalOpen(false)
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [isPromotional, promotionalModalOpen])
   const program = useSelectedProgram()
   const programs = session?.user.programs ?? []
   const programWindowSize = 4
@@ -149,7 +159,9 @@ export function DashboardPage() {
     : programs
   const lastProgramWindowStart = Math.max(0, programs.length - programWindowSize)
   const selectProgram = useAppStore((state) => state.selectProgram)
-  const visibleReports = reportCards.filter((report) => program?.entitlements[report.entitlement] === 'yes')
+  const visibleReports = isPromotional
+    ? []
+    : reportCards.filter((report) => program?.entitlements[report.entitlement] === 'yes')
   const dashboard = useQuery({
     queryKey: ['dashboard-overview', program?.id],
     queryFn: () => {
@@ -229,13 +241,22 @@ export function DashboardPage() {
             <Card className="relative h-[727px] p-4">
               <h2 className="max-w-[317px] pr-8 text-[16px] font-semibold leading-6">Average Positive and Average Negative Response</h2>
               <p className="mt-2 text-[14px] leading-5 text-zinc-500">{surveyDateDescription(dashboard.data.agreement.StartDate, dashboard.data.agreement.EndDate)}</p>
-              <ImageDownloadMenu
-                className="absolute right-4 top-4"
-                iconOnly
-                name="Average Positive and Average Negative Response"
-                targetRef={responseChartRef}
-              />
-              <DashboardBars positive={Math.round(dashboard.data.agreement.percentage)} negative={Math.round(dashboard.data.agreement.negativePercentage)} />
+              {!isPromotional ? (
+                <ImageDownloadMenu
+                  className="absolute right-4 top-4"
+                  iconOnly
+                  name="Average Positive and Average Negative Response"
+                  targetRef={responseChartRef}
+                />
+              ) : null}
+              <div className={cn(isPromotional && 'pointer-events-none select-none blur-xl')}>
+                <DashboardBars positive={Math.round(dashboard.data.agreement.percentage)} negative={Math.round(dashboard.data.agreement.negativePercentage)} />
+              </div>
+              {isPromotional ? (
+                <Link className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 rounded-md bg-red-600 px-4 py-2 text-center text-sm font-medium text-white shadow" to={routeMap.catalog}>
+                  Click here to see your survey average
+                </Link>
+              ) : null}
               <button
                 className="absolute bottom-4 right-4 grid size-6 place-items-center rounded-full border-2 border-violet-500 text-xs font-semibold text-violet-600"
                 aria-label="Help"
@@ -257,13 +278,15 @@ export function DashboardPage() {
           <div className="grid gap-3">
             <section className="relative h-[166px] rounded-[20px] bg-slate-100 p-3" ref={responseRateRef}>
               <h2 className="text-[16px] font-semibold">Response Rate Overview</h2>
-              <ImageDownloadMenu
-                className="absolute right-3 top-3"
-                iconOnly
-                name="Response Rate Overview"
-                targetRef={responseRateRef}
-              />
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              {!isPromotional ? (
+                <ImageDownloadMenu
+                  className="absolute right-3 top-3"
+                  iconOnly
+                  name="Response Rate Overview"
+                  targetRef={responseRateRef}
+                />
+              ) : null}
+              <div className={cn('mt-3 grid grid-cols-3 gap-2', isPromotional && 'pointer-events-none select-none blur-xl')}>
                 {[
                   ['# of Surveys Completed', String(dashboard.data.responseRate.completedSurvey)],
                   ['# of Surveys Sent', String(dashboard.data.responseRate.sendSurvey)],
@@ -275,16 +298,24 @@ export function DashboardPage() {
                   </div>
                 ))}
               </div>
+              {isPromotional ? (
+                <Link className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md bg-red-600 px-4 py-2 text-center text-sm font-medium text-white shadow" to={routeMap.catalog}>
+                  Click here to see your survey average
+                </Link>
+              ) : null}
             </section>
             <div ref={statementsRef}>
             <Card className="relative h-[549px] p-4">
               <h2 className="pr-8 text-[15px] font-semibold">What are your employees saying?</h2>
-              <ImageDownloadMenu
-                className="absolute right-3 top-3"
-                iconOnly
-                name="What are your employees saying"
-                targetRef={statementsRef}
-              />
+              {!isPromotional ? (
+                <ImageDownloadMenu
+                  className="absolute right-3 top-3"
+                  iconOnly
+                  name="What are your employees saying"
+                  targetRef={statementsRef}
+                />
+              ) : null}
+              <div className={cn(isPromotional && 'pointer-events-none select-none blur-xl')}>
               <div className="mt-2 grid grid-cols-2 gap-3 text-center text-[12px] text-zinc-700">
                 <p className="whitespace-nowrap">Top Three Rated Survey Statements</p>
                 <p className="whitespace-nowrap">Bottom Three Rated Survey Statements</p>
@@ -313,6 +344,12 @@ export function DashboardPage() {
                 <p>{dashboard.data.statements.noteTop}</p>
                 <p>{dashboard.data.statements.noteBottom}</p>
               </div>
+              </div>
+              {isPromotional ? (
+                <Link className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md bg-red-600 px-4 py-2 text-center text-sm font-medium text-white shadow" to={routeMap.catalog}>
+                  Click here to see your survey average
+                </Link>
+              ) : null}
             </Card>
             </div>
           </div>
@@ -349,6 +386,18 @@ export function DashboardPage() {
             </div>
             <button className="mx-5 mb-5 h-9 bg-zinc-200 text-[14px] font-medium text-white" disabled aria-label="Total Amount is 0">Total Amount is 0</button>
           </aside>
+        </div>
+      ) : null}
+      {isPromotional && promotionalModalOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="presentation" onClick={() => setPromotionalModalOpen(false)}>
+          <section className="w-full max-w-[450px] bg-white px-10 py-9 text-center shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="promotional-results-title" onClick={(event) => event.stopPropagation()}>
+            <h2 className="text-xl font-semibold" id="promotional-results-title">The results are in!</h2>
+            <p className="mt-8">Find out what your employees had to say.</p>
+            <p className="mt-7">
+              <Link className="font-medium text-red-600" to={routeMap.catalog}>Click here</Link>{' '}
+              to discover the various reporting options we offer!
+            </p>
+          </section>
         </div>
       ) : null}
     </div>

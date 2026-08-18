@@ -137,6 +137,12 @@ function entitlement(value: unknown): "yes" | "no" {
     : "no";
 }
 
+function clientRole(value: unknown): "client" | "promotional" {
+  return typeof value === "string" && value.trim().toLowerCase() === "promotional"
+    ? "promotional"
+    : "client";
+}
+
 async function backendClientLogin(input: {
   username: string;
   email: string;
@@ -184,7 +190,7 @@ async function backendClientLogin(input: {
       id: userData.id ?? userData._id,
       displayName: userData.fullName,
       email: userData.email,
-      role: "client",
+      role: clientRole(userData.role),
       permissions: [],
       programs,
     },

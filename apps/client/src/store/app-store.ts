@@ -65,6 +65,7 @@ export function useSelectedProgram() {
 
 export function hasEntitlement(entitlement: ClientEntitlement): boolean {
   const state = useAppStore.getState()
+  if (state.session?.user.role === 'promotional') return false
   const programs = state.session?.user.programs ?? []
   const selected = programs.find((program) => program.id === state.selectedProgramId) ?? programs[0]
   return selected?.entitlements[entitlement] === 'yes'

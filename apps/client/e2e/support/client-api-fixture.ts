@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 const programId = 'demo-program-2026'
 export const clientFixtureUsername = process.env.VITE_TEST_USERNAME ?? 'demo-client'
 
-export async function installClientApiFixture(page: Page, options: { dashboard?: boolean } = {}) {
+export async function installClientApiFixture(page: Page, options: { dashboard?: boolean; role?: 'client' | 'Promotional' } = {}) {
   await page.route('**/user/login', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -15,6 +15,7 @@ export async function installClientApiFixture(page: Page, options: { dashboard?:
             id: 'demo-client',
             email: 'client@example.invalid',
             fullName: 'Demo Client',
+            role: options.role ?? 'client',
             organizationId: { Account_Name: 'Demo Organization' },
             organizationProgram: [
               {

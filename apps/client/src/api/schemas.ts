@@ -15,7 +15,7 @@ export const sessionUserSchema = z.object({
   id: z.string(),
   displayName: z.string(),
   email: z.email(),
-  role: z.literal("client"),
+  role: z.enum(["client", "promotional"]),
   permissions: z.array(z.string()),
   programs: z.array(programSchema),
 });
@@ -61,6 +61,7 @@ export const legacyClientLoginSchema = z.object({
       id: z.string().optional(),
       email: z.email(),
       fullName: z.string(),
+      role: z.string().optional(),
       organizationId: z.object({
         Account_Name: z.string().optional(),
         name: z.string().optional(),
