@@ -176,7 +176,7 @@ export function DashboardPage() {
       <div className="flex h-[104px] items-start justify-between gap-4 px-6 pt-6">
         <div>
           <h1 aria-label={`Welcome, ${session?.user.displayName ?? 'client'}`} className="text-[30px] font-bold leading-[36px] text-[#111111]">{program?.name ?? 'Dashboard'}</h1>
-          <p className="mt-0.5 text-[16px] leading-6 text-zinc-500">Welcome, {isPromotional ? session?.user.displayName : program?.organizationName ?? session?.user.displayName}!</p>
+          <p className="mt-0.5 text-[16px] leading-6 text-zinc-500">Welcome, {isPromotional ? session.user.displayName : program?.organizationName ?? session?.user.displayName}!</p>
         </div>
         <button className="hidden h-10 w-[89px] items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-900 hover:bg-zinc-50 lg:inline-flex" onClick={() => setCartOpen(true)}>
           <ShoppingCart className="size-4" /> Cart
