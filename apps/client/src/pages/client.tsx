@@ -433,10 +433,10 @@ export function ProgramsPage() {
 
 export function WorkforceFeedbackPage() {
   const program = useSelectedProgram()
-  const isDummy = false; // useAppStore((state) => state.session?.user.role === 'promotional')
+  const isDummy = false // useAppStore((state) => state.session?.user.role === 'promotional')
   const report = useQuery({
     queryKey: ['wfr-demographics', program?.id, isDummy],
-    queryFn: () => api.reports.demographics(program?.id ?? '', isDummy),
+    queryFn: () => api.reports.demographics(program?.id ?? ''),
     enabled: Boolean(program),
   })
   return (
@@ -459,7 +459,7 @@ export function WorkforceFeedbackPage() {
               <h2 className="text-lg font-semibold">Total Number of Survey Responses by Demographic Category</h2>
               <Button
                 className="gap-2"
-                onClick={() => void api.reports.downloadFeedbackWorkbook(program?.id ?? '', isDummy)}
+                onClick={() => void api.reports.downloadFeedbackWorkbook(program?.id ?? '')}
               >
                 <Download className="size-4" /> Download Report
               </Button>
