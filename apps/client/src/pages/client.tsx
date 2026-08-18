@@ -176,7 +176,7 @@ export function DashboardPage() {
       <div className="flex h-[104px] items-start justify-between gap-4 px-6 pt-6">
         <div>
           <h1 aria-label={`Welcome, ${session?.user.displayName ?? 'client'}`} className="text-[30px] font-bold leading-[36px] text-[#111111]">{program?.name ?? 'Dashboard'}</h1>
-          <p className="mt-0.5 text-[16px] leading-6 text-zinc-500">Welcome, {program?.organizationName ?? session?.user.displayName}!</p>
+          <p className="mt-0.5 text-[16px] leading-6 text-zinc-500">Welcome, {isPromotional ? session.user.displayName : program?.organizationName ?? session?.user.displayName}!</p>
         </div>
         <button className="hidden h-10 w-[89px] items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-900 hover:bg-zinc-50 lg:inline-flex" onClick={() => setCartOpen(true)}>
           <ShoppingCart className="size-4" /> Cart
@@ -433,9 +433,10 @@ export function ProgramsPage() {
 
 export function WorkforceFeedbackPage() {
   const program = useSelectedProgram()
+  const isDummy = false; // useAppStore((state) => state.session?.user.role === 'promotional')
   const report = useQuery({
-    queryKey: ['wfr-demographics', program?.id],
-    queryFn: () => api.reports.demographics(program?.id ?? ''),
+    queryKey: ['wfr-demographics', program?.id, isDummy],
+    queryFn: () => api.reports.demographics(program?.id ?? '', isDummy),
     enabled: Boolean(program),
   })
   return (
@@ -458,7 +459,7 @@ export function WorkforceFeedbackPage() {
               <h2 className="text-lg font-semibold">Total Number of Survey Responses by Demographic Category</h2>
               <Button
                 className="gap-2"
-                onClick={() => void api.reports.downloadFeedbackWorkbook(program?.id ?? '')}
+                onClick={() => void api.reports.downloadFeedbackWorkbook(program?.id ?? '', isDummy)}
               >
                 <Download className="size-4" /> Download Report
               </Button>
@@ -513,6 +514,7 @@ export function CatalogPage() {
   const sortedVerbatims = products.find((product) => product.id === 'report-verbatims-sorted')
   const keyImpact = products.find((product) => product.id === 'report-kia')
   const resorted = products.find((product) => product.id === 'report-resort')
+  const isPromotional = useAppStore((state) => state.session?.user.role === 'promotional')
   return (
     <>
       <PageHeader
@@ -522,6 +524,7 @@ export function CatalogPage() {
         description="Purchase additional reports and data segmented by demographics to gain deeper insights into your workforce."
       />
       <div className="p-5 lg:p-6">
+        {isPromotional ? (
         <Card className="mb-5 p-6 shadow-none lg:p-8">
           <div className="max-w-5xl">
             <h2 className="text-2xl font-semibold">Employee Feedback Data Dashboard</h2>
@@ -547,6 +550,7 @@ export function CatalogPage() {
             </ul>
           </div>
         </Card>
+        ) : null}
         {catalog.isPending ? <StatePanel kind="loading" title="Loading catalog" message="Checking currently available reports." /> : null}
         {catalog.isError ? <StatePanel kind="error" title="Catalog unavailable" message={catalog.error.message} /> : null}
         {catalog.data?.length === 0 ? (
