@@ -1462,13 +1462,17 @@ export function AnnualTrendsPage() {
 export function EmployeeVerbatimsPage() {
   const [filter, setFilter] = useState("");
   const program = useSelectedProgram();
+  const isDummy = useAppStore(
+    (state) => state.session?.user.role === "promotional",
+  );
   const addToCart = useAppStore((state) => state.addToCart);
   const inCart = useAppStore((state) =>
     state.cart.some((item) => item.productId === "report-verbatims-sorted"),
   );
   const questions = useQuery({
-    queryKey: ["open-response-questions", program?.id],
-    queryFn: () => api.reports.openResponseQuestions(program?.id ?? ""),
+    queryKey: ["open-response-questions", program?.id, isDummy],
+    queryFn: () =>
+      api.reports.openResponseQuestions(program?.id ?? "", isDummy),
     enabled: Boolean(program),
   });
   const catalog = useQuery({
@@ -1477,8 +1481,8 @@ export function EmployeeVerbatimsPage() {
     enabled: Boolean(program),
   });
   const availableFilters = useQuery({
-    queryKey: ["survey-filters", program?.id],
-    queryFn: () => api.reports.surveyFilters(program?.id ?? ""),
+    queryKey: ["survey-filters", program?.id, isDummy],
+    queryFn: () => api.reports.surveyFilters(program?.id ?? "", isDummy),
     enabled: Boolean(program),
   });
   const sortedVerbatims = catalog.data?.find(
@@ -1544,7 +1548,10 @@ export function EmployeeVerbatimsPage() {
             <h2 className="font-semibold">Question Details</h2>
             <DownloadReportButton
               onDownload={() =>
-                api.reports.downloadVerbatimsWorkbook(program?.id ?? "")
+                api.reports.downloadVerbatimsWorkbook(
+                  program?.id ?? "",
+                  isDummy,
+                )
               }
             />
           </div>
@@ -1578,6 +1585,7 @@ export function EmployeeVerbatimsPage() {
                   key={String(question.id)}
                   programId={program?.id ?? ""}
                   question={question}
+                  isDummy={isDummy}
                 />
               ))
             )}
@@ -1591,14 +1599,23 @@ export function EmployeeVerbatimsPage() {
 function EmployeeVerbatimQuestion({
   programId,
   question,
+  isDummy,
 }: {
   programId: string;
   question: { caption: string; id: string | number };
+  isDummy: boolean;
 }) {
   const answers = useQuery({
-    queryKey: ["open-response-answers", programId, question.id],
+    queryKey: ["open-response-answers", programId, question.id, isDummy],
     queryFn: () =>
-      api.reports.openResponseAnswers(programId, String(question.id)),
+      isDummy
+        ? api.reports.openResponseAnswers(
+            programId,
+            String(question.id),
+            {},
+            true,
+          )
+        : api.reports.openResponseAnswers(programId, String(question.id)),
     enabled: Boolean(programId),
   });
   return (
@@ -1869,10 +1886,14 @@ function BenchmarkDetailsTable({
 
 export function BenchmarkDataPage() {
   const program = useSelectedProgram();
+  const isDummy = useAppStore(
+    (state) => state.session?.user.role === "promotional",
+  );
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const comparison = useQuery({
-    queryKey: ["workforce-comparison", program?.id],
-    queryFn: () => api.reports.workforceComparison(program?.id ?? ""),
+    queryKey: ["workforce-comparison", program?.id, isDummy],
+    queryFn: () =>
+      api.reports.workforceComparison(program?.id ?? "", isDummy),
     enabled: Boolean(program),
   });
   const categories: BenchmarkCategory[] = comparison.data?.data.data ?? [];
@@ -1919,7 +1940,10 @@ export function BenchmarkDataPage() {
         <div className="flex justify-end">
           <DownloadReportButton
             onDownload={() =>
-              api.reports.downloadBenchmarkWorkbook(program?.id ?? "")
+              api.reports.downloadBenchmarkWorkbook(
+                program?.id ?? "",
+                isDummy,
+              )
             }
           />
         </div>
@@ -2374,9 +2398,13 @@ export function ComparisonDataPage() {
 
 export function BenefitsBestPracticesPage() {
   const program = useSelectedProgram();
+  const isDummy = useAppStore(
+    (state) => state.session?.user.role === "promotional",
+  );
   const report = useQuery({
-    queryKey: ["employer-benchmark", program?.id],
-    queryFn: () => api.reports.employerBenchmark(program?.id ?? ""),
+    queryKey: ["employer-benchmark", program?.id, isDummy],
+    queryFn: () =>
+      api.reports.employerBenchmark(program?.id ?? "", isDummy),
     enabled: Boolean(program),
   });
   const headers = report.data?.data.tableHeaders ?? [];
@@ -2390,7 +2418,10 @@ export function BenefitsBestPracticesPage() {
         <div className="flex justify-end">
           <DownloadReportButton
             onDownload={() =>
-              api.reports.downloadBenefitsWorkbook(program?.id ?? "")
+              api.reports.downloadBenefitsWorkbook(
+                program?.id ?? "",
+                isDummy,
+              )
             }
           />
         </div>

@@ -406,9 +406,16 @@ export function responsePatternsPath(
   return `/client/generateHeatMap?${params.toString()}`;
 }
 
-async function responseCountByDemographic(programId: string) {
+function dummyQuery(isDummy: boolean): string {
+  return isDummy ? "&isDummy=true" : "";
+}
+
+async function responseCountByDemographic(
+  programId: string,
+  isDummy = false,
+) {
   const response = await request(
-    `/client/responseCountByDemographicCategory?selectedProgramId=${encodeURIComponent(programId)}`,
+    `/client/responseCountByDemographicCategory?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
     {
       schema: demographicResponseSchema,
     },
@@ -428,9 +435,12 @@ async function responseCountByDemographic(programId: string) {
   }));
 }
 
-async function surveyFilters(programId: string): Promise<SurveyFilter[]> {
+async function surveyFilters(
+  programId: string,
+  isDummy = false,
+): Promise<SurveyFilter[]> {
   const response = await request(
-    `/client/fetchSurveyFilter?selectedProgramId=${encodeURIComponent(programId)}`,
+    `/client/fetchSurveyFilter?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
     { schema: surveyFiltersResponseSchema },
   );
 
@@ -523,7 +533,8 @@ export const api = {
     },
   },
   reports: {
-    demographics: (programId: string) => responseCountByDemographic(programId),
+    demographics: (programId: string, isDummy = false) =>
+      responseCountByDemographic(programId, isDummy),
     surveyFilters,
     catalog: (programId?: string) =>
       request(`/reports/catalog${programId ? `?programId=${encodeURIComponent(programId)}` : ""}`, { schema: z.array(reportProductSchema) }),
@@ -552,9 +563,9 @@ export const api = {
           schema: employeeResponseBreakdownSchema,
         },
       ),
-    workforceComparison: (programId: string) =>
+    workforceComparison: (programId: string, isDummy = false) =>
       request(
-        `/client/v2/employeeComparisonReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/v2/employeeComparisonReport?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         { schema: workforceComparisonSchema },
       ),
     comparisonQuestions: (
@@ -570,27 +581,28 @@ export const api = {
           schema: comparisonQuestionsSchema,
         },
       ),
-    openResponseQuestions: (programId: string) =>
+    openResponseQuestions: (programId: string, isDummy = false) =>
       request(
-        `/client/getOpenResponsesQuestions?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/getOpenResponsesQuestions?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         { schema: openResponseQuestionsSchema },
       ),
     openResponseAnswers: (
       programId: string,
       questionId: string,
       queryFilter: ReportQueryFilter = {},
+      isDummy = false,
     ) =>
       request(
-        `/client/getOpenResponsesAnswers?selectedProgramId=${encodeURIComponent(programId)}&questionId=${encodeURIComponent(questionId)}`,
+        `/client/getOpenResponsesAnswers?selectedProgramId=${encodeURIComponent(programId)}&questionId=${encodeURIComponent(questionId)}${dummyQuery(isDummy)}`,
         {
           method: "POST",
           body: { queryFilter },
           schema: openResponseAnswersSchema,
         },
       ),
-    employerBenchmark: (programId: string) =>
+    employerBenchmark: (programId: string, isDummy = false) =>
       request(
-        `/client/employerBenchmarkReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/employerBenchmarkReport?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         { schema: employerBenchmarkSchema },
       ),
     responseDetailSections: (programId: string) =>
@@ -664,9 +676,9 @@ export const api = {
         "Workforce_Feedback_Results.xlsx",
         "POST",
       ),
-    downloadFeedbackWorkbook: (programId: string) =>
+    downloadFeedbackWorkbook: (programId: string, isDummy = false) =>
       downloadRequest(
-        `/client/generateHeatMap?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/generateHeatMap?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         "Workforce_Feedback_Results.xlsx",
         "POST",
       ),
@@ -691,20 +703,20 @@ export const api = {
         "Annual_Trends_Report.xlsx",
         "POST",
       ),
-    downloadVerbatimsWorkbook: (programId: string) =>
+    downloadVerbatimsWorkbook: (programId: string, isDummy = false) =>
       downloadRequest(
-        `/client/getOpenResponsesAnswersReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/getOpenResponsesAnswersReport?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         "Employee_Verbatims_Report.xlsx",
         "POST",
       ),
-    downloadBenchmarkWorkbook: (programId: string) =>
+    downloadBenchmarkWorkbook: (programId: string, isDummy = false) =>
       downloadRequest(
-        `/client/v2/generateBenchmarkReport?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/v2/generateBenchmarkReport?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         "Workforce_Benchmark_Report.xlsx",
       ),
-    downloadBenefitsWorkbook: (programId: string) =>
+    downloadBenefitsWorkbook: (programId: string, isDummy = false) =>
       downloadRequest(
-        `/client/employerBenchmarkReportExcel?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/employerBenchmarkReportExcel?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         "Benefits_&_Best_Practices.xlsx",
       ),
     downloadResponseDetailWorkbook: (programId: string) =>

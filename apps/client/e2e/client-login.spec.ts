@@ -35,7 +35,12 @@ test('promotional user can open the employee feedback dashboard reports', async 
   await expect(reportLinks.nth(2)).toHaveAttribute('href', '/workforce-benchmark-comparisons')
   await expect(reportLinks.nth(3)).toHaveAttribute('href', '/benefits-and-best-practices')
 
+  const dummyRequest = page.waitForRequest((request) =>
+    request.url().includes('/client/responseCountByDemographicCategory'),
+  )
   await reportLinks.first().click()
+  const promotionalReportRequest = await dummyRequest
+  expect(new URL(promotionalReportRequest.url()).searchParams.get('isDummy')).toBe('true')
   await expect(page).toHaveURL(/\/employee-response-breakdown$/u)
   await expect(page).not.toHaveURL(/\/forbidden$/u)
 
