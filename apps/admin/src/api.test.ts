@@ -38,6 +38,7 @@ describe("admin API projections", () => {
             orgs: {
               _id: "organization-program-uuid",
               Surveys_Sent: 200,
+              isWinner: true,
               publishedReports: {
                 benefitsBestPractices: { sourceFile: "benefits.xlsx" },
               },
@@ -52,6 +53,7 @@ describe("admin API projections", () => {
       sourceName: "19",
       name: "Baton Rouge Organization D6EA749C",
       surveysSent: 200,
+      isWinner: true,
       organizationProgramId: "organization-program-uuid",
       benefitsBestPracticesFileName: "benefits.xlsx",
     });

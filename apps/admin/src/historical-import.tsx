@@ -20,6 +20,7 @@ import {
   type HistoricalImportStatus,
   type HistoricalImportValidationSummary,
   type ProjectRecord,
+  type ZohoProgramOption,
 } from "./api";
 import { PageHeader, State } from "./admin";
 import { CatalogEditor } from "./catalog-editor";
@@ -124,14 +125,80 @@ function IssueList({
   );
 }
 
+type OrganizationProgramDraft = NonNullable<
+  HistoricalImportMetadata["organizationPrograms"]
+>[number];
+
+function organizationProgramKey(entry: OrganizationProgramDraft): string {
+  return entry.organizationProgramId ?? entry.organizationKey ?? "";
+}
+
+function WinnerMultiSelect({
+  organizationPrograms,
+  onChange,
+}: {
+  organizationPrograms: OrganizationProgramDraft[];
+  onChange: (entries: OrganizationProgramDraft[]) => void;
+}) {
+  const selectedKeys = organizationPrograms
+    .filter(({ isWinner }) => isWinner)
+    .map(organizationProgramKey);
+  return (
+    <label className="winner-multi-select">
+      <strong>Winner organizations</strong>
+      <span>
+        Select every winner in this program. Unselected organizations are
+        non-winners.
+      </span>
+      <select
+        aria-label="Winner organizations"
+        multiple
+        size={Math.min(Math.max(organizationPrograms.length, 3), 8)}
+        value={selectedKeys}
+        onChange={(event) => {
+          const selected = new Set(
+            Array.from(
+              event.currentTarget.selectedOptions,
+              ({ value }) => value,
+            ),
+          );
+          onChange(
+            organizationPrograms.map((entry) => ({
+              ...entry,
+              isWinner: selected.has(organizationProgramKey(entry)),
+            })),
+          );
+        }}
+      >
+        {organizationPrograms.map((entry) => (
+          <option
+            key={organizationProgramKey(entry)}
+            value={organizationProgramKey(entry)}
+          >
+            {entry.organizationName ?? "Organization"}
+          </option>
+        ))}
+      </select>
+      <small>
+        {selectedKeys.length} winner{selectedKeys.length === 1 ? "" : "s"}{" "}
+        selected
+      </small>
+    </label>
+  );
+}
+
 function MetadataStep({
   draft,
   projects,
+  zohoPrograms,
+  zohoError,
   editing,
   onSaved,
 }: {
   draft: Partial<DraftState>;
   projects: ProjectRecord[];
+  zohoPrograms: ZohoProgramOption[];
+  zohoError: string;
   editing: boolean;
   onSaved: (next: DraftState) => void;
 }) {
@@ -139,6 +206,7 @@ function MetadataStep({
     projectId: draft.metadata?.projectId ?? projects[0]?.id,
     projectName: draft.metadata?.projectName ?? "",
     programId: draft.metadata?.programId,
+    zohoProgramId: draft.metadata?.zohoProgramId,
     programName: draft.metadata?.programName ?? "",
     programYear: draft.metadata?.programYear ?? currentYear - 1,
     projectAbbreviation: draft.metadata?.projectAbbreviation ?? "",
@@ -149,6 +217,10 @@ function MetadataStep({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [manualProgram, setManualProgram] = useState(
+    Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId) ||
+      zohoPrograms.length === 0,
+  );
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -160,6 +232,7 @@ function MetadataStep({
           ? { projectId: form.projectId }
           : { projectName: form.projectName?.trim() }),
         ...(form.programId ? { programId: form.programId } : {}),
+        ...(form.zohoProgramId ? { zohoProgramId: form.zohoProgramId } : {}),
         programName: form.programName.trim(),
         programYear: form.programYear,
         efsLaunchDate: form.efsLaunchDate,
@@ -193,8 +266,8 @@ function MetadataStep({
   return (
     <form className="wizard-panel" onSubmit={submit}>
       <p className="wizard-copy">
-        Select the Project that owns this program, or create a new Project,
-        then enter the program schedule.
+        Select the Project that owns this program, or create a new Project, then
+        enter the program schedule.
       </p>
       <div className="wizard-grid">
         <label>
@@ -206,14 +279,14 @@ function MetadataStep({
               setForm({
                 ...form,
                 projectId:
-                  event.target.value === "new"
-                    ? undefined
-                    : event.target.value,
+                  event.target.value === "new" ? undefined : event.target.value,
               })
             }
           >
             {projects.map((project) => (
-              <option key={project.id} value={project.id}>{project.name}</option>
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
             ))}
             <option value="new">Create a new project</option>
           </select>
@@ -221,21 +294,95 @@ function MetadataStep({
         {!form.projectId ? (
           <label>
             New project name
-            <input value={form.projectName ?? ""} onChange={(event) => setForm({ ...form, projectName: event.target.value })} required minLength={2} maxLength={120} />
+            <input
+              value={form.projectName ?? ""}
+              onChange={(event) =>
+                setForm({ ...form, projectName: event.target.value })
+              }
+              required
+              minLength={2}
+              maxLength={120}
+            />
           </label>
         ) : null}
-        <label>
-          Program name
-          <input
-            value={form.programName}
-            onChange={(event) =>
-              setForm({ ...form, programName: event.target.value })
-            }
-            required
-            minLength={2}
-            maxLength={160}
-          />
-        </label>
+        {editing ? (
+          <label>
+            Program name
+            <input
+              value={form.programName}
+              onChange={(event) =>
+                setForm({ ...form, programName: event.target.value })
+              }
+              required
+              minLength={2}
+              maxLength={160}
+            />
+          </label>
+        ) : (
+          <>
+            <label>
+              Program
+              <select
+                aria-label="Program"
+                required
+                value={manualProgram ? "manual" : form.zohoProgramId ?? ""}
+                onChange={(event) => {
+                  if (event.target.value === "manual") {
+                    setManualProgram(true);
+                    setForm({
+                      ...form,
+                      zohoProgramId: undefined,
+                      programName: "",
+                    });
+                    return;
+                  }
+                  const selected = zohoPrograms.find(
+                    ({ id }) => id === event.target.value,
+                  );
+                  if (!selected) return;
+                  setManualProgram(false);
+                  setForm({
+                    ...form,
+                    zohoProgramId: selected.id,
+                    programName: selected.name,
+                    programYear: selected.year ?? form.programYear,
+                    efsLaunchDate:
+                      selected.efsLaunchDate?.slice(0, 10) ??
+                      form.efsLaunchDate,
+                    efsDeadline:
+                      selected.efsDeadline?.slice(0, 10) ?? form.efsDeadline,
+                  });
+                }}
+              >
+                <option value="" disabled>
+                  Choose a Zoho program
+                </option>
+                {zohoPrograms.map((program) => (
+                  <option key={program.id} value={program.id}>
+                    {program.name}
+                    {program.year ? ` (${program.year})` : ""}
+                  </option>
+                ))}
+                <option value="manual">Enter a program manually</option>
+              </select>
+              {zohoError ? <small>{zohoError}</small> : null}
+            </label>
+            {manualProgram ? (
+              <label>
+                Program name
+                <input
+                  value={form.programName}
+                  onChange={(event) =>
+                    setForm({ ...form, programName: event.target.value })
+                  }
+                  required
+                  minLength={2}
+                  maxLength={160}
+                />
+              </label>
+            ) : null}
+          </>
+        )}
         <label>
           Program year
           <input
@@ -261,8 +408,29 @@ function MetadataStep({
             }
           />
         </label>
-        <label>EFS launch date<input type="date" value={form.efsLaunchDate} onChange={(event) => setForm({ ...form, efsLaunchDate: event.target.value })} required /></label>
-        <label>EFS deadline<input type="date" min={form.efsLaunchDate} value={form.efsDeadline} onChange={(event) => setForm({ ...form, efsDeadline: event.target.value })} required /></label>
+        <label>
+          EFS launch date
+          <input
+            type="date"
+            value={form.efsLaunchDate}
+            onChange={(event) =>
+              setForm({ ...form, efsLaunchDate: event.target.value })
+            }
+            required
+          />
+        </label>
+        <label>
+          EFS deadline
+          <input
+            type="date"
+            min={form.efsLaunchDate}
+            value={form.efsDeadline}
+            onChange={(event) =>
+              setForm({ ...form, efsDeadline: event.target.value })
+            }
+            required
+          />
+        </label>
       </div>
       {error ? <p className="form-error">{error}</p> : null}
       <div className="wizard-actions">
@@ -285,8 +453,9 @@ function UploadStep({
 }) {
   const [eaFile, setEaFile] = useState<File | null>(null);
   const [efsFile, setEfsFile] = useState<File | null>(null);
-  const [validation, setValidation] =
-    useState<HistoricalImportValidationSummary | undefined>(draft.validation);
+  const [validation, setValidation] = useState<
+    HistoricalImportValidationSummary | undefined
+  >(draft.validation);
   const [organizationPrograms, setOrganizationPrograms] = useState(
     draft.metadata.organizationPrograms ?? [],
   );
@@ -302,16 +471,25 @@ function UploadStep({
       setWorking(true);
       setError("");
       try {
-        const metadata = await api.updateHistoricalImportMetadata(draft.importId, {
-          ...draft.metadata,
-          organizationPrograms,
-        });
+        const metadata = await api.updateHistoricalImportMetadata(
+          draft.importId,
+          {
+            ...draft.metadata,
+            organizationPrograms,
+          },
+        );
         const summary = await api.validateHistoricalImport(draft.importId);
-        const nextDraft = { ...draft, metadata: metadata.metadata, validation: summary };
+        const nextDraft = {
+          ...draft,
+          metadata: metadata.metadata,
+          validation: summary,
+        };
         storeDraft(nextDraft);
         onComplete(nextDraft);
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Unable to continue");
+        setError(
+          caught instanceof Error ? caught.message : "Unable to continue",
+        );
       } finally {
         setWorking(false);
       }
@@ -331,8 +509,13 @@ function UploadStep({
         organizationKey: organization.key,
         organizationName: organization.displayName,
         surveysSent:
-          organizationPrograms.find(({ organizationKey }) => organizationKey === organization.key)?.surveysSent ??
-          organization.efsRespondents,
+          organizationPrograms.find(
+            ({ organizationKey }) => organizationKey === organization.key,
+          )?.surveysSent ?? organization.efsRespondents,
+        isWinner:
+          organizationPrograms.find(
+            ({ organizationKey }) => organizationKey === organization.key,
+          )?.isWinner ?? false,
       }));
       setOrganizationPrograms(nextOrganizations);
       const nextDraft = {
@@ -358,15 +541,22 @@ function UploadStep({
     setWorking(true);
     setError("");
     try {
-      const response = await api.updateHistoricalImportMetadata(draft.importId, {
-        ...draft.metadata,
-        organizationPrograms,
-      });
+      const response = await api.updateHistoricalImportMetadata(
+        draft.importId,
+        {
+          ...draft.metadata,
+          organizationPrograms,
+        },
+      );
       const nextDraft = { ...draft, metadata: response.metadata, validation };
       storeDraft(nextDraft);
       onComplete(nextDraft);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to save Surveys Sent");
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to save Surveys Sent",
+      );
     } finally {
       setWorking(false);
     }
@@ -375,8 +565,11 @@ function UploadStep({
   return (
     <div className="wizard-panel">
       <p className="wizard-copy">
-        Upload one Employer Assessment workbook and one Employee Feedback
-        Survey workbook. {draft.metadata.programId ? "Both files are optional when only editing program details or store prices." : "Both files are required for a new program."}
+        Upload one Employer Assessment workbook and one Employee Feedback Survey
+        workbook.{" "}
+        {draft.metadata.programId
+          ? "Both files are optional when only editing program details or store prices."
+          : "Both files are required for a new program."}
       </p>
       <div className="upload-grid">
         <label className="upload-card">
@@ -402,16 +595,58 @@ function UploadStep({
           />
         </label>
       </div>
-      {draft.metadata.programId && organizationPrograms.length && !validation?.workbooks.length ? (
+      {organizationPrograms.length ? (
+        <WinnerMultiSelect
+          organizationPrograms={organizationPrograms}
+          onChange={setOrganizationPrograms}
+        />
+      ) : null}
+      {draft.metadata.programId &&
+      organizationPrograms.length &&
+      !validation?.workbooks.length ? (
         <div className="table-card">
           <table aria-label="Surveys Sent by organization">
-            <thead><tr><th>Organization</th><th>Surveys Sent</th></tr></thead>
-            <tbody>{organizationPrograms.map((entry, index) => (
-              <tr key={entry.organizationProgramId ?? entry.organizationKey ?? index}>
-                <td>{entry.organizationName ?? "Organization"}</td>
-                <td><input className="table-number-input" type="number" min={0} step={1} value={entry.surveysSent} onChange={(event) => setOrganizationPrograms((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, surveysSent: Number(event.target.value) } : item))} aria-label={`Surveys Sent for ${entry.organizationName ?? "organization"}`} /></td>
+            <thead>
+              <tr>
+                <th>Organization</th>
+                <th>Surveys Sent</th>
               </tr>
-            ))}</tbody>
+            </thead>
+            <tbody>
+              {organizationPrograms.map((entry, index) => (
+                <tr
+                  key={
+                    entry.organizationProgramId ??
+                    entry.organizationKey ??
+                    index
+                  }
+                >
+                  <td>{entry.organizationName ?? "Organization"}</td>
+                  <td>
+                    <input
+                      className="table-number-input"
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={entry.surveysSent}
+                      onChange={(event) =>
+                        setOrganizationPrograms((current) =>
+                          current.map((item, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...item,
+                                  surveysSent: Number(event.target.value),
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      aria-label={`Surveys Sent for ${entry.organizationName ?? "organization"}`}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       ) : null}
@@ -452,10 +687,39 @@ function UploadStep({
                       <td>{organization.workbookOrganizationId ?? "—"}</td>
                       <td>{organization.eaRespondents}</td>
                       <td>{organization.efsRespondents}</td>
-                      <td><input className="table-number-input" type="number" min={0} step={1} value={organizationPrograms.find(({ organizationKey }) => organizationKey === organization.key)?.surveysSent ?? organization.efsRespondents} onChange={(event) => setOrganizationPrograms((current) => [
-                        ...current.filter(({ organizationKey }) => organizationKey !== organization.key),
-                        { organizationKey: organization.key, organizationName: organization.displayName, surveysSent: Number(event.target.value) },
-                      ])} aria-label={`Surveys Sent for ${organization.displayName}`} /></td>
+                      <td>
+                        <input
+                          className="table-number-input"
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={
+                            organizationPrograms.find(
+                              ({ organizationKey }) =>
+                                organizationKey === organization.key,
+                            )?.surveysSent ?? organization.efsRespondents
+                          }
+                          onChange={(event) =>
+                            setOrganizationPrograms((current) => [
+                              ...current.filter(
+                                ({ organizationKey }) =>
+                                  organizationKey !== organization.key,
+                              ),
+                              {
+                                organizationKey: organization.key,
+                                organizationName: organization.displayName,
+                                surveysSent: Number(event.target.value),
+                                isWinner:
+                                  current.find(
+                                    ({ organizationKey }) =>
+                                      organizationKey === organization.key,
+                                  )?.isWinner ?? false,
+                              },
+                            ])
+                          }
+                          aria-label={`Surveys Sent for ${organization.displayName}`}
+                        />
+                      </td>
                       <td>
                         {organization.warnings.length
                           ? organization.warnings.join("; ")
@@ -485,9 +749,23 @@ function UploadStep({
           disabled={working}
           onClick={() => void validate()}
         >
-          {working ? "Working…" : !eaFile && !efsFile && draft.metadata.programId ? "Skip uploads" : "Validate workbooks"}
+          {working
+            ? "Working…"
+            : !eaFile && !efsFile && draft.metadata.programId
+              ? "Skip uploads"
+              : "Validate workbooks"}
         </button>
-        {validation?.blockingErrorCount === 0 && validation.workbooks.length > 0 ? <button type="button" className="primary-button compact" disabled={working} onClick={() => void continueWithSurveysSent()}>Continue <ChevronRight size={16} /></button> : null}
+        {validation?.blockingErrorCount === 0 &&
+        validation.workbooks.length > 0 ? (
+          <button
+            type="button"
+            className="primary-button compact"
+            disabled={working}
+            onClick={() => void continueWithSurveysSent()}
+          >
+            Continue <ChevronRight size={16} />
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -553,8 +831,12 @@ function ReviewStep({
         <CheckCircle2 size={42} />
         <h2>Historical project imported</h2>
         <p>
-          <strong>{status.projectName ?? draft.metadata.projectName ?? draft.metadata.programName}</strong> is
-          ready.
+          <strong>
+            {status.projectName ??
+              draft.metadata.projectName ??
+              draft.metadata.programName}
+          </strong>{" "}
+          is ready.
         </p>
         <div className="wizard-actions">
           <Link
@@ -626,36 +908,95 @@ function ReviewStep({
           }
           onClick={() => void commit()}
         >
-          {committing ? "Saving program…" : draft.metadata.programId ? "Save program" : "Create historical program"}
+          {committing
+            ? "Saving program…"
+            : draft.metadata.programId
+              ? "Save program"
+              : "Create historical program"}
         </button>
       </div>
     </div>
   );
 }
 
-function CatalogStep({ draft, onComplete, onBack }: { draft: DraftState; onComplete: (next: DraftState) => void; onBack: () => void }) {
-  const [products, setProducts] = useState<import("./api").ReportProduct[]>(draft.metadata.reportCatalog ?? []);
+function CatalogStep({
+  draft,
+  onComplete,
+  onBack,
+}: {
+  draft: DraftState;
+  onComplete: (next: DraftState) => void;
+  onBack: () => void;
+}) {
+  const [products, setProducts] = useState<import("./api").ReportProduct[]>(
+    draft.metadata.reportCatalog ?? [],
+  );
   const [loading, setLoading] = useState(!draft.metadata.reportCatalog?.length);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     if (products.length) return;
-    void api.reportProductTemplates().then(setProducts).catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load products")).finally(() => setLoading(false));
+    void api
+      .reportProductTemplates()
+      .then(setProducts)
+      .catch((caught) =>
+        setError(
+          caught instanceof Error ? caught.message : "Unable to load products",
+        ),
+      )
+      .finally(() => setLoading(false));
   }, [products.length]);
   const save = async () => {
-    setSaving(true); setError("");
+    setSaving(true);
+    setError("");
     try {
-      const response = await api.updateHistoricalImportMetadata(draft.importId, { ...draft.metadata, reportCatalog: products });
+      const response = await api.updateHistoricalImportMetadata(
+        draft.importId,
+        { ...draft.metadata, reportCatalog: products },
+      );
       const next = { ...draft, metadata: response.metadata };
-      storeDraft(next); onComplete(next);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save catalog"); setSaving(false); }
+      storeDraft(next);
+      onComplete(next);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Unable to save catalog",
+      );
+      setSaving(false);
+    }
   };
-  return <div className="wizard-panel">
-    <p className="wizard-copy">Set the report products and prices that every organization in this imported program will see. You can customize an individual organization later.</p>
-    {loading ? <p>Loading product options…</p> : <CatalogEditor products={products} onChange={setProducts} />}
-    {error ? <p className="form-error">{error}</p> : null}
-    <div className="wizard-actions"><button type="button" className="secondary-button" onClick={onBack} disabled={saving}><ChevronLeft size={16} /> Back</button><button type="button" className="primary-button compact" onClick={() => void save()} disabled={saving || loading}>{saving ? "Saving…" : "Continue"} <ChevronRight size={16} /></button></div>
-  </div>;
+  return (
+    <div className="wizard-panel">
+      <p className="wizard-copy">
+        Set the report products and prices that every organization in this
+        imported program will see. You can customize an individual organization
+        later.
+      </p>
+      {loading ? (
+        <p>Loading product options…</p>
+      ) : (
+        <CatalogEditor products={products} onChange={setProducts} />
+      )}
+      {error ? <p className="form-error">{error}</p> : null}
+      <div className="wizard-actions">
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onBack}
+          disabled={saving}
+        >
+          <ChevronLeft size={16} /> Back
+        </button>
+        <button
+          type="button"
+          className="primary-button compact"
+          onClick={() => void save()}
+          disabled={saving || loading}
+        >
+          {saving ? "Saving…" : "Continue"} <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function HistoricalImportPage() {
@@ -665,6 +1006,8 @@ export function HistoricalImportPage() {
   const [step, setStep] = useState<WizardStep>(stored?.importId ? 2 : 1);
   const [draft, setDraft] = useState<Partial<DraftState>>(stored ?? {});
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [zohoPrograms, setZohoPrograms] = useState<ZohoProgramOption[]>([]);
+  const [zohoError, setZohoError] = useState("");
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [initialError, setInitialError] = useState("");
 
@@ -675,6 +1018,23 @@ export function HistoricalImportPage() {
         const availableProjects = await api.projects();
         if (!active) return;
         setProjects(availableProjects);
+        if (!programId) {
+          try {
+            const availableZohoPrograms = await api.zohoPrograms();
+            if (!active) return;
+            setZohoPrograms(availableZohoPrograms);
+            if (!availableZohoPrograms.length) {
+              setZohoError(
+                "No Zoho programs are available. You can enter one manually.",
+              );
+            }
+          } catch {
+            if (!active) return;
+            setZohoError(
+              "Zoho programs could not be loaded. You can enter one manually.",
+            );
+          }
+        }
         if (programId) {
           const [program, organizations, reportCatalog] = await Promise.all([
             api.program(programId),
@@ -686,32 +1046,50 @@ export function HistoricalImportPage() {
           const datePart = (value: unknown, fallback: string) =>
             typeof value === "string" && value ? value.slice(0, 10) : fallback;
           const selectedProjectId = program.projectId ?? routeProjectId;
-          const selectedProject = availableProjects.find(({ id }) => id === selectedProjectId);
-          setDraft({ metadata: {
-            projectId: selectedProjectId,
-            projectName: selectedProject?.name,
-            programId: program.id,
-            programName: program.name,
-            programYear: program.year ?? currentYear,
-            projectAbbreviation: "",
-            efsLaunchDate: datePart(details.StartDate ?? details.startsAt, `${program.year ?? currentYear}-01-01`),
-            efsDeadline: datePart(details.EndDate ?? details.endsAt, `${program.year ?? currentYear}-12-31`),
-            reportCatalog,
-            organizationPrograms: organizations.map((organization) => ({
-              organizationProgramId: organization.organizationProgramId,
-              organizationName: organization.name,
-              surveysSent: organization.surveysSent,
-            })),
-          } });
+          const selectedProject = availableProjects.find(
+            ({ id }) => id === selectedProjectId,
+          );
+          setDraft({
+            metadata: {
+              projectId: selectedProjectId,
+              projectName: selectedProject?.name,
+              programId: program.id,
+              programName: program.name,
+              programYear: program.year ?? currentYear,
+              projectAbbreviation: "",
+              efsLaunchDate: datePart(
+                details.StartDate ?? details.startsAt,
+                `${program.year ?? currentYear}-01-01`,
+              ),
+              efsDeadline: datePart(
+                details.EndDate ?? details.endsAt,
+                `${program.year ?? currentYear}-12-31`,
+              ),
+              reportCatalog,
+              organizationPrograms: organizations.map((organization) => ({
+                organizationProgramId: organization.organizationProgramId,
+                organizationName: organization.name,
+                surveysSent: organization.surveysSent,
+                isWinner: organization.isWinner,
+              })),
+            },
+          });
         }
       } catch (caught) {
-        if (active) setInitialError(caught instanceof Error ? caught.message : "Unable to load the wizard");
+        if (active)
+          setInitialError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load the wizard",
+          );
       } finally {
         if (active) setLoadingInitial(false);
       }
     };
     void load();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [programId, routeProjectId]);
 
   useEffect(() => {
@@ -730,7 +1108,13 @@ export function HistoricalImportPage() {
 
   let content: ReactNode;
   if (loadingInitial) {
-    content = <State loading title="Loading program wizard" message="Retrieving projects and program values." />;
+    content = (
+      <State
+        loading
+        title="Loading program wizard"
+        message="Retrieving projects and program values."
+      />
+    );
   } else if (initialError) {
     content = <State title="Wizard unavailable" message={initialError} />;
   } else if (step === 1) {
@@ -738,6 +1122,8 @@ export function HistoricalImportPage() {
       <MetadataStep
         draft={draft}
         projects={projects}
+        zohoPrograms={zohoPrograms}
+        zohoError={zohoError}
         editing={editing}
         onSaved={(next) => {
           setDraft(next);
@@ -764,7 +1150,16 @@ export function HistoricalImportPage() {
       />
     );
   } else if (step === 3) {
-    content = <CatalogStep draft={draft as DraftState} onComplete={(next) => { setDraft(next); setStep(4); }} onBack={() => setStep(2)} />;
+    content = (
+      <CatalogStep
+        draft={draft as DraftState}
+        onComplete={(next) => {
+          setDraft(next);
+          setStep(4);
+        }}
+        onBack={() => setStep(2)}
+      />
+    );
   } else {
     content = (
       <ReviewStep draft={draft as DraftState} onBack={() => setStep(3)} />
@@ -786,7 +1181,13 @@ export function HistoricalImportPage() {
       <StepIndicator
         step={step}
         maxStep={
-          draft.metadata?.reportCatalog ? 4 : draft.validation ? 3 : draft.importId && draft.metadata ? 2 : 1
+          draft.metadata?.reportCatalog
+            ? 4
+            : draft.validation
+              ? 3
+              : draft.importId && draft.metadata
+                ? 2
+                : 1
         }
         onStepChange={setStep}
       />

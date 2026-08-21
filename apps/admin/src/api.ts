@@ -37,6 +37,14 @@ export type ProgramRecord = {
   details?: Record<string, unknown>;
 };
 
+export type ZohoProgramOption = {
+  id: string;
+  name: string;
+  year: number | null;
+  efsLaunchDate: string | null;
+  efsDeadline: string | null;
+};
+
 export type PortalUserRecord = {
   id: string;
   fullName: string;
@@ -62,6 +70,7 @@ export type HistoricalImportMetadata = {
   projectId?: string;
   projectName?: string;
   programId?: string;
+  zohoProgramId?: string;
   programName: string;
   programYear: number;
   projectAbbreviation?: string;
@@ -72,6 +81,7 @@ export type HistoricalImportMetadata = {
     organizationKey?: string;
     organizationName?: string;
     surveysSent: number;
+    isWinner: boolean;
   }>;
   reportCatalog?: ReportProduct[];
 };
@@ -141,6 +151,7 @@ export type OrganizationRecord = {
   stage: string | null;
   lastSyncedAt: string | null;
   surveysSent: number;
+  isWinner: boolean;
   organizationProgramId: string;
   benefitsBestPracticesFileName: string | null;
   programs: Array<{
@@ -352,6 +363,7 @@ export function organization(raw: unknown): OrganizationRecord {
     stage: stringValue(enrollment.Stage) || null,
     lastSyncedAt: stringValue(enrollment.Last_time_deal_synced) || null,
     surveysSent: Number(enrollment.Surveys_Sent ?? 0),
+    isWinner: enrollment.isWinner === true,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||
@@ -650,6 +662,21 @@ export const api = {
     });
   },
 
+  async zohoPrograms(): Promise<ZohoProgramOption[]> {
+    const response = await request<unknown>("/zoho/programs");
+    return array(object(response).data).map((entry) => {
+      const value = object(entry);
+      const parsedYear = Number(value.year);
+      return {
+        id: stringValue(value.id),
+        name: stringValue(value.name),
+        year: Number.isInteger(parsedYear) ? parsedYear : null,
+        efsLaunchDate: stringValue(value.efsLaunchDate) || null,
+        efsDeadline: stringValue(value.efsDeadline) || null,
+      };
+    });
+  },
+
   async startImpersonation(
     organizationId: string,
     programId: string,
@@ -672,28 +699,47 @@ export const api = {
   },
 
   async programCatalog(programId: string): Promise<ReportProduct[]> {
-    const response = await request<unknown>(`/admin/programs/${encodeURIComponent(programId)}/report-catalog`);
+    const response = await request<unknown>(
+      `/admin/programs/${encodeURIComponent(programId)}/report-catalog`,
+    );
     return array(object(response).data) as ReportProduct[];
   },
 
-  async saveProgramCatalog(programId: string, products: ReportProduct[]): Promise<ReportProduct[]> {
-    const response = await request<unknown>(`/admin/programs/${encodeURIComponent(programId)}/report-catalog`, {
-      method: "PUT",
-      body: JSON.stringify({ products }),
-    });
+  async saveProgramCatalog(
+    programId: string,
+    products: ReportProduct[],
+  ): Promise<ReportProduct[]> {
+    const response = await request<unknown>(
+      `/admin/programs/${encodeURIComponent(programId)}/report-catalog`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ products }),
+      },
+    );
     return array(object(response).data) as ReportProduct[];
   },
 
-  async organizationCatalog(organizationProgramId: string): Promise<OrganizationCatalog> {
-    const response = await request<unknown>(`/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/report-catalog`);
+  async organizationCatalog(
+    organizationProgramId: string,
+  ): Promise<OrganizationCatalog> {
+    const response = await request<unknown>(
+      `/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/report-catalog`,
+    );
     return object(object(response).data) as OrganizationCatalog;
   },
 
-  async saveOrganizationCatalog(organizationProgramId: string, products: ReportProduct[], inherit: boolean): Promise<OrganizationCatalog> {
-    const response = await request<unknown>(`/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/report-catalog`, {
-      method: "PUT",
-      body: JSON.stringify(inherit ? { inherit: true } : { products }),
-    });
+  async saveOrganizationCatalog(
+    organizationProgramId: string,
+    products: ReportProduct[],
+    inherit: boolean,
+  ): Promise<OrganizationCatalog> {
+    const response = await request<unknown>(
+      `/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/report-catalog`,
+      {
+        method: "PUT",
+        body: JSON.stringify(inherit ? { inherit: true } : { products }),
+      },
+    );
     return object(object(response).data) as OrganizationCatalog;
   },
 

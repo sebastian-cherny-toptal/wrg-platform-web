@@ -6,6 +6,41 @@ afterEach(() => {
 });
 
 describe("historical import API client", () => {
+  it("loads and projects Zoho program options", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: [
+            {
+              id: "zoho-program-1",
+              name: "Baton Rouge 2026",
+              year: 2026,
+              efsLaunchDate: "2026-01-15",
+              efsDeadline: "2026-04-30",
+            },
+          ],
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.zohoPrograms()).resolves.toEqual([
+      {
+        id: "zoho-program-1",
+        name: "Baton Rouge 2026",
+        year: 2026,
+        efsLaunchDate: "2026-01-15",
+        efsDeadline: "2026-04-30",
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/zoho/programs"),
+      expect.any(Object),
+    );
+  });
+
   it("creates a draft with project metadata", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
