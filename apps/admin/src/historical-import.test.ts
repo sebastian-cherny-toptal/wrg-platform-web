@@ -1,8 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
+import { filterWinnerOrganizations } from "./historical-import";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("winner organization filtering", () => {
+  const organizations = [
+    { organizationKey: "org1", organizationName: "Alpha Company", surveysSent: 0, isWinner: false },
+    { organizationKey: "org2", organizationName: "Beta Company", surveysSent: 0, isWinner: false },
+    { organizationKey: "org5", organizationName: "Fifth Group", surveysSent: 0, isWinner: false },
+  ];
+
+  it("matches comma-separated names or IDs in the entered order", () => {
+    expect(
+      filterWinnerOrganizations(organizations, "org5, alpha"),
+    ).toEqual([organizations[2], organizations[0]]);
+  });
 });
 
 describe("historical import API client", () => {

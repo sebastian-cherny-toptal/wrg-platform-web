@@ -33,6 +33,7 @@ export type ProgramRecord = {
   year: number | null;
   createdAt: string | null;
   organizationCount: number;
+  winnersCount: number;
   projectId?: string;
   details?: Record<string, unknown>;
 };
@@ -225,7 +226,48 @@ function authHeaders(token?: string): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+let refreshPromise: Promise<AdminAuth | null> | null = null;
+
+async function refreshAdminAuth(auth: AdminAuth): Promise<AdminAuth | null> {
+  if (!auth.refreshToken) return null;
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${apiBaseUrl}/api/auth/refresh`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refreshToken: auth.refreshToken }),
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const payload = object(await response.json().catch(() => null));
+        const data = object(payload.data);
+        const accessToken = stringValue(data.accessToken || payload.accessToken);
+        const refreshToken = stringValue(
+          data.refreshToken || payload.refreshToken,
+        );
+        if (!accessToken) return null;
+        const next = {
+          ...auth,
+          accessToken,
+          refreshToken: refreshToken || auth.refreshToken,
+        };
+        persistAuth(next);
+        return next;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  allowRefresh = true,
+): Promise<T> {
   const auth = readAuth();
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
@@ -238,7 +280,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    if (response.status === 401 && auth?.accessToken) persistAuth(null);
+    if (response.status === 401 && auth?.accessToken && allowRefresh) {
+      const refreshed = await refreshAdminAuth(auth);
+      if (refreshed) return request<T>(path, options, false);
+      persistAuth(null);
+    }
     const body = object(payload);
     const nested = object(body.error);
     throw new ApiError(
@@ -297,6 +343,7 @@ function decodePrincipal(accessToken: string): {
 function program(raw: unknown): ProgramRecord {
   const value = object(raw);
   const organizations = array(value.orgs ?? value.organizations);
+  const categoriesInfo = object(value.categoriesInfo);
   return {
     id:
       stringValue(value.databaseId) ||
@@ -313,6 +360,9 @@ function program(raw: unknown): ProgramRecord {
         value.Number_of_Organizations ??
         organizations.length ??
         0,
+    ),
+    winnersCount: Number(
+      value.winnersCount ?? categoriesInfo.winnersCount ?? 0,
     ),
     projectId: stringValue(object(value.Project)._id) || undefined,
     details: value,
@@ -899,6 +949,14 @@ export const formatDate = (value: unknown): string => {
   return date && !Number.isNaN(date.getTime())
     ? date.toLocaleDateString("en-US")
     : "—";
+};
+
+export const formatCalendarDate = (value: unknown): string => {
+  const raw = value instanceof Date ? value.toISOString() : String(value ?? "");
+  const match = /^(\d{4})-(\d{2})-(\d{2})/u.exec(raw);
+  if (!match) return "—";
+  const [, year, month, day] = match;
+  return `${Number(month)}/${Number(day)}/${year}`;
 };
 
 export const formatDateTime = (value: unknown): string => {

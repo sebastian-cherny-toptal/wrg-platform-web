@@ -982,7 +982,6 @@ a {
 .winner-multi-select {
   display: grid;
   gap: 7px;
-  max-width: 640px;
   color: #3f3f46;
   font-size: 14px;
 }
@@ -997,6 +996,39 @@ a {
   border-radius: 6px;
   padding: 6px;
   background: white;
+}
+.winner-filter {
+  display: grid;
+  gap: 6px;
+  max-width: 640px;
+}
+.winner-filter input {
+  min-height: 44px;
+  border: 1px solid #dedee2;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.winner-transfer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+.winner-transfer > label {
+  display: grid;
+  gap: 8px;
+}
+.winner-transfer-actions {
+  display: grid;
+  gap: 8px;
+}
+.winner-transfer-actions button {
+  justify-content: center;
+}
+@media (max-width: 800px) {
+  .winner-transfer {
+    grid-template-columns: 1fr;
+  }
 }
 .winner-multi-select option {
   border-radius: 4px;

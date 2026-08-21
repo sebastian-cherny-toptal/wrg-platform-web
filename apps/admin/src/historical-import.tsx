@@ -133,6 +133,29 @@ function organizationProgramKey(entry: OrganizationProgramDraft): string {
   return entry.organizationProgramId ?? entry.organizationKey ?? "";
 }
 
+export function filterWinnerOrganizations(
+  entries: OrganizationProgramDraft[],
+  filter: string,
+): OrganizationProgramDraft[] {
+  const terms = filter
+    .split(",")
+    .map((term) => term.trim().toLocaleLowerCase())
+    .filter(Boolean);
+  if (!terms.length) return entries;
+  return entries
+    .map((entry, index) => {
+      const searchable = `${entry.organizationName ?? ""} ${organizationProgramKey(entry)}`.toLocaleLowerCase();
+      const termIndex = terms.findIndex((term) => searchable.includes(term));
+      return { entry, index, termIndex };
+    })
+    .filter(({ termIndex }) => termIndex >= 0)
+    .sort(
+      (left, right) =>
+        left.termIndex - right.termIndex || left.index - right.index,
+    )
+    .map(({ entry }) => entry);
+}
+
 function WinnerMultiSelect({
   organizationPrograms,
   onChange,
@@ -140,50 +163,106 @@ function WinnerMultiSelect({
   organizationPrograms: OrganizationProgramDraft[];
   onChange: (entries: OrganizationProgramDraft[]) => void;
 }) {
-  const selectedKeys = organizationPrograms
-    .filter(({ isWinner }) => isWinner)
-    .map(organizationProgramKey);
+  const [filter, setFilter] = useState("");
+  const [selectedNonWinners, setSelectedNonWinners] = useState<string[]>([]);
+  const [selectedWinners, setSelectedWinners] = useState<string[]>([]);
+  const nonWinners = filterWinnerOrganizations(
+    organizationPrograms.filter(({ isWinner }) => !isWinner),
+    filter,
+  );
+  const winners = filterWinnerOrganizations(
+    organizationPrograms.filter(({ isWinner }) => isWinner),
+    filter,
+  );
+  const move = (keys: string[], isWinner: boolean) => {
+    const moved = new Set(keys);
+    onChange(
+      organizationPrograms.map((entry) =>
+        moved.has(organizationProgramKey(entry))
+          ? { ...entry, isWinner }
+          : entry,
+      ),
+    );
+    setSelectedNonWinners([]);
+    setSelectedWinners([]);
+  };
   return (
-    <label className="winner-multi-select">
+    <section className="winner-multi-select">
       <strong>Winner organizations</strong>
       <span>
-        Select every winner in this program. Unselected organizations are
-        non-winners.
+        Select one or more organizations, then move them between columns.
       </span>
-      <select
-        aria-label="Winner organizations"
-        multiple
-        size={Math.min(Math.max(organizationPrograms.length, 3), 8)}
-        value={selectedKeys}
-        onChange={(event) => {
-          const selected = new Set(
-            Array.from(
-              event.currentTarget.selectedOptions,
-              ({ value }) => value,
-            ),
-          );
-          onChange(
-            organizationPrograms.map((entry) => ({
-              ...entry,
-              isWinner: selected.has(organizationProgramKey(entry)),
-            })),
-          );
-        }}
-      >
-        {organizationPrograms.map((entry) => (
-          <option
-            key={organizationProgramKey(entry)}
-            value={organizationProgramKey(entry)}
+      <label className="winner-filter">
+        <span>Filter organizations</span>
+        <input
+          aria-label="Filter winner organizations"
+          placeholder="org1, org2, org5"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+        />
+        <small>Separate names or IDs with commas to match any of them.</small>
+      </label>
+      <div className="winner-transfer">
+        <label>
+          <strong>Non-winners ({nonWinners.length})</strong>
+          <select
+            aria-label="Non-winner organizations"
+            multiple
+            size={Math.min(Math.max(nonWinners.length, 5), 10)}
+            value={selectedNonWinners}
+            onChange={(event) =>
+              setSelectedNonWinners(
+                Array.from(event.currentTarget.selectedOptions, ({ value }) => value),
+              )
+            }
           >
-            {entry.organizationName ?? "Organization"}
-          </option>
-        ))}
-      </select>
+            {nonWinners.map((entry) => (
+              <option key={organizationProgramKey(entry)} value={organizationProgramKey(entry)}>
+                {entry.organizationName ?? "Organization"}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="secondary-button compact" onClick={() => setSelectedNonWinners(nonWinners.map(organizationProgramKey))} disabled={!nonWinners.length}>
+            Select all shown
+          </button>
+        </label>
+        <div className="winner-transfer-actions">
+          <button type="button" className="primary-button compact" onClick={() => move(selectedNonWinners, true)} disabled={!selectedNonWinners.length}>
+            Move to winners <ChevronRight size={16} />
+          </button>
+          <button type="button" className="secondary-button compact" onClick={() => move(selectedWinners, false)} disabled={!selectedWinners.length}>
+            <ChevronLeft size={16} /> Move to non-winners
+          </button>
+        </div>
+        <label>
+          <strong>Winners ({winners.length})</strong>
+          <select
+            aria-label="Winner organizations"
+            multiple
+            size={Math.min(Math.max(winners.length, 5), 10)}
+            value={selectedWinners}
+            onChange={(event) =>
+              setSelectedWinners(
+                Array.from(event.currentTarget.selectedOptions, ({ value }) => value),
+              )
+            }
+          >
+            {winners.map((entry) => (
+              <option key={organizationProgramKey(entry)} value={organizationProgramKey(entry)}>
+                {entry.organizationName ?? "Organization"}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="secondary-button compact" onClick={() => setSelectedWinners(winners.map(organizationProgramKey))} disabled={!winners.length}>
+            Select all shown
+          </button>
+        </label>
+      </div>
       <small>
-        {selectedKeys.length} winner{selectedKeys.length === 1 ? "" : "s"}{" "}
+        {organizationPrograms.filter(({ isWinner }) => isWinner).length} winner{organizationPrograms.filter(({ isWinner }) => isWinner).length === 1 ? "" : "s"}{" "}
         selected
       </small>
-    </label>
+    </section>
   );
 }
 

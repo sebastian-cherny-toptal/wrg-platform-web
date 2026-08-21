@@ -3,6 +3,7 @@ import {
   adminAuthChangedEvent,
   api,
   field,
+  formatCalendarDate,
   formatDate,
   organization,
   persistAuth,
@@ -24,6 +25,78 @@ describe("admin API projections", () => {
   it("renders missing dates safely", () => {
     expect(formatDate(undefined)).toBe("—");
     expect(formatDate("not-a-date")).toBe("—");
+  });
+
+  it("renders program calendar dates without timezone localization", () => {
+    expect(formatCalendarDate("2026-08-21T23:59:59.999Z")).toBe("8/21/2026");
+    expect(formatCalendarDate("2026-08-21T00:00:00.000Z")).toBe("8/21/2026");
+  });
+
+  it("projects the nested winners count returned by program details", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            data: {
+              program: { _id: "program-id", Name: "Program 2026" },
+              numberOfOrgs: 3,
+              categoriesInfo: { winnersCount: 2, nonWinnersCount: 1 },
+            },
+          }),
+      }),
+    );
+
+    await expect(api.program("program-id")).resolves.toMatchObject({
+      winnersCount: 2,
+    });
+  });
+
+  it("refreshes an expired access token and retries the request", async () => {
+    persistAuth({
+      accessToken: "expired-access",
+      refreshToken: "valid-refresh",
+      user: {
+        id: "admin-id",
+        displayName: "Admin",
+        email: "admin@example.com",
+        roles: ["admin"],
+        permissions: [],
+      },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ message: "Unauthorized" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            accessToken: "fresh-access",
+            refreshToken: "rotated-refresh",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [] }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.projects()).resolves.toEqual([]);
+    expect(readAuth()).toMatchObject({
+      accessToken: "fresh-access",
+      refreshToken: "rotated-refresh",
+    });
+    expect(
+      new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get("Authorization"),
+    ).toBe("Bearer fresh-access");
   });
 
   it("projects source organization identity separately from the display name", () => {

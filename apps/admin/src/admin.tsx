@@ -37,6 +37,7 @@ import { WorkforceLogoWhite } from "@wrg/platform-ui";
 import {
   api,
   field,
+  formatCalendarDate,
   formatDate,
   formatDateTime,
   type OrganizationRecord,
@@ -547,6 +548,11 @@ export function ProgramDetailPage() {
     .sort((left, right) => {
       if (sort === "name:asc") return left.name.localeCompare(right.name);
       if (sort === "surveys:desc") return right.surveysSent - left.surveysSent;
+      if (sort === "winners:first" || sort === "winners:last") {
+        const winnerOrder = Number(right.isWinner) - Number(left.isWinner);
+        const primary = sort === "winners:first" ? winnerOrder : -winnerOrder;
+        return primary || left.name.localeCompare(right.name);
+      }
       return left.sourceId.localeCompare(right.sourceId, undefined, {
         numeric: true,
       });
@@ -611,11 +617,11 @@ export function ProgramDetailPage() {
             label="Number of Organizations"
             value={String(program.organizationCount || organizations.length)}
           />
-          <Detail label="EFS Launch Date" value={formatDate(String(details.StartDate ?? details.startsAt ?? ""))} />
-          <Detail label="EFS Deadline" value={formatDate(String(details.EndDate ?? details.endsAt ?? ""))} />
+          <Detail label="EFS Launch Date" value={formatCalendarDate(details.StartDate ?? details.startsAt)} />
+          <Detail label="EFS Deadline" value={formatCalendarDate(details.EndDate ?? details.endsAt)} />
           <Detail
             label="Winners Count"
-            value={field(details, "winnersCount")}
+            value={String(program.winnersCount)}
           />
         </div>
       ) : null}
@@ -639,6 +645,8 @@ export function ProgramDetailPage() {
           { value: "id:asc", label: "Organization ID" },
           { value: "name:asc", label: "Organization name" },
           { value: "surveys:desc", label: "Most surveys sent" },
+          { value: "winners:first", label: "Winners first" },
+          { value: "winners:last", label: "Winners last" },
         ]}
       />
       <DataTable
@@ -649,6 +657,7 @@ export function ProgramDetailPage() {
           "Current Stage",
           "Last Time Synced",
           "No. of Surveys Sent",
+          "Winner",
           "Actions",
         ]}
         rows={organizations.map((item) => [
@@ -658,6 +667,7 @@ export function ProgramDetailPage() {
           item.stage ?? "—",
           formatDate(item.lastSyncedAt),
           item.surveysSent,
+          item.isWinner ? "Y" : "N",
           <div className="row-actions">
             <button
               className="action-link button-link"
