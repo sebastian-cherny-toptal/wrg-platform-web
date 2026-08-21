@@ -13,12 +13,13 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   api,
   type HistoricalImportMetadata,
   type HistoricalImportStatus,
   type HistoricalImportValidationSummary,
+  type ProjectRecord,
 } from "./api";
 import { PageHeader, State } from "./admin";
 import { CatalogEditor } from "./catalog-editor";
@@ -125,18 +126,26 @@ function IssueList({
 
 function MetadataStep({
   draft,
+  projects,
+  editing,
   onSaved,
 }: {
   draft: Partial<DraftState>;
+  projects: ProjectRecord[];
+  editing: boolean;
   onSaved: (next: DraftState) => void;
 }) {
   const [form, setForm] = useState<HistoricalImportMetadata>({
+    projectId: draft.metadata?.projectId ?? projects[0]?.id,
     projectName: draft.metadata?.projectName ?? "",
+    programId: draft.metadata?.programId,
     programName: draft.metadata?.programName ?? "",
     programYear: draft.metadata?.programYear ?? currentYear - 1,
     projectAbbreviation: draft.metadata?.projectAbbreviation ?? "",
-    employeeSurveyId: draft.metadata?.employeeSurveyId ?? "",
-    employerSurveyId: draft.metadata?.employerSurveyId ?? "",
+    efsLaunchDate: draft.metadata?.efsLaunchDate ?? `${currentYear - 1}-01-01`,
+    efsDeadline: draft.metadata?.efsDeadline ?? `${currentYear - 1}-12-31`,
+    organizationPrograms: draft.metadata?.organizationPrograms,
+    reportCatalog: draft.metadata?.reportCatalog,
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -147,17 +156,18 @@ function MetadataStep({
     setError("");
     try {
       const payload = {
-        projectName: form.projectName.trim(),
+        ...(form.projectId
+          ? { projectId: form.projectId }
+          : { projectName: form.projectName?.trim() }),
+        ...(form.programId ? { programId: form.programId } : {}),
         programName: form.programName.trim(),
         programYear: form.programYear,
+        efsLaunchDate: form.efsLaunchDate,
+        efsDeadline: form.efsDeadline,
+        organizationPrograms: form.organizationPrograms,
+        reportCatalog: form.reportCatalog,
         ...(form.projectAbbreviation?.trim()
           ? { projectAbbreviation: form.projectAbbreviation.trim() }
-          : {}),
-        ...(form.employeeSurveyId?.trim()
-          ? { employeeSurveyId: form.employeeSurveyId.trim() }
-          : {}),
-        ...(form.employerSurveyId?.trim()
-          ? { employerSurveyId: form.employerSurveyId.trim() }
           : {}),
       };
       const response = draft.importId
@@ -183,22 +193,37 @@ function MetadataStep({
   return (
     <form className="wizard-panel" onSubmit={submit}>
       <p className="wizard-copy">
-        Enter the historical Project and Program details. Survey IDs are
-        optional and can be used for reference only.
+        Select the Project that owns this program, or create a new Project,
+        then enter the program schedule.
       </p>
       <div className="wizard-grid">
         <label>
-          Project name
-          <input
-            value={form.projectName}
+          Project
+          <select
+            value={form.projectId ?? "new"}
+            disabled={editing}
             onChange={(event) =>
-              setForm({ ...form, projectName: event.target.value })
+              setForm({
+                ...form,
+                projectId:
+                  event.target.value === "new"
+                    ? undefined
+                    : event.target.value,
+              })
             }
-            required
-            minLength={2}
-            maxLength={120}
-          />
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>{project.name}</option>
+            ))}
+            <option value="new">Create a new project</option>
+          </select>
         </label>
+        {!form.projectId ? (
+          <label>
+            New project name
+            <input value={form.projectName ?? ""} onChange={(event) => setForm({ ...form, projectName: event.target.value })} required minLength={2} maxLength={120} />
+          </label>
+        ) : null}
         <label>
           Program name
           <input
@@ -236,24 +261,8 @@ function MetadataStep({
             }
           />
         </label>
-        <label>
-          Employee survey ID
-          <input
-            value={form.employeeSurveyId ?? ""}
-            onChange={(event) =>
-              setForm({ ...form, employeeSurveyId: event.target.value })
-            }
-          />
-        </label>
-        <label>
-          Employer survey ID
-          <input
-            value={form.employerSurveyId ?? ""}
-            onChange={(event) =>
-              setForm({ ...form, employerSurveyId: event.target.value })
-            }
-          />
-        </label>
+        <label>EFS launch date<input type="date" value={form.efsLaunchDate} onChange={(event) => setForm({ ...form, efsLaunchDate: event.target.value })} required /></label>
+        <label>EFS deadline<input type="date" min={form.efsLaunchDate} value={form.efsDeadline} onChange={(event) => setForm({ ...form, efsDeadline: event.target.value })} required /></label>
       </div>
       {error ? <p className="form-error">{error}</p> : null}
       <div className="wizard-actions">
@@ -277,13 +286,35 @@ function UploadStep({
   const [eaFile, setEaFile] = useState<File | null>(null);
   const [efsFile, setEfsFile] = useState<File | null>(null);
   const [validation, setValidation] =
-    useState<HistoricalImportValidationSummary>();
+    useState<HistoricalImportValidationSummary | undefined>(draft.validation);
+  const [organizationPrograms, setOrganizationPrograms] = useState(
+    draft.metadata.organizationPrograms ?? [],
+  );
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
 
   const validate = async () => {
     if (!eaFile || !efsFile) {
-      setError("Upload both the EA and EFS workbooks.");
+      if (!draft.metadata.programId) {
+        setError("Upload both the EA and EFS workbooks.");
+        return;
+      }
+      setWorking(true);
+      setError("");
+      try {
+        const metadata = await api.updateHistoricalImportMetadata(draft.importId, {
+          ...draft.metadata,
+          organizationPrograms,
+        });
+        const summary = await api.validateHistoricalImport(draft.importId);
+        const nextDraft = { ...draft, metadata: metadata.metadata, validation: summary };
+        storeDraft(nextDraft);
+        onComplete(nextDraft);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Unable to continue");
+      } finally {
+        setWorking(false);
+      }
       return;
     }
     setWorking(true);
@@ -296,6 +327,14 @@ function UploadStep({
       );
       const summary = await api.validateHistoricalImport(draft.importId);
       setValidation(summary);
+      const nextOrganizations = summary.organizations.map((organization) => ({
+        organizationKey: organization.key,
+        organizationName: organization.displayName,
+        surveysSent:
+          organizationPrograms.find(({ organizationKey }) => organizationKey === organization.key)?.surveysSent ??
+          organization.efsRespondents,
+      }));
+      setOrganizationPrograms(nextOrganizations);
       const nextDraft = {
         ...draft,
         eaFileName: eaFile.name,
@@ -303,7 +342,6 @@ function UploadStep({
         validation: summary,
       };
       storeDraft(nextDraft);
-      if (summary.blockingErrorCount === 0) onComplete(nextDraft);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -315,12 +353,30 @@ function UploadStep({
     }
   };
 
+  const continueWithSurveysSent = async () => {
+    if (!validation || validation.blockingErrorCount > 0) return;
+    setWorking(true);
+    setError("");
+    try {
+      const response = await api.updateHistoricalImportMetadata(draft.importId, {
+        ...draft.metadata,
+        organizationPrograms,
+      });
+      const nextDraft = { ...draft, metadata: response.metadata, validation };
+      storeDraft(nextDraft);
+      onComplete(nextDraft);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to save Surveys Sent");
+    } finally {
+      setWorking(false);
+    }
+  };
+
   return (
     <div className="wizard-panel">
       <p className="wizard-copy">
-        Upload exactly one Employer Assessment workbook and one Employee
-        Feedback Survey workbook. The import validates headers, respondents, and
-        organization consistency across both files.
+        Upload one Employer Assessment workbook and one Employee Feedback
+        Survey workbook. {draft.metadata.programId ? "Both files are optional when only editing program details or store prices." : "Both files are required for a new program."}
       </p>
       <div className="upload-grid">
         <label className="upload-card">
@@ -346,6 +402,19 @@ function UploadStep({
           />
         </label>
       </div>
+      {draft.metadata.programId && organizationPrograms.length && !validation?.workbooks.length ? (
+        <div className="table-card">
+          <table aria-label="Surveys Sent by organization">
+            <thead><tr><th>Organization</th><th>Surveys Sent</th></tr></thead>
+            <tbody>{organizationPrograms.map((entry, index) => (
+              <tr key={entry.organizationProgramId ?? entry.organizationKey ?? index}>
+                <td>{entry.organizationName ?? "Organization"}</td>
+                <td><input className="table-number-input" type="number" min={0} step={1} value={entry.surveysSent} onChange={(event) => setOrganizationPrograms((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, surveysSent: Number(event.target.value) } : item))} aria-label={`Surveys Sent for ${entry.organizationName ?? "organization"}`} /></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ) : null}
       {validation ? (
         <>
           <div className="summary-grid">
@@ -372,6 +441,7 @@ function UploadStep({
                     <th>Workbook ID</th>
                     <th>EA respondents</th>
                     <th>EFS respondents</th>
+                    <th>Surveys Sent</th>
                     <th>Notes</th>
                   </tr>
                 </thead>
@@ -382,6 +452,10 @@ function UploadStep({
                       <td>{organization.workbookOrganizationId ?? "—"}</td>
                       <td>{organization.eaRespondents}</td>
                       <td>{organization.efsRespondents}</td>
+                      <td><input className="table-number-input" type="number" min={0} step={1} value={organizationPrograms.find(({ organizationKey }) => organizationKey === organization.key)?.surveysSent ?? organization.efsRespondents} onChange={(event) => setOrganizationPrograms((current) => [
+                        ...current.filter(({ organizationKey }) => organizationKey !== organization.key),
+                        { organizationKey: organization.key, organizationName: organization.displayName, surveysSent: Number(event.target.value) },
+                      ])} aria-label={`Surveys Sent for ${organization.displayName}`} /></td>
                       <td>
                         {organization.warnings.length
                           ? organization.warnings.join("; ")
@@ -411,8 +485,9 @@ function UploadStep({
           disabled={working}
           onClick={() => void validate()}
         >
-          {working ? "Validating…" : "Validate workbooks"}
+          {working ? "Working…" : !eaFile && !efsFile && draft.metadata.programId ? "Skip uploads" : "Validate workbooks"}
         </button>
+        {validation?.blockingErrorCount === 0 && validation.workbooks.length > 0 ? <button type="button" className="primary-button compact" disabled={working} onClick={() => void continueWithSurveysSent()}>Continue <ChevronRight size={16} /></button> : null}
       </div>
     </div>
   );
@@ -478,8 +553,8 @@ function ReviewStep({
         <CheckCircle2 size={42} />
         <h2>Historical project imported</h2>
         <p>
-          <strong>{status.projectName ?? draft.metadata.projectName}</strong> is
-          ready with one program and both closed surveys.
+          <strong>{status.projectName ?? draft.metadata.projectName ?? draft.metadata.programName}</strong> is
+          ready.
         </p>
         <div className="wizard-actions">
           <Link
@@ -496,14 +571,13 @@ function ReviewStep({
   return (
     <div className="wizard-panel">
       <p className="wizard-copy">
-        Review the reconciled import summary. Committing creates one Project,
-        one Program, two closed Surveys, organizations, questions, respondents,
-        and responses. Report entitlements and Zoho outcomes remain unavailable.
+        Review the program details, optional workbook data, organization survey
+        counts, and Reports Store prices before saving.
       </p>
       <div className="review-grid">
         <div className="review-card">
           <span>Project</span>
-          <strong>{draft.metadata.projectName}</strong>
+          <strong>{draft.metadata.projectName ?? "Existing project"}</strong>
         </div>
         <div className="review-card">
           <span>Program</span>
@@ -513,11 +587,11 @@ function ReviewStep({
         </div>
         <div className="review-card">
           <span>EA workbook</span>
-          <strong>{draft.eaFileName ?? "—"}</strong>
+          <strong>{draft.eaFileName ?? "Not changed"}</strong>
         </div>
         <div className="review-card">
           <span>EFS workbook</span>
-          <strong>{draft.efsFileName ?? "—"}</strong>
+          <strong>{draft.efsFileName ?? "Not changed"}</strong>
         </div>
       </div>
       {totals ? (
@@ -552,7 +626,7 @@ function ReviewStep({
           }
           onClick={() => void commit()}
         >
-          {committing ? "Creating project…" : "Create historical project"}
+          {committing ? "Saving program…" : draft.metadata.programId ? "Save program" : "Create historical program"}
         </button>
       </div>
     </div>
@@ -585,9 +659,60 @@ function CatalogStep({ draft, onComplete, onBack }: { draft: DraftState; onCompl
 }
 
 export function HistoricalImportPage() {
-  const stored = readStoredDraft();
+  const { projectId: routeProjectId, programId } = useParams();
+  const editing = Boolean(programId);
+  const stored = editing ? null : readStoredDraft();
   const [step, setStep] = useState<WizardStep>(stored?.importId ? 2 : 1);
   const [draft, setDraft] = useState<Partial<DraftState>>(stored ?? {});
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [initialError, setInitialError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const availableProjects = await api.projects();
+        if (!active) return;
+        setProjects(availableProjects);
+        if (programId) {
+          const [program, organizations, reportCatalog] = await Promise.all([
+            api.program(programId),
+            api.organizations(programId),
+            api.programCatalog(programId),
+          ]);
+          if (!active) return;
+          const details = program.details ?? {};
+          const datePart = (value: unknown, fallback: string) =>
+            typeof value === "string" && value ? value.slice(0, 10) : fallback;
+          const selectedProjectId = program.projectId ?? routeProjectId;
+          const selectedProject = availableProjects.find(({ id }) => id === selectedProjectId);
+          setDraft({ metadata: {
+            projectId: selectedProjectId,
+            projectName: selectedProject?.name,
+            programId: program.id,
+            programName: program.name,
+            programYear: program.year ?? currentYear,
+            projectAbbreviation: "",
+            efsLaunchDate: datePart(details.StartDate ?? details.startsAt, `${program.year ?? currentYear}-01-01`),
+            efsDeadline: datePart(details.EndDate ?? details.endsAt, `${program.year ?? currentYear}-12-31`),
+            reportCatalog,
+            organizationPrograms: organizations.map((organization) => ({
+              organizationProgramId: organization.organizationProgramId,
+              organizationName: organization.name,
+              surveysSent: organization.surveysSent,
+            })),
+          } });
+        }
+      } catch (caught) {
+        if (active) setInitialError(caught instanceof Error ? caught.message : "Unable to load the wizard");
+      } finally {
+        if (active) setLoadingInitial(false);
+      }
+    };
+    void load();
+    return () => { active = false; };
+  }, [programId, routeProjectId]);
 
   useEffect(() => {
     if (!draft.importId) return;
@@ -604,10 +729,16 @@ export function HistoricalImportPage() {
   }, [draft.importId]);
 
   let content: ReactNode;
-  if (step === 1) {
+  if (loadingInitial) {
+    content = <State loading title="Loading program wizard" message="Retrieving projects and program values." />;
+  } else if (initialError) {
+    content = <State title="Wizard unavailable" message={initialError} />;
+  } else if (step === 1) {
     content = (
       <MetadataStep
         draft={draft}
+        projects={projects}
+        editing={editing}
         onSaved={(next) => {
           setDraft(next);
           setStep(2);
@@ -643,12 +774,12 @@ export function HistoricalImportPage() {
   return (
     <>
       <PageHeader
-        title="Import Historical Project"
+        title={editing ? "Edit program" : "Import Historical Program"}
         breadcrumb={
           <>
             <Link to="/admin/projects">Projects</Link>
             <span>|</span>
-            Import Historical Project
+            {editing ? "Edit program" : "Import Historical Program"}
           </>
         }
       />

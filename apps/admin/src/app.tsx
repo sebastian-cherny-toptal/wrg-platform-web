@@ -46,6 +46,10 @@ export function App() {
           path="projects/:projectId/programs/:programId"
           element={<ProgramDetailPage />}
         />
+        <Route
+          path="projects/:projectId/programs/:programId/edit"
+          element={<HistoricalImportPage />}
+        />
         <Route path="users" element={<UsersManagementPage />} />
         <Route
           path="users-management"

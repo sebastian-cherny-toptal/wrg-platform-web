@@ -29,6 +29,8 @@ describe("historical import API client", () => {
       projectName: "Baton Rouge",
       programName: "Best Places to Work in Baton Rouge 2026",
       programYear: 2026,
+      efsLaunchDate: "2026-01-01",
+      efsDeadline: "2026-06-30",
     });
 
     expect(result).toEqual({
@@ -47,6 +49,8 @@ describe("historical import API client", () => {
           projectName: "Baton Rouge",
           programName: "Best Places to Work in Baton Rouge 2026",
           programYear: 2026,
+          efsLaunchDate: "2026-01-01",
+          efsDeadline: "2026-06-30",
         }),
       }),
     );

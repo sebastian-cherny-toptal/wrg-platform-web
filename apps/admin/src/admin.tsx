@@ -428,7 +428,6 @@ export function ProjectDetailPage() {
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const [catalogProgram, setCatalogProgram] = useState<ProgramRecord | null>(null);
   if (loaded.loading)
     return (
       <State loading title="Loading project" message="Retrieving programs." />
@@ -492,13 +491,12 @@ export function ProjectDetailPage() {
           formatDate(item.createdAt),
           item.organizationCount,
           <div className="row-actions">
-            <button className="action-link button-link" onClick={() => setCatalogProgram(item)}>Configure store <ShoppingBag size={17} /></button>
+            <Link className="action-link" to={`/admin/projects/${project.id}/programs/${item.id}/edit`}>Edit program <ChevronRight size={17} /></Link>
             <Link className="action-link" to={`/admin/projects/${project.id}/programs/${item.id}`}>View Details <ChevronRight size={18} /></Link>
           </div>,
         ])}
       />
       <Pager count={programs.length} shown={10} />
-      {catalogProgram ? <CatalogModal scope={{ kind: "program", id: catalogProgram.id, label: catalogProgram.name }} onClose={() => setCatalogProgram(null)} onSaved={() => undefined} /> : null}
     </>
   );
 }
@@ -532,7 +530,6 @@ export function ProgramDetailPage() {
     useState<OrganizationRecord | null>(null);
   const [catalogOrganization, setCatalogOrganization] =
     useState<OrganizationRecord | null>(null);
-  const [programCatalogOpen, setProgramCatalogOpen] = useState(false);
   const program = programLoaded.data;
   const canUploadBenefits =
     auth?.user.roles.some(
@@ -614,14 +611,8 @@ export function ProgramDetailPage() {
             label="Number of Organizations"
             value={String(program.organizationCount || organizations.length)}
           />
-          <Detail
-            label="Employee Survey ID"
-            value={field(details, "Employee_Survey_ID", "employeeSurveyId")}
-          />
-          <Detail
-            label="Employer Survey ID"
-            value={field(details, "Employer_Survey_ID", "employerSurveyId")}
-          />
+          <Detail label="EFS Launch Date" value={formatDate(String(details.StartDate ?? details.startsAt ?? ""))} />
+          <Detail label="EFS Deadline" value={formatDate(String(details.EndDate ?? details.endsAt ?? ""))} />
           <Detail
             label="Winners Count"
             value={field(details, "winnersCount")}
@@ -631,7 +622,7 @@ export function ProgramDetailPage() {
       <div className="section-row">
         <h2 className="section-title">Organization</h2>
         <div className="row-actions">
-          <button className="secondary-button compact" onClick={() => setProgramCatalogOpen(true)}><ShoppingBag size={16} /> Configure store</button>
+          <Link className="secondary-button compact action-link" to={`/admin/projects/${projectId}/programs/${program.id}/edit`}>Edit program <ChevronRight size={16} /></Link>
           <button className="primary-button compact" onClick={() => void resync()}>Re-Sync All Deals</button>
         </div>
       </div>
@@ -712,7 +703,6 @@ export function ProgramDetailPage() {
           }}
         />
       ) : null}
-      {programCatalogOpen ? <CatalogModal scope={{ kind: "program", id: program.id, label: program.name }} onClose={() => setProgramCatalogOpen(false)} onSaved={() => setNotice(`The report store was updated for every organization in ${program.name}.`)} /> : null}
       {catalogOrganization ? <CatalogModal scope={{ kind: "organization", id: catalogOrganization.organizationProgramId, label: `${catalogOrganization.name} — ${program.name}` }} onClose={() => setCatalogOrganization(null)} onSaved={() => setNotice(`The report store was updated for ${catalogOrganization.name}.`)} /> : null}
     </>
   );

@@ -964,12 +964,20 @@ a {
   font-size: 14px;
   color: #3f3f46;
 }
-.wizard-grid input {
+.wizard-grid input,
+.wizard-grid select {
   width: 100%;
   min-height: 44px;
   border: 1px solid #dedee2;
   border-radius: 6px;
   padding: 10px 12px;
+}
+
+.table-number-input {
+  width: 7rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #d8d8dc;
+  border-radius: 6px;
 }
 .upload-card {
   position: relative;

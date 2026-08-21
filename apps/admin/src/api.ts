@@ -59,12 +59,20 @@ export type UserRecord = {
 };
 
 export type HistoricalImportMetadata = {
-  projectName: string;
+  projectId?: string;
+  projectName?: string;
+  programId?: string;
   programName: string;
   programYear: number;
   projectAbbreviation?: string;
-  employeeSurveyId?: string;
-  employerSurveyId?: string;
+  efsLaunchDate: string;
+  efsDeadline: string;
+  organizationPrograms?: Array<{
+    organizationProgramId?: string;
+    organizationKey?: string;
+    organizationName?: string;
+    surveysSent: number;
+  }>;
   reportCatalog?: ReportProduct[];
 };
 
@@ -120,6 +128,7 @@ export type HistoricalImportStatus = {
   validation?: HistoricalImportValidationSummary;
   projectId?: string;
   projectName?: string;
+  programId?: string;
   error?: string;
 };
 
@@ -278,7 +287,10 @@ function program(raw: unknown): ProgramRecord {
   const value = object(raw);
   const organizations = array(value.orgs ?? value.organizations);
   return {
-    id: stringValue(value._id) || stringValue(value.id),
+    id:
+      stringValue(value.databaseId) ||
+      stringValue(value._id) ||
+      stringValue(value.id),
     name: stringValue(value.Name) || stringValue(value.name),
     year: Number.isFinite(Number(value.Program_Year ?? value.year))
       ? Number(value.Program_Year ?? value.year)
@@ -341,7 +353,9 @@ export function organization(raw: unknown): OrganizationRecord {
     lastSyncedAt: stringValue(enrollment.Last_time_deal_synced) || null,
     surveysSent: Number(enrollment.Surveys_Sent ?? 0),
     organizationProgramId:
-      stringValue(enrollment._id) || stringValue(enrollment.id),
+      stringValue(enrollment.databaseId) ||
+      stringValue(enrollment._id) ||
+      stringValue(enrollment.id),
     benefitsBestPracticesFileName:
       stringValue(benefitsBestPractices.sourceFile) || null,
     programs: organizationPrograms
