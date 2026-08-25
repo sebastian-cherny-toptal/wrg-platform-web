@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
@@ -583,12 +583,11 @@ function PieChartCard({
     <div
       ref={cardRef}
       aria-pressed={selected}
+      aria-controls={selected ? "detailed-results-breakdown" : undefined}
       className="cursor-pointer"
-      onClick={() => {
-        if (!selected) onSelect();
-      }}
+      onClick={onSelect}
       onKeyDown={(event) => {
-        if ((event.key === "Enter" || event.key === " ") && !selected) {
+        if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onSelect();
         }
@@ -660,7 +659,7 @@ function DetailPanel({
 }) {
   return (
     <section
-      className="col-span-full rounded-2xl border-2 border-violet-200 bg-violet-50 p-5"
+      className="mt-5 rounded-2xl border-2 border-violet-200 bg-violet-50 p-5"
       id="detailed-results-breakdown"
     >
       <div className="flex items-center justify-between gap-3">
@@ -888,29 +887,32 @@ export function DetailedResultsPage() {
                 {report.categoryResults.map((result) => {
                   const selected = result.title === selectedTitle;
                   return (
-                    <Fragment key={result.title}>
-                      <PieChartCard
-                        {...result}
-                        onSelect={() => setSelectedTitle(result.title)}
-                        selected={selected}
-                      />
-                      {selected ? (
-                        <DetailPanel
-                          data={detailReport.data}
-                          error={
-                            detailReport.isError
-                              ? detailReport.error.message
-                              : undefined
-                          }
-                          loading={detailReport.isPending}
-                          onClose={() => setSelectedTitle(null)}
-                          title={result.title}
-                        />
-                      ) : null}
-                    </Fragment>
+                    <PieChartCard
+                      {...result}
+                      key={result.title}
+                      onSelect={() =>
+                        setSelectedTitle((current) =>
+                          current === result.title ? null : result.title,
+                        )
+                      }
+                      selected={selected}
+                    />
                   );
                 })}
               </div>
+              {selectedResult ? (
+                <DetailPanel
+                  data={detailReport.data}
+                  error={
+                    detailReport.isError
+                      ? detailReport.error.message
+                      : undefined
+                  }
+                  loading={detailReport.isPending}
+                  onClose={() => setSelectedTitle(null)}
+                  title={selectedResult.title}
+                />
+              ) : null}
             </>
           )}
         </div>

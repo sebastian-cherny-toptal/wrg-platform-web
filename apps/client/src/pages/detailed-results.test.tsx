@@ -36,7 +36,7 @@ describe("Detailed Results page", () => {
     useAppStore.getState().setSession(null);
   });
 
-  it("places question details directly after the selected category card", async () => {
+  it("shows details without inserting them among the cards and toggles them closed", async () => {
     useAppStore.getState().setSession(session);
     vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
     vi.spyOn(api.reports, "responseBreakdownBySection").mockResolvedValue({
@@ -117,9 +117,17 @@ describe("Detailed Results page", () => {
     const detailPanel = await screen.findByText(
       "Question-level response details",
     );
-    expect(card.nextElementSibling).toBe(detailPanel.closest("section"));
+    const section = detailPanel.closest("section");
+    expect(section).not.toBeNull();
+    expect(card.parentElement?.nextElementSibling).toBe(section);
     expect(
       await screen.findByText("Strongly Agree: 100% (10 responses)"),
     ).toBeVisible();
+
+    fireEvent.click(card);
+    expect(
+      screen.queryByText("Question-level response details"),
+    ).not.toBeInTheDocument();
+    expect(card).toHaveAttribute("aria-pressed", "false");
   });
 });
