@@ -8,15 +8,31 @@ afterEach(() => {
 
 describe("winner organization filtering", () => {
   const organizations = [
-    { organizationKey: "org1", organizationName: "Alpha Company", surveysSent: 0, isWinner: false },
-    { organizationKey: "org2", organizationName: "Beta Company", surveysSent: 0, isWinner: false },
-    { organizationKey: "org5", organizationName: "Fifth Group", surveysSent: 0, isWinner: false },
+    {
+      organizationKey: "org1",
+      organizationName: "Alpha Company",
+      surveysSent: 0,
+      isWinner: false,
+    },
+    {
+      organizationKey: "org2",
+      organizationName: "Beta Company",
+      surveysSent: 0,
+      isWinner: false,
+    },
+    {
+      organizationKey: "org5",
+      organizationName: "Fifth Group",
+      surveysSent: 0,
+      isWinner: false,
+    },
   ];
 
   it("matches comma-separated names or IDs in the entered order", () => {
-    expect(
-      filterWinnerOrganizations(organizations, "org5, alpha"),
-    ).toEqual([organizations[2], organizations[0]]);
+    expect(filterWinnerOrganizations(organizations, "org5, alpha")).toEqual([
+      organizations[2],
+      organizations[0],
+    ]);
   });
 });
 
@@ -134,6 +150,41 @@ describe("historical import API client", () => {
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(options.method).toBe("POST");
     expect(options.body).toBeInstanceOf(FormData);
+  });
+
+  it("uploads a ranking extract for bulk winner matching", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            organizationPrograms: [],
+            matchedOrganizations: 10,
+            unmatchedOrganizations: [],
+            invalidRows: 2,
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const rankingFile = new File(["ranking"], "ranking.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    await expect(
+      api.matchHistoricalImportRankingWorkbook("import-id", rankingFile),
+    ).resolves.toEqual({
+      organizationPrograms: [],
+      matchedOrganizations: 10,
+      unmatchedOrganizations: [],
+      invalidRows: 2,
+    });
+
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/admin/historicalImports/import-id/ranking");
+    expect(options.method).toBe("POST");
+    expect((options.body as FormData).get("rankingFile")).toBe(rankingFile);
   });
 });
 

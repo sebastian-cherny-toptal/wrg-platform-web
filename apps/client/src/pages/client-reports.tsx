@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
@@ -660,7 +660,7 @@ function DetailPanel({
 }) {
   return (
     <section
-      className="mt-5 rounded-2xl border-2 border-violet-200 bg-violet-50 p-5"
+      className="col-span-full rounded-2xl border-2 border-violet-200 bg-violet-50 p-5"
       id="detailed-results-breakdown"
     >
       <div className="flex items-center justify-between gap-3">
@@ -885,28 +885,32 @@ export function DetailedResultsPage() {
           ) : (
             <>
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {report.categoryResults.map((result) => (
-                  <PieChartCard
-                    key={result.title}
-                    {...result}
-                    onSelect={() => setSelectedTitle(result.title)}
-                    selected={result.title === selectedTitle}
-                  />
-                ))}
+                {report.categoryResults.map((result) => {
+                  const selected = result.title === selectedTitle;
+                  return (
+                    <Fragment key={result.title}>
+                      <PieChartCard
+                        {...result}
+                        onSelect={() => setSelectedTitle(result.title)}
+                        selected={selected}
+                      />
+                      {selected ? (
+                        <DetailPanel
+                          data={detailReport.data}
+                          error={
+                            detailReport.isError
+                              ? detailReport.error.message
+                              : undefined
+                          }
+                          loading={detailReport.isPending}
+                          onClose={() => setSelectedTitle(null)}
+                          title={result.title}
+                        />
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
               </div>
-              {selectedResult ? (
-                <DetailPanel
-                  data={detailReport.data}
-                  error={
-                    detailReport.isError
-                      ? detailReport.error.message
-                      : undefined
-                  }
-                  loading={detailReport.isPending}
-                  onClose={() => setSelectedTitle(null)}
-                  title={selectedResult.title}
-                />
-              ) : null}
             </>
           )}
         </div>
@@ -1892,8 +1896,7 @@ export function BenchmarkDataPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const comparison = useQuery({
     queryKey: ["workforce-comparison", program?.id, isDummy],
-    queryFn: () =>
-      api.reports.workforceComparison(program?.id ?? "", isDummy),
+    queryFn: () => api.reports.workforceComparison(program?.id ?? "", isDummy),
     enabled: Boolean(program),
   });
   const categories: BenchmarkCategory[] = comparison.data?.data.data ?? [];
@@ -1940,10 +1943,7 @@ export function BenchmarkDataPage() {
         <div className="flex justify-end">
           <DownloadReportButton
             onDownload={() =>
-              api.reports.downloadBenchmarkWorkbook(
-                program?.id ?? "",
-                isDummy,
-              )
+              api.reports.downloadBenchmarkWorkbook(program?.id ?? "", isDummy)
             }
           />
         </div>
@@ -2403,8 +2403,7 @@ export function BenefitsBestPracticesPage() {
   );
   const report = useQuery({
     queryKey: ["employer-benchmark", program?.id, isDummy],
-    queryFn: () =>
-      api.reports.employerBenchmark(program?.id ?? "", isDummy),
+    queryFn: () => api.reports.employerBenchmark(program?.id ?? "", isDummy),
     enabled: Boolean(program),
   });
   const headers = report.data?.data.tableHeaders ?? [];
@@ -2418,10 +2417,7 @@ export function BenefitsBestPracticesPage() {
         <div className="flex justify-end">
           <DownloadReportButton
             onDownload={() =>
-              api.reports.downloadBenefitsWorkbook(
-                program?.id ?? "",
-                isDummy,
-              )
+              api.reports.downloadBenefitsWorkbook(program?.id ?? "", isDummy)
             }
           />
         </div>

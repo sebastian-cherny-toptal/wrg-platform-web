@@ -6,16 +6,11 @@ import {
   FileSpreadsheet,
   Upload,
 } from "lucide-react";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   api,
+  type CategoryPricing,
   type HistoricalImportMetadata,
   type HistoricalImportStatus,
   type HistoricalImportValidationSummary,
@@ -23,7 +18,7 @@ import {
   type ZohoProgramOption,
 } from "./api";
 import { PageHeader, State } from "./admin";
-import { CatalogEditor } from "./catalog-editor";
+import { CatalogEditor, MoneyInput } from "./catalog-editor";
 
 const storageKey = "wrg-historical-import-draft";
 
@@ -38,6 +33,14 @@ type DraftState = {
 };
 
 const currentYear = new Date().getFullYear();
+const defaultCategoryPricing: CategoryPricing[] = [
+  { tier: "Boutique", employeeSize: "15–24", priceCents: 0 },
+  { tier: "Small", employeeSize: "25–99", priceCents: 0 },
+  { tier: "Medium", employeeSize: "100–199", priceCents: 0 },
+  { tier: "Large", employeeSize: "200–499", priceCents: 0 },
+  { tier: "Mega", employeeSize: "500–999", priceCents: 0 },
+  { tier: "Major", employeeSize: "1,000+", priceCents: 0 },
+];
 
 function readStoredDraft(): Partial<DraftState> | null {
   try {
@@ -144,7 +147,8 @@ export function filterWinnerOrganizations(
   if (!terms.length) return entries;
   return entries
     .map((entry, index) => {
-      const searchable = `${entry.organizationName ?? ""} ${organizationProgramKey(entry)}`.toLocaleLowerCase();
+      const searchable =
+        `${entry.organizationName ?? ""} ${organizationProgramKey(entry)}`.toLocaleLowerCase();
       const termIndex = terms.findIndex((term) => searchable.includes(term));
       return { entry, index, termIndex };
     })
@@ -212,25 +216,48 @@ function WinnerMultiSelect({
             value={selectedNonWinners}
             onChange={(event) =>
               setSelectedNonWinners(
-                Array.from(event.currentTarget.selectedOptions, ({ value }) => value),
+                Array.from(
+                  event.currentTarget.selectedOptions,
+                  ({ value }) => value,
+                ),
               )
             }
           >
             {nonWinners.map((entry) => (
-              <option key={organizationProgramKey(entry)} value={organizationProgramKey(entry)}>
+              <option
+                key={organizationProgramKey(entry)}
+                value={organizationProgramKey(entry)}
+              >
                 {entry.organizationName ?? "Organization"}
               </option>
             ))}
           </select>
-          <button type="button" className="secondary-button compact" onClick={() => setSelectedNonWinners(nonWinners.map(organizationProgramKey))} disabled={!nonWinners.length}>
+          <button
+            type="button"
+            className="secondary-button compact"
+            onClick={() =>
+              setSelectedNonWinners(nonWinners.map(organizationProgramKey))
+            }
+            disabled={!nonWinners.length}
+          >
             Select all shown
           </button>
         </label>
         <div className="winner-transfer-actions">
-          <button type="button" className="primary-button compact" onClick={() => move(selectedNonWinners, true)} disabled={!selectedNonWinners.length}>
+          <button
+            type="button"
+            className="primary-button compact"
+            onClick={() => move(selectedNonWinners, true)}
+            disabled={!selectedNonWinners.length}
+          >
             Move to winners <ChevronRight size={16} />
           </button>
-          <button type="button" className="secondary-button compact" onClick={() => move(selectedWinners, false)} disabled={!selectedWinners.length}>
+          <button
+            type="button"
+            className="secondary-button compact"
+            onClick={() => move(selectedWinners, false)}
+            disabled={!selectedWinners.length}
+          >
             <ChevronLeft size={16} /> Move to non-winners
           </button>
         </div>
@@ -243,25 +270,95 @@ function WinnerMultiSelect({
             value={selectedWinners}
             onChange={(event) =>
               setSelectedWinners(
-                Array.from(event.currentTarget.selectedOptions, ({ value }) => value),
+                Array.from(
+                  event.currentTarget.selectedOptions,
+                  ({ value }) => value,
+                ),
               )
             }
           >
             {winners.map((entry) => (
-              <option key={organizationProgramKey(entry)} value={organizationProgramKey(entry)}>
+              <option
+                key={organizationProgramKey(entry)}
+                value={organizationProgramKey(entry)}
+              >
                 {entry.organizationName ?? "Organization"}
               </option>
             ))}
           </select>
-          <button type="button" className="secondary-button compact" onClick={() => setSelectedWinners(winners.map(organizationProgramKey))} disabled={!winners.length}>
+          <button
+            type="button"
+            className="secondary-button compact"
+            onClick={() =>
+              setSelectedWinners(winners.map(organizationProgramKey))
+            }
+            disabled={!winners.length}
+          >
             Select all shown
           </button>
         </label>
       </div>
       <small>
-        {organizationPrograms.filter(({ isWinner }) => isWinner).length} winner{organizationPrograms.filter(({ isWinner }) => isWinner).length === 1 ? "" : "s"}{" "}
+        {organizationPrograms.filter(({ isWinner }) => isWinner).length} winner
+        {organizationPrograms.filter(({ isWinner }) => isWinner).length === 1
+          ? ""
+          : "s"}{" "}
         selected
       </small>
+    </section>
+  );
+}
+
+function CategoryPricingEditor({
+  value,
+  onChange,
+}: {
+  value: CategoryPricing[];
+  onChange: (value: CategoryPricing[]) => void;
+}) {
+  const update = (
+    tier: CategoryPricing["tier"],
+    patch: Partial<CategoryPricing>,
+  ) =>
+    onChange(
+      value.map((entry) =>
+        entry.tier === tier ? { ...entry, ...patch } : entry,
+      ),
+    );
+  return (
+    <section className="category-pricing-editor">
+      <div>
+        <strong>Category pricing</strong>
+        <span>
+          Enter the employee-size definition and price for all six categories.
+        </span>
+      </div>
+      <div className="category-pricing-grid">
+        {value.map((entry) => (
+          <div className="category-pricing-row" key={entry.tier}>
+            <strong>{entry.tier}</strong>
+            <label>
+              Category size
+              <input
+                aria-label={`${entry.tier} category size`}
+                onChange={(event) =>
+                  update(entry.tier, { employeeSize: event.target.value })
+                }
+                required
+                value={entry.employeeSize}
+              />
+            </label>
+            <label>
+              Price (USD)
+              <MoneyInput
+                ariaLabel={`${entry.tier} category price`}
+                onChange={(priceCents) => update(entry.tier, { priceCents })}
+                priceCents={entry.priceCents}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -293,6 +390,9 @@ function MetadataStep({
     efsDeadline: draft.metadata?.efsDeadline ?? `${currentYear - 1}-12-31`,
     organizationPrograms: draft.metadata?.organizationPrograms,
     reportCatalog: draft.metadata?.reportCatalog,
+    categoryPricing:
+      draft.metadata?.categoryPricing ??
+      defaultCategoryPricing.map((entry) => ({ ...entry })),
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -318,6 +418,7 @@ function MetadataStep({
         efsDeadline: form.efsDeadline,
         organizationPrograms: form.organizationPrograms,
         reportCatalog: form.reportCatalog,
+        categoryPricing: form.categoryPricing,
         ...(form.projectAbbreviation?.trim()
           ? { projectAbbreviation: form.projectAbbreviation.trim() }
           : {}),
@@ -404,7 +505,7 @@ function MetadataStep({
               <select
                 aria-label="Program"
                 required
-                value={manualProgram ? "manual" : form.zohoProgramId ?? ""}
+                value={manualProgram ? "manual" : (form.zohoProgramId ?? "")}
                 onChange={(event) => {
                   if (event.target.value === "manual") {
                     setManualProgram(true);
@@ -430,6 +531,8 @@ function MetadataStep({
                       form.efsLaunchDate,
                     efsDeadline:
                       selected.efsDeadline?.slice(0, 10) ?? form.efsDeadline,
+                    categoryPricing:
+                      selected.categoryPricing ?? form.categoryPricing,
                   });
                 }}
               >
@@ -511,6 +614,10 @@ function MetadataStep({
           />
         </label>
       </div>
+      <CategoryPricingEditor
+        onChange={(categoryPricing) => setForm({ ...form, categoryPricing })}
+        value={form.categoryPricing ?? defaultCategoryPricing}
+      />
       {error ? <p className="form-error">{error}</p> : null}
       <div className="wizard-actions">
         <button className="primary-button compact" disabled={saving}>
@@ -538,6 +645,12 @@ function UploadStep({
   const [organizationPrograms, setOrganizationPrograms] = useState(
     draft.metadata.organizationPrograms ?? [],
   );
+  const [rankingSummary, setRankingSummary] = useState<{
+    fileName: string;
+    matchedOrganizations: number;
+    unmatchedOrganizations: string[];
+    invalidRows: number;
+  }>();
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
 
@@ -641,6 +754,27 @@ function UploadStep({
     }
   };
 
+  const uploadRankingWorkbook = async (file: File) => {
+    setWorking(true);
+    setError("");
+    try {
+      const result = await api.matchHistoricalImportRankingWorkbook(
+        draft.importId,
+        file,
+      );
+      setOrganizationPrograms(result.organizationPrograms);
+      setRankingSummary({ fileName: file.name, ...result });
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to match ranking workbook",
+      );
+    } finally {
+      setWorking(false);
+    }
+  };
+
   return (
     <div className="wizard-panel">
       <p className="wizard-copy">
@@ -674,6 +808,43 @@ function UploadStep({
           />
         </label>
       </div>
+      {organizationPrograms.length ? (
+        <section className="ranking-upload">
+          <div>
+            <strong>Bulk winner and category matching</strong>
+            <span>
+              Upload the ranking extract with Alias Name, Organization ID, CY
+              Winner, and CY Category columns.
+            </span>
+          </div>
+          <label className="secondary-button compact action-link">
+            <Upload size={16} /> Upload ranking extract
+            <input
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              disabled={working}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void uploadRankingWorkbook(file);
+                event.currentTarget.value = "";
+              }}
+              type="file"
+            />
+          </label>
+          {rankingSummary ? (
+            <small>
+              {rankingSummary.fileName}: matched{" "}
+              {rankingSummary.matchedOrganizations}
+              {rankingSummary.unmatchedOrganizations.length
+                ? `; ${rankingSummary.unmatchedOrganizations.length} unmatched`
+                : ""}
+              {rankingSummary.invalidRows
+                ? `; ${rankingSummary.invalidRows} rows without Yes/No`
+                : ""}
+              .
+            </small>
+          ) : null}
+        </section>
+      ) : null}
       {organizationPrograms.length ? (
         <WinnerMultiSelect
           organizationPrograms={organizationPrograms}
@@ -863,22 +1034,6 @@ function ReviewStep({
   const [committing, setCommitting] = useState(false);
 
   const validation = draft.validation;
-  const totals = useMemo(
-    () =>
-      validation?.workbooks.reduce(
-        (accumulator, workbook) => ({
-          questions: accumulator.questions + workbook.questions,
-          organizations: Math.max(
-            accumulator.organizations,
-            validation.organizations.length,
-          ),
-          respondents: accumulator.respondents + workbook.respondents,
-          responses: accumulator.responses + workbook.responses,
-        }),
-        { questions: 0, organizations: 0, respondents: 0, responses: 0 },
-      ),
-    [validation],
-  );
 
   const commit = async () => {
     setCommitting(true);
@@ -955,17 +1110,23 @@ function ReviewStep({
           <strong>{draft.efsFileName ?? "Not changed"}</strong>
         </div>
       </div>
-      {totals ? (
+      {validation?.workbooks.length ? (
         <div className="summary-grid">
-          <div className="summary-card">
-            <strong>Totals</strong>
-            <ul>
-              <li>{totals.questions} questions</li>
-              <li>{totals.organizations} organizations</li>
-              <li>{totals.respondents} respondents</li>
-              <li>{totals.responses} responses</li>
-            </ul>
-          </div>
+          {validation.workbooks.map((workbook) => (
+            <div className="summary-card" key={workbook.kind}>
+              <strong>
+                {workbook.kind === "EA"
+                  ? "Employer Assessment (EA)"
+                  : "Employee Feedback Survey (EFS)"}
+              </strong>
+              <ul>
+                <li>{workbook.respondents} respondents</li>
+                <li>{workbook.questions} questions</li>
+                <li>{workbook.organizations} organizations</li>
+                <li>{workbook.responses} responses</li>
+              </ul>
+            </div>
+          ))}
         </div>
       ) : null}
       {validation ? <IssueList issues={validation.issues} /> : null}
@@ -1145,6 +1306,9 @@ export function HistoricalImportPage() {
                 `${program.year ?? currentYear}-12-31`,
               ),
               reportCatalog,
+              categoryPricing: Array.isArray(details.categoryPricing)
+                ? (details.categoryPricing as CategoryPricing[])
+                : defaultCategoryPricing.map((entry) => ({ ...entry })),
               organizationPrograms: organizations.map((organization) => ({
                 organizationProgramId: organization.organizationProgramId,
                 organizationName: organization.name,

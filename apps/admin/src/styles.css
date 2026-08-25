@@ -1034,6 +1034,73 @@ a {
   border-radius: 4px;
   padding: 7px 9px;
 }
+.ranking-upload,
+.category-pricing-editor {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dedee2;
+  border-radius: 10px;
+  background: #fafafa;
+}
+.ranking-upload > div,
+.category-pricing-editor > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+.ranking-upload span,
+.ranking-upload small,
+.category-pricing-editor span {
+  color: #71717a;
+  font-size: 13px;
+}
+.ranking-upload label {
+  position: relative;
+  justify-self: start;
+  cursor: pointer;
+}
+.ranking-upload input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.category-pricing-grid {
+  display: grid;
+  gap: 10px;
+}
+.category-pricing-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.6fr) minmax(160px, 1fr) minmax(
+      160px,
+      1fr
+    );
+  align-items: end;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e4e4e7;
+}
+.category-pricing-row > strong {
+  align-self: center;
+}
+.category-pricing-row label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.category-pricing-row input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #dedee2;
+  border-radius: 6px;
+  padding: 9px 11px;
+  background: white;
+}
+@media (max-width: 800px) {
+  .category-pricing-row {
+    grid-template-columns: 1fr;
+  }
+}
 .upload-card {
   position: relative;
   min-height: 180px;

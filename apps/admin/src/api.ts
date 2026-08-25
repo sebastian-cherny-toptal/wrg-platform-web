@@ -44,6 +44,13 @@ export type ZohoProgramOption = {
   year: number | null;
   efsLaunchDate: string | null;
   efsDeadline: string | null;
+  categoryPricing?: CategoryPricing[];
+};
+
+export type CategoryPricing = {
+  tier: "Boutique" | "Small" | "Medium" | "Large" | "Mega" | "Major";
+  employeeSize: string;
+  priceCents: number;
 };
 
 export type PortalUserRecord = {
@@ -83,8 +90,10 @@ export type HistoricalImportMetadata = {
     organizationName?: string;
     surveysSent: number;
     isWinner: boolean;
+    currentYearCategory?: string;
   }>;
   reportCatalog?: ReportProduct[];
+  categoryPricing?: CategoryPricing[];
 };
 
 export type ReportProduct = {
@@ -243,7 +252,9 @@ async function refreshAdminAuth(auth: AdminAuth): Promise<AdminAuth | null> {
         if (!response.ok) return null;
         const payload = object(await response.json().catch(() => null));
         const data = object(payload.data);
-        const accessToken = stringValue(data.accessToken || payload.accessToken);
+        const accessToken = stringValue(
+          data.accessToken || payload.accessToken,
+        );
         const refreshToken = stringValue(
           data.refreshToken || payload.refreshToken,
         );
@@ -723,6 +734,9 @@ export const api = {
         year: Number.isInteger(parsedYear) ? parsedYear : null,
         efsLaunchDate: stringValue(value.efsLaunchDate) || null,
         efsDeadline: stringValue(value.efsDeadline) || null,
+        ...(Array.isArray(value.categoryPricing)
+          ? { categoryPricing: value.categoryPricing as CategoryPricing[] }
+          : {}),
       };
     });
   },
@@ -860,6 +874,52 @@ export const api = {
       importId: string;
       eaFileName: string;
       efsFileName: string;
+    };
+  },
+
+  async matchHistoricalImportRankingWorkbook(
+    importId: string,
+    rankingFile: File,
+  ): Promise<{
+    organizationPrograms: NonNullable<
+      HistoricalImportMetadata["organizationPrograms"]
+    >;
+    matchedOrganizations: number;
+    unmatchedOrganizations: string[];
+    invalidRows: number;
+  }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("rankingFile", rankingFile);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/historicalImports/${encodeURIComponent(importId)}/ranking`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const body = object(payload);
+      const nested = object(body.error);
+      throw new ApiError(
+        stringValue(body.message) ||
+          stringValue(nested.message) ||
+          "Unable to match ranking workbook",
+        response.status,
+      );
+    }
+    return object(object(payload).data) as {
+      organizationPrograms: NonNullable<
+        HistoricalImportMetadata["organizationPrograms"]
+      >;
+      matchedOrganizations: number;
+      unmatchedOrganizations: string[];
+      invalidRows: number;
     };
   },
 
