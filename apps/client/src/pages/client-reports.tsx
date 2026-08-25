@@ -1184,6 +1184,185 @@ function DonutScore({
   );
 }
 
+type AnnualDistribution = {
+  ResponseCaption: string;
+  percentage: number;
+};
+
+const annualDistributionLabels = {
+  Agree: "Agreement",
+  Neutral: "Neutral",
+  Disagree: "Disagreement",
+} as const;
+
+function DistributionDonut({
+  year,
+  distribution,
+  previous = false,
+}: {
+  year: string;
+  distribution: AnnualDistribution[];
+  previous?: boolean;
+}) {
+  const palette = previous
+    ? { Agree: "#9278e8", Neutral: "#b4a5ef", Disagree: "#ddd6fe" }
+    : { Agree: "#4c1d95", Neutral: "#7c3aed", Disagree: "#b5a7ef" };
+  const values = (["Agree", "Neutral", "Disagree"] as const).map((caption) => ({
+    caption,
+    value:
+      distribution.find((item) => item.ResponseCaption === caption)
+        ?.percentage ?? 0,
+  }));
+  let cumulative = 0;
+  const segments = values.map((item) => {
+    const offset = cumulative;
+    cumulative += item.value;
+    const angle = ((offset + item.value / 2) / 100) * Math.PI * 2 - Math.PI / 2;
+    return {
+      ...item,
+      offset,
+      labelX: 120 + Math.cos(angle) * 98,
+      labelY: 105 + Math.sin(angle) * 98,
+    };
+  });
+
+  return (
+    <div className="grid min-w-0 flex-1 place-items-center px-4 py-7">
+      <svg
+        aria-label={`${year}: ${values
+          .map(
+            ({ caption, value }) =>
+              `${Math.round(value)}% ${annualDistributionLabels[caption]}`,
+          )
+          .join(", ")}`}
+        className="h-[260px] w-full max-w-[360px] overflow-visible"
+        role="img"
+        viewBox="0 0 240 220"
+      >
+        <circle
+          cx="120"
+          cy="105"
+          fill="none"
+          r="70"
+          stroke="#f4f4f5"
+          strokeWidth="32"
+        />
+        {segments.map(({ caption, value, offset }) => (
+          <circle
+            cx="120"
+            cy="105"
+            fill="none"
+            key={caption}
+            pathLength="100"
+            r="70"
+            stroke={palette[caption]}
+            strokeDasharray={`${value} ${100 - value}`}
+            strokeDashoffset={-offset}
+            strokeWidth="32"
+            transform="rotate(-90 120 105)"
+          />
+        ))}
+        <text
+          fill="#71717a"
+          fontSize="13"
+          fontWeight="600"
+          textAnchor="middle"
+          x="120"
+          y="110"
+        >
+          {year}
+        </text>
+        {segments.map(({ caption, value, labelX, labelY }) =>
+          value > 0 ? (
+            <text
+              fill="#18181b"
+              fontSize="11"
+              fontWeight="700"
+              key={`${caption}-label`}
+              textAnchor={
+                labelX < 102 ? "end" : labelX > 138 ? "start" : "middle"
+              }
+              x={labelX}
+              y={labelY}
+            >
+              {Math.round(value)}%
+            </text>
+          ) : null,
+        )}
+      </svg>
+      <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-zinc-600">
+        {values.map(({ caption }) => (
+          <span className="inline-flex items-center gap-2" key={caption}>
+            <i
+              className="size-2.5 rounded-sm"
+              style={{ backgroundColor: palette[caption] }}
+            />
+            {annualDistributionLabels[caption]}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QuestionTrendBars({
+  currentYear,
+  previousYear,
+  currentValue,
+  previousValue,
+}: {
+  currentYear: string;
+  previousYear: string;
+  currentValue: number | null;
+  previousValue: number | null;
+}) {
+  const bar = (year: string, value: number | null, previous: boolean) => {
+    const rounded = value === null ? null : Math.round(value);
+    const width = rounded === null ? 0 : Math.max(rounded, rounded > 0 ? 4 : 0);
+    return (
+      <div
+        aria-label={`${year}: ${rounded === null ? "no data" : `${rounded}%`}`}
+        className="relative h-9 rounded-md bg-zinc-50"
+        role="img"
+      >
+        {rounded === null ? (
+          <span className="absolute inset-y-0 left-3 flex items-center text-xs font-semibold text-zinc-400">
+            No data
+          </span>
+        ) : (
+          <>
+            <div
+              className="h-full rounded-md"
+              style={{
+                backgroundColor: previous ? "#9b87e5" : "#4c1d95",
+                width: `${width}%`,
+              }}
+            />
+            <span
+              className={cn(
+                "absolute inset-y-0 flex items-center text-xs font-semibold",
+                rounded >= 8 ? "left-3 text-white" : "text-zinc-700",
+              )}
+              style={
+                rounded >= 8 ? undefined : { left: `calc(${width}% + 8px)` }
+              }
+            >
+              {rounded}%
+            </span>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="grid gap-2">
+      {bar(currentYear, currentValue, false)}
+      {bar(previousYear, previousValue, true)}
+    </div>
+  );
+}
+
 export function AnnualTrendsPage() {
   const program = useSelectedProgram();
   const surveyAverageRef = useRef<HTMLDivElement>(null);
@@ -1234,9 +1413,6 @@ export function AnnualTrendsPage() {
   const averageData = averages.data?.data?.[0] ?? {};
   const currentAverage = Number(averageData[currentYear] ?? 0);
   const previousAverage = Number(averageData[previousYear] ?? 0);
-  const percentage = (yearSnapshot: typeof currentSnapshot, caption: string) =>
-    yearSnapshot?.data.find((item) => item.ResponseCaption === caption)
-      ?.percentage ?? 0;
   return (
     <>
       <ReportHeader
@@ -1337,28 +1513,17 @@ export function AnnualTrendsPage() {
                     targetRef={categoryTrendsRef}
                   />
                 </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="mt-4 grid md:grid-cols-2 md:divide-x md:divide-zinc-200">
                   {[currentSnapshot, previousSnapshot].map(
                     (yearSnapshot, index) => {
                       const year = index === 0 ? currentYear : previousYear;
                       return (
-                        <div className="rounded-xl bg-zinc-50 p-5" key={year}>
-                          <h3 className="font-semibold">{year}</h3>
-                          <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                            <span>
-                              {Math.round(percentage(yearSnapshot, "Agree"))}%
-                              Agreement
-                            </span>
-                            <span>
-                              {Math.round(percentage(yearSnapshot, "Neutral"))}%
-                              Neutral
-                            </span>
-                            <span>
-                              {Math.round(percentage(yearSnapshot, "Disagree"))}
-                              % Disagreement
-                            </span>
-                          </div>
-                        </div>
+                        <DistributionDonut
+                          distribution={yearSnapshot?.data ?? []}
+                          key={year}
+                          previous={index === 1}
+                          year={year}
+                        />
                       );
                     },
                   )}
@@ -1367,28 +1532,44 @@ export function AnnualTrendsPage() {
             </div>
             <div className="mt-4" ref={questionTrendsRef}>
               <Card className="shadow-none">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-5">
-                  <h2 className="font-semibold">Question trends</h2>
-                  <div className="flex items-center gap-2">
-                    {(["Agree", "Neutral", "Disagree"] as const).map((item) => (
-                      <button
-                        className={cn(
-                          "rounded-full px-3 py-1 text-xs font-semibold",
-                          metric === item
-                            ? "bg-violet-600 text-white"
-                            : "bg-zinc-100 text-zinc-600",
-                        )}
-                        key={item}
-                        onClick={() => setMetric(item)}
-                        type="button"
-                      >
-                        {item === "Agree"
-                          ? "Agreement"
-                          : item === "Disagree"
-                            ? "Disagreement"
-                            : item}
-                      </button>
-                    ))}
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-zinc-200 p-5">
+                  <div>
+                    <h2 className="font-semibold">Question trends</h2>
+                    <div className="mt-4 flex rounded-xl bg-violet-50 p-1">
+                      {(["Agree", "Neutral", "Disagree"] as const).map(
+                        (item) => (
+                          <button
+                            className={cn(
+                              "rounded-lg px-5 py-2 text-sm font-semibold",
+                              metric === item
+                                ? "bg-white text-zinc-900 shadow-sm"
+                                : "text-zinc-500",
+                            )}
+                            key={item}
+                            onClick={() => setMetric(item)}
+                            type="button"
+                          >
+                            {item === "Agree"
+                              ? "Agreement"
+                              : item === "Disagree"
+                                ? "Disagreement"
+                                : item}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                    <div className="mt-4 flex gap-5 text-xs font-semibold text-zinc-600">
+                      <span className="inline-flex items-center gap-2">
+                        <i className="size-2.5 rounded-sm bg-[#4c1d95]" />
+                        {currentYear}
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <i className="size-2.5 rounded-sm bg-[#9b87e5]" />
+                        {previousYear}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
                     <ImageDownloadMenu
                       iconOnly
                       name={`${selectedCategory} question trends`}
@@ -1429,22 +1610,18 @@ export function AnnualTrendsPage() {
                       };
                       return (
                         <div
-                          className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_80px_80px]"
+                          className="grid gap-4 p-5 text-sm md:grid-cols-[minmax(220px,340px)_1fr] md:items-center"
                           key={question.questionId}
                         >
-                          <span>{question.question}</span>
-                          <span className="font-semibold">
-                            {valueFor(currentYear)
-                              ? Math.round(valueFor(currentYear) ?? 0)
-                              : "—"}
-                            %
+                          <span className="leading-5 text-zinc-600">
+                            {question.question}
                           </span>
-                          <span className="font-semibold text-zinc-500">
-                            {valueFor(previousYear)
-                              ? Math.round(valueFor(previousYear) ?? 0)
-                              : "—"}
-                            {valueFor(previousYear) === null ? "" : "%"}
-                          </span>
+                          <QuestionTrendBars
+                            currentValue={valueFor(currentYear)}
+                            currentYear={currentYear}
+                            previousValue={valueFor(previousYear)}
+                            previousYear={previousYear}
+                          />
                         </div>
                       );
                     })}

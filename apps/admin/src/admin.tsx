@@ -48,6 +48,7 @@ import {
 } from "./api";
 import { useAuth } from "./auth";
 import { CatalogEditor } from "./catalog-editor";
+import { filterAndSortOrganizations } from "./organization-options";
 
 const permissionLabels: Record<string, string> = {
   clientsProjectsProgramsAccess: "Access Shared Projects, Programs & Clients",
@@ -1016,12 +1017,17 @@ function AddUserModal({
     organizationId: "",
     programs: [] as string[],
   });
+  const [organizationSearch, setOrganizationSearch] = useState("");
   const selectedRole = (roles.data ?? []).find(
     (role) => field(role, "_id", "id") === form.roleId,
   );
   const isClient = ["client", "promotional"].includes(field(selectedRole ?? {}, "role") as string);
   const selectedOrganization = (organizations.data ?? []).find(
     (organization) => organization.id === form.organizationId,
+  );
+  const organizationOptions = filterAndSortOrganizations(
+    organizations.data ?? [],
+    organizationSearch,
   );
   const availablePrograms = selectedOrganization?.programs ?? [];
   const selectedProjectId = availablePrograms.find((program) =>
@@ -1136,6 +1142,16 @@ function AddUserModal({
         {roles.error ? <p className="form-error">{roles.error}</p> : null}
         {isClient ? (
           <>
+            <input
+              aria-label="Search organizations"
+              type="search"
+              placeholder="Search organizations"
+              value={organizationSearch}
+              onChange={(event) => {
+                setOrganizationSearch(event.target.value);
+                setForm({ ...form, organizationId: "", programs: [] });
+              }}
+            />
             <select
               aria-label="Organization"
               value={form.organizationId}
@@ -1148,13 +1164,20 @@ function AddUserModal({
               }
               required
             >
-              <option value="">Select organization</option>
-              {(organizations.data ?? []).map((organization) => (
+              <option value="">
+                {organizationSearch
+                  ? `Select organization (${organizationOptions.length} matches)`
+                  : "Select organization"}
+              </option>
+              {organizationOptions.map((organization) => (
                 <option key={organization.id} value={organization.id}>
                   {organization.name}
                 </option>
               ))}
             </select>
+            {organizationSearch && organizationOptions.length === 0 ? (
+              <p className="form-hint">No organizations match that search.</p>
+            ) : null}
             {organizations.error ? (
               <p className="form-error">{organizations.error}</p>
             ) : null}

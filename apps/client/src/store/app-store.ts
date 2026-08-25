@@ -21,6 +21,13 @@ type AppState = {
   clearCart: () => void
 }
 
+function latestProgram<T extends { year: number }>(programs: T[]): T | undefined {
+  return programs.reduce<T | undefined>(
+    (latest, program) => (!latest || program.year > latest.year ? program : latest),
+    undefined,
+  )
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -30,7 +37,7 @@ export const useAppStore = create<AppState>()(
       setSession: (session) =>
         set({
           session,
-          selectedProgramId: session?.user.programs[0]?.id ?? null,
+          selectedProgramId: latestProgram(session?.user.programs ?? [])?.id ?? null,
           ...(session === null ? { cart: [] } : {}),
         }),
       selectProgram: (selectedProgramId) => set({ selectedProgramId }),
@@ -59,7 +66,11 @@ export const useAppStore = create<AppState>()(
 export function useSelectedProgram() {
   return useAppStore((state) => {
     const programs = state.session?.user.programs ?? []
-    return programs.find((program) => program.id === state.selectedProgramId) ?? programs[0] ?? null
+    return (
+      programs.find((program) => program.id === state.selectedProgramId) ??
+      latestProgram(programs) ??
+      null
+    )
   })
 }
 
@@ -67,6 +78,7 @@ export function hasEntitlement(entitlement: ClientEntitlement): boolean {
   const state = useAppStore.getState()
   if (state.session?.user.role === 'promotional') return false
   const programs = state.session?.user.programs ?? []
-  const selected = programs.find((program) => program.id === state.selectedProgramId) ?? programs[0]
+  const selected =
+    programs.find((program) => program.id === state.selectedProgramId) ?? latestProgram(programs)
   return selected?.entitlements[entitlement] === 'yes'
 }

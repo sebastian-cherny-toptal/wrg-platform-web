@@ -794,6 +794,11 @@ a {
   color: #c52828;
   font-size: 14px;
 }
+.form-hint {
+  margin: -8px 0 16px;
+  color: #71717a;
+  font-size: 13px;
+}
 .modal-actions {
   display: flex;
   justify-content: flex-end;
