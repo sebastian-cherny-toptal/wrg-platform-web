@@ -11,7 +11,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
@@ -576,7 +582,12 @@ function PieChartCard({
   disagreement,
   selected,
   onSelect,
-}: CategoryResult & { selected: boolean; onSelect: () => void }) {
+  gridStyle,
+}: CategoryResult & {
+  selected: boolean;
+  onSelect: () => void;
+  gridStyle?: CSSProperties;
+}) {
   const cardRef = useRef<HTMLDivElement>(null);
   const pie = `conic-gradient(#7c3aed 0 ${agreement}%, #a99bea ${agreement}% ${agreement + neutral}%, #ef4444 ${agreement + neutral}% 100%)`;
   return (
@@ -584,7 +595,7 @@ function PieChartCard({
       ref={cardRef}
       aria-pressed={selected}
       aria-controls={selected ? "detailed-results-breakdown" : undefined}
-      className="cursor-pointer"
+      className="cursor-pointer [grid-row:var(--mobile-row)] md:[grid-row:var(--tablet-row)] xl:[grid-row:var(--desktop-row)]"
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -593,6 +604,7 @@ function PieChartCard({
         }
       }}
       role="button"
+      style={gridStyle}
       tabIndex={0}
     >
       <Card
@@ -650,17 +662,20 @@ function DetailPanel({
   error,
   loading,
   onClose,
+  gridStyle,
 }: {
   title: string;
   data: DetailReport | undefined;
   error: string | undefined;
   loading: boolean;
   onClose: () => void;
+  gridStyle?: CSSProperties;
 }) {
   return (
     <section
-      className="mt-5 rounded-2xl border-2 border-violet-200 bg-violet-50 p-5"
+      className="col-span-full rounded-2xl border-2 border-violet-200 bg-violet-50 p-5 [grid-row:var(--mobile-row)] md:[grid-row:var(--tablet-row)] xl:[grid-row:var(--desktop-row)]"
       id="detailed-results-breakdown"
+      style={gridStyle}
     >
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -790,6 +805,28 @@ export function DetailedResultsPage() {
   const selectedResult = report.categoryResults.find(
     (result) => result.title === selectedTitle,
   );
+  const selectedIndex = report.categoryResults.findIndex(
+    (result) => result.title === selectedTitle,
+  );
+  const selectedGridRows =
+    selectedIndex < 0
+      ? null
+      : {
+          mobile: selectedIndex + 1,
+          tablet: Math.floor(selectedIndex / 2) + 1,
+          desktop: Math.floor(selectedIndex / 3) + 1,
+        };
+  const gridStyleForCard = (index: number) => {
+    const rowWithDetail = (columns: number, selectedRow: number | undefined) => {
+      const row = Math.floor(index / columns) + 1;
+      return selectedRow !== undefined && row > selectedRow ? row + 1 : row;
+    };
+    return {
+      "--mobile-row": rowWithDetail(1, selectedGridRows?.mobile),
+      "--tablet-row": rowWithDetail(2, selectedGridRows?.tablet),
+      "--desktop-row": rowWithDetail(3, selectedGridRows?.desktop),
+    } as CSSProperties;
+  };
   const detailReport = useQuery({
     queryKey: [
       "employee-response-breakdown",
@@ -884,11 +921,12 @@ export function DetailedResultsPage() {
           ) : (
             <>
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {report.categoryResults.map((result) => {
+                {report.categoryResults.map((result, index) => {
                   const selected = result.title === selectedTitle;
                   return (
                     <PieChartCard
                       {...result}
+                      gridStyle={gridStyleForCard(index)}
                       key={result.title}
                       onSelect={() =>
                         setSelectedTitle((current) =>
@@ -899,20 +937,27 @@ export function DetailedResultsPage() {
                     />
                   );
                 })}
+                {selectedResult && selectedGridRows ? (
+                  <DetailPanel
+                    data={detailReport.data}
+                    error={
+                      detailReport.isError
+                        ? detailReport.error.message
+                        : undefined
+                    }
+                    gridStyle={
+                      {
+                        "--mobile-row": selectedGridRows.mobile + 1,
+                        "--tablet-row": selectedGridRows.tablet + 1,
+                        "--desktop-row": selectedGridRows.desktop + 1,
+                      } as CSSProperties
+                    }
+                    loading={detailReport.isPending}
+                    onClose={() => setSelectedTitle(null)}
+                    title={selectedResult.title}
+                  />
+                ) : null}
               </div>
-              {selectedResult ? (
-                <DetailPanel
-                  data={detailReport.data}
-                  error={
-                    detailReport.isError
-                      ? detailReport.error.message
-                      : undefined
-                  }
-                  loading={detailReport.isPending}
-                  onClose={() => setSelectedTitle(null)}
-                  title={selectedResult.title}
-                />
-              ) : null}
             </>
           )}
         </div>

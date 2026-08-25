@@ -119,7 +119,7 @@ describe("Detailed Results page", () => {
     );
     const section = detailPanel.closest("section");
     expect(section).not.toBeNull();
-    expect(card.parentElement?.nextElementSibling).toBe(section);
+    expect(section?.parentElement).toBe(card.parentElement);
     expect(
       await screen.findByText("Strongly Agree: 100% (10 responses)"),
     ).toBeVisible();
