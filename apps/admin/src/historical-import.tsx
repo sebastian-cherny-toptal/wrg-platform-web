@@ -22,7 +22,7 @@ import { CatalogEditor, MoneyInput } from "./catalog-editor";
 
 const storageKey = "wrg-historical-import-draft";
 
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 type DraftState = {
   importId: string;
@@ -30,6 +30,7 @@ type DraftState = {
   eaFileName?: string;
   efsFileName?: string;
   validation?: HistoricalImportValidationSummary;
+  winnersConfigured?: boolean;
 };
 
 const currentYear = new Date().getFullYear();
@@ -71,8 +72,9 @@ function StepIndicator({
   const steps = [
     { number: 1, label: "Project & Program" },
     { number: 2, label: "Upload EA/EFS" },
-    { number: 3, label: "Report Store" },
-    { number: 4, label: "Review & Create" },
+    { number: 3, label: "Winners & Non-Winners" },
+    { number: 4, label: "Report Store" },
+    { number: 5, label: "Review & Create" },
   ] as const;
   return (
     <ol className="wizard-steps">
@@ -124,6 +126,20 @@ function IssueList({
           <span>{issue.message}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function WizardActions({
+  position,
+  children,
+}: {
+  position: "top" | "bottom";
+  children: ReactNode;
+}) {
+  return (
+    <div className={`wizard-actions wizard-actions-${position}`}>
+      {children}
     </div>
   );
 }
@@ -443,8 +459,21 @@ function MetadataStep({
     }
   };
 
+  const actions = (position: "top" | "bottom") => (
+    <WizardActions position={position}>
+      <button
+        className="primary-button compact"
+        disabled={saving}
+        type="submit"
+      >
+        {saving ? "Saving…" : "Continue"} <ChevronRight size={16} />
+      </button>
+    </WizardActions>
+  );
+
   return (
     <form className="wizard-panel" onSubmit={submit}>
+      {actions("top")}
       <p className="wizard-copy">
         Select the Project that owns this program, or create a new Project, then
         enter the program schedule.
@@ -619,11 +648,7 @@ function MetadataStep({
         value={form.categoryPricing ?? defaultCategoryPricing}
       />
       {error ? <p className="form-error">{error}</p> : null}
-      <div className="wizard-actions">
-        <button className="primary-button compact" disabled={saving}>
-          {saving ? "Saving…" : "Continue"} <ChevronRight size={16} />
-        </button>
-      </div>
+      {actions("bottom")}
     </form>
   );
 }
@@ -645,12 +670,6 @@ function UploadStep({
   const [organizationPrograms, setOrganizationPrograms] = useState(
     draft.metadata.organizationPrograms ?? [],
   );
-  const [rankingSummary, setRankingSummary] = useState<{
-    fileName: string;
-    matchedOrganizations: number;
-    unmatchedOrganizations: string[];
-    invalidRows: number;
-  }>();
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
 
@@ -754,29 +773,45 @@ function UploadStep({
     }
   };
 
-  const uploadRankingWorkbook = async (file: File) => {
-    setWorking(true);
-    setError("");
-    try {
-      const result = await api.matchHistoricalImportRankingWorkbook(
-        draft.importId,
-        file,
-      );
-      setOrganizationPrograms(result.organizationPrograms);
-      setRankingSummary({ fileName: file.name, ...result });
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to match ranking workbook",
-      );
-    } finally {
-      setWorking(false);
-    }
-  };
+  const actions = (position: "top" | "bottom") => (
+    <WizardActions position={position}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={onBack}
+        disabled={working}
+      >
+        <ChevronLeft size={16} /> Back
+      </button>
+      <button
+        type="button"
+        className="primary-button compact"
+        disabled={working}
+        onClick={() => void validate()}
+      >
+        {working
+          ? "Working…"
+          : !eaFile && !efsFile && draft.metadata.programId
+            ? "Skip uploads"
+            : "Validate workbooks"}
+      </button>
+      {validation?.blockingErrorCount === 0 &&
+      validation.workbooks.length > 0 ? (
+        <button
+          type="button"
+          className="primary-button compact"
+          disabled={working}
+          onClick={() => void continueWithSurveysSent()}
+        >
+          Continue <ChevronRight size={16} />
+        </button>
+      ) : null}
+    </WizardActions>
+  );
 
   return (
     <div className="wizard-panel">
+      {actions("top")}
       <p className="wizard-copy">
         Upload one Employer Assessment workbook and one Employee Feedback Survey
         workbook.{" "}
@@ -808,49 +843,6 @@ function UploadStep({
           />
         </label>
       </div>
-      {organizationPrograms.length ? (
-        <section className="ranking-upload">
-          <div>
-            <strong>Bulk winner and category matching</strong>
-            <span>
-              Upload the ranking extract with Alias Name, Organization ID, CY
-              Winner, and CY Category columns.
-            </span>
-          </div>
-          <label className="secondary-button compact action-link">
-            <Upload size={16} /> Upload ranking extract
-            <input
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              disabled={working}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void uploadRankingWorkbook(file);
-                event.currentTarget.value = "";
-              }}
-              type="file"
-            />
-          </label>
-          {rankingSummary ? (
-            <small>
-              {rankingSummary.fileName}: matched{" "}
-              {rankingSummary.matchedOrganizations}
-              {rankingSummary.unmatchedOrganizations.length
-                ? `; ${rankingSummary.unmatchedOrganizations.length} unmatched`
-                : ""}
-              {rankingSummary.invalidRows
-                ? `; ${rankingSummary.invalidRows} rows without Yes/No`
-                : ""}
-              .
-            </small>
-          ) : null}
-        </section>
-      ) : null}
-      {organizationPrograms.length ? (
-        <WinnerMultiSelect
-          organizationPrograms={organizationPrograms}
-          onChange={setOrganizationPrograms}
-        />
-      ) : null}
       {draft.metadata.programId &&
       organizationPrograms.length &&
       !validation?.workbooks.length ? (
@@ -984,39 +976,161 @@ function UploadStep({
         </>
       ) : null}
       {error ? <p className="form-error">{error}</p> : null}
-      <div className="wizard-actions">
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={onBack}
-          disabled={working}
-        >
-          <ChevronLeft size={16} /> Back
-        </button>
-        <button
-          type="button"
-          className="primary-button compact"
-          disabled={working}
-          onClick={() => void validate()}
-        >
-          {working
-            ? "Working…"
-            : !eaFile && !efsFile && draft.metadata.programId
-              ? "Skip uploads"
-              : "Validate workbooks"}
-        </button>
-        {validation?.blockingErrorCount === 0 &&
-        validation.workbooks.length > 0 ? (
-          <button
-            type="button"
-            className="primary-button compact"
-            disabled={working}
-            onClick={() => void continueWithSurveysSent()}
-          >
-            Continue <ChevronRight size={16} />
-          </button>
-        ) : null}
-      </div>
+      {actions("bottom")}
+    </div>
+  );
+}
+
+function WinnersStep({
+  draft,
+  onComplete,
+  onBack,
+}: {
+  draft: DraftState;
+  onComplete: (next: DraftState) => void;
+  onBack: () => void;
+}) {
+  const [organizationPrograms, setOrganizationPrograms] = useState(
+    draft.metadata.organizationPrograms ?? [],
+  );
+  const [rankingSummary, setRankingSummary] = useState<{
+    fileName: string;
+    matchedOrganizations: number;
+    unmatchedOrganizations: string[];
+    invalidRows: number;
+  }>();
+  const [error, setError] = useState("");
+  const [working, setWorking] = useState(false);
+
+  const uploadRankingWorkbook = async (file: File) => {
+    setWorking(true);
+    setError("");
+    try {
+      const result = await api.matchHistoricalImportRankingWorkbook(
+        draft.importId,
+        file,
+      );
+      setOrganizationPrograms(result.organizationPrograms);
+      setRankingSummary({ fileName: file.name, ...result });
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to match ranking workbook",
+      );
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const save = async () => {
+    setWorking(true);
+    setError("");
+    try {
+      const response = await api.updateHistoricalImportMetadata(
+        draft.importId,
+        {
+          ...draft.metadata,
+          organizationPrograms,
+        },
+      );
+      const next = {
+        ...draft,
+        metadata: response.metadata,
+        winnersConfigured: true,
+      };
+      storeDraft(next);
+      onComplete(next);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to save winner organizations",
+      );
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const actions = (position: "top" | "bottom") => (
+    <WizardActions position={position}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={onBack}
+        disabled={working}
+      >
+        <ChevronLeft size={16} /> Back
+      </button>
+      <button
+        type="button"
+        className="primary-button compact"
+        disabled={working || !organizationPrograms.length}
+        onClick={() => void save()}
+      >
+        {working ? "Saving…" : "Continue"} <ChevronRight size={16} />
+      </button>
+    </WizardActions>
+  );
+
+  return (
+    <div className="wizard-panel">
+      {actions("top")}
+      <p className="wizard-copy">
+        Configure the winner and non-winner cohorts used by benchmark reports.
+        You can upload a ranking extract for bulk matching or move
+        organizations manually.
+      </p>
+      {organizationPrograms.length ? (
+        <>
+          <section className="ranking-upload">
+            <div>
+              <strong>Bulk winner and category matching</strong>
+              <span>
+                Upload the ranking extract with Alias Name, Organization ID, CY
+                Winner, and CY Category columns.
+              </span>
+            </div>
+            <label className="secondary-button compact action-link">
+              <Upload size={16} /> Upload ranking extract
+              <input
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                disabled={working}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void uploadRankingWorkbook(file);
+                  event.currentTarget.value = "";
+                }}
+                type="file"
+              />
+            </label>
+            {rankingSummary ? (
+              <small>
+                {rankingSummary.fileName}: matched{" "}
+                {rankingSummary.matchedOrganizations}
+                {rankingSummary.unmatchedOrganizations.length
+                  ? `; ${rankingSummary.unmatchedOrganizations.length} unmatched`
+                  : ""}
+                {rankingSummary.invalidRows
+                  ? `; ${rankingSummary.invalidRows} rows without Yes/No`
+                  : ""}
+                .
+              </small>
+            ) : null}
+          </section>
+          <WinnerMultiSelect
+            organizationPrograms={organizationPrograms}
+            onChange={setOrganizationPrograms}
+          />
+        </>
+      ) : (
+        <p className="form-error">
+          No organizations are available. Return to the upload step and
+          validate the program workbooks first.
+        </p>
+      )}
+      {error ? <p className="form-error">{error}</p> : null}
+      {actions("bottom")}
     </div>
   );
 }
@@ -1059,6 +1173,33 @@ function ReviewStep({
     }
   };
 
+  const actions = (position: "top" | "bottom") => (
+    <WizardActions position={position}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={onBack}
+        disabled={committing}
+      >
+        <ChevronLeft size={16} /> Back
+      </button>
+      <button
+        type="button"
+        className="primary-button compact"
+        disabled={
+          committing || !validation || validation.blockingErrorCount > 0
+        }
+        onClick={() => void commit()}
+      >
+        {committing
+          ? "Saving program…"
+          : draft.metadata.programId
+            ? "Save program"
+            : "Create historical program"}
+      </button>
+    </WizardActions>
+  );
+
   if (status?.status === "succeeded" && status.projectId) {
     return (
       <div className="wizard-panel success-panel">
@@ -1086,6 +1227,7 @@ function ReviewStep({
 
   return (
     <div className="wizard-panel">
+      {actions("top")}
       <p className="wizard-copy">
         Review the program details, optional workbook data, organization survey
         counts, and Reports Store prices before saving.
@@ -1131,30 +1273,7 @@ function ReviewStep({
       ) : null}
       {validation ? <IssueList issues={validation.issues} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
-      <div className="wizard-actions">
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={onBack}
-          disabled={committing}
-        >
-          <ChevronLeft size={16} /> Back
-        </button>
-        <button
-          type="button"
-          className="primary-button compact"
-          disabled={
-            committing || !validation || validation.blockingErrorCount > 0
-          }
-          onClick={() => void commit()}
-        >
-          {committing
-            ? "Saving program…"
-            : draft.metadata.programId
-              ? "Save program"
-              : "Create historical program"}
-        </button>
-      </div>
+      {actions("bottom")}
     </div>
   );
 }
@@ -1204,8 +1323,29 @@ function CatalogStep({
       setSaving(false);
     }
   };
+  const actions = (position: "top" | "bottom") => (
+    <WizardActions position={position}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={onBack}
+        disabled={saving}
+      >
+        <ChevronLeft size={16} /> Back
+      </button>
+      <button
+        type="button"
+        className="primary-button compact"
+        onClick={() => void save()}
+        disabled={saving || loading}
+      >
+        {saving ? "Saving…" : "Continue"} <ChevronRight size={16} />
+      </button>
+    </WizardActions>
+  );
   return (
     <div className="wizard-panel">
+      {actions("top")}
       <p className="wizard-copy">
         Set the report products and prices that every organization in this
         imported program will see. You can customize an individual organization
@@ -1217,24 +1357,7 @@ function CatalogStep({
         <CatalogEditor products={products} onChange={setProducts} />
       )}
       {error ? <p className="form-error">{error}</p> : null}
-      <div className="wizard-actions">
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={onBack}
-          disabled={saving}
-        >
-          <ChevronLeft size={16} /> Back
-        </button>
-        <button
-          type="button"
-          className="primary-button compact"
-          onClick={() => void save()}
-          disabled={saving || loading}
-        >
-          {saving ? "Saving…" : "Continue"} <ChevronRight size={16} />
-        </button>
-      </div>
+      {actions("bottom")}
     </div>
   );
 }
@@ -1394,7 +1517,7 @@ export function HistoricalImportPage() {
     );
   } else if (step === 3) {
     content = (
-      <CatalogStep
+      <WinnersStep
         draft={draft as DraftState}
         onComplete={(next) => {
           setDraft(next);
@@ -1403,9 +1526,20 @@ export function HistoricalImportPage() {
         onBack={() => setStep(2)}
       />
     );
+  } else if (step === 4) {
+    content = (
+      <CatalogStep
+        draft={draft as DraftState}
+        onComplete={(next) => {
+          setDraft(next);
+          setStep(5);
+        }}
+        onBack={() => setStep(3)}
+      />
+    );
   } else {
     content = (
-      <ReviewStep draft={draft as DraftState} onBack={() => setStep(3)} />
+      <ReviewStep draft={draft as DraftState} onBack={() => setStep(4)} />
     );
   }
 
@@ -1425,9 +1559,11 @@ export function HistoricalImportPage() {
         step={step}
         maxStep={
           draft.metadata?.reportCatalog
-            ? 4
-            : draft.validation
-              ? 3
+            ? 5
+            : draft.winnersConfigured
+              ? 4
+              : draft.validation
+                ? 3
               : draft.importId && draft.metadata
                 ? 2
                 : 1
