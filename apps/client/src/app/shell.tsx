@@ -9,7 +9,7 @@ import {
   UserRoundX,
   X,
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { WorkforceLogoWhite } from '@wrg/platform-ui'
@@ -174,6 +174,25 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!profileOpen) return
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setProfileOpen(false)
+      }
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setProfileOpen(false)
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [profileOpen])
   const navigate = useNavigate()
   const session = useAppStore((state) => state.session)
   const setSession = useAppStore((state) => state.setSession)
@@ -260,7 +279,7 @@ export function AppShell() {
           <ClientSidebar key={selectedProgramId} onNavigate={() => setMenuOpen(false)} />
         </div>
 
-        <div className="relative p-[10px]">
+        <div className="relative p-[10px]" ref={profileMenuRef}>
           {profileOpen ? (
             <div className="absolute bottom-[47px] right-[18px] w-[142px] overflow-hidden rounded-[3px] bg-white py-1 text-zinc-900 shadow-xl" role="menu">
               <button className="flex w-full items-center whitespace-nowrap px-4 py-2 text-left text-sm hover:bg-zinc-100" role="menuitem" onClick={() => window.location.reload()}>

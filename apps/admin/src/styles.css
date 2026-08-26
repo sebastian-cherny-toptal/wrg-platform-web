@@ -497,6 +497,9 @@ a {
   text-decoration: none;
   white-space: nowrap;
 }
+.primary-button.action-link {
+  color: white;
+}
 .row-actions {
   display: flex;
   flex-wrap: wrap;
@@ -757,6 +760,28 @@ a {
 }
 .modal-form {
   display: grid;
+}
+.organization-picker {
+  display: grid;
+  margin-bottom: 16px;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  background: #fafafa;
+  padding: 12px;
+}
+.organization-picker label {
+  margin-bottom: 8px;
+  color: #3f3f46;
+  font-size: 13px;
+  font-weight: 600;
+}
+.organization-picker input,
+.organization-picker select {
+  margin-bottom: 8px;
+}
+.organization-picker small {
+  color: #71717a;
+  font-size: 12px;
 }
 .modal-form fieldset {
   display: grid;

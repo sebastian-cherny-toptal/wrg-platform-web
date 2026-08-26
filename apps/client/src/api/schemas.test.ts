@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   employeeResponseBreakdownBySectionSchema,
   keyImpactAnalysisSchema,
+  reportProductSchema,
 } from "./schemas";
 
 describe("employee response breakdown by section schema", () => {
@@ -47,6 +48,28 @@ describe("employee response breakdown by section schema", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe("report product schema", () => {
+  it("normalizes legacy numeric price strings", () => {
+    const result = reportProductSchema.parse({
+      id: "report-standard-package",
+      name: "Standard package",
+      description: "Reports",
+      priceCents: "42500",
+      available: true,
+      purchaseMode: "checkout",
+      fulfillment: "instant",
+      requiresStandardPackage: false,
+      priceAvailable: true,
+      owned: false,
+      standardPackageOwned: false,
+      purchasable: true,
+      deliveryMessage: "Instant access",
+    });
+
+    expect(result.priceCents).toBe(42_500);
   });
 });
 

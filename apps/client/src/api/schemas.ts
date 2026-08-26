@@ -503,7 +503,15 @@ export const reportProductSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  priceCents: z.number().int().nonnegative().nullable(),
+  priceCents: z.preprocess(
+    (value) =>
+      value === null
+        ? null
+        : typeof value === "string" && value.trim()
+          ? Number(value)
+          : value,
+    z.number().int().nonnegative().nullable(),
+  ),
   available: z.boolean(),
   purchaseMode: z.enum(["checkout", "contact"]),
   fulfillment: z.enum(["instant", "manual"]),

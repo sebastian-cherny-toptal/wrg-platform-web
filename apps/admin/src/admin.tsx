@@ -1022,7 +1022,11 @@ function AddUserModal({
     (role) => field(role, "_id", "id") === form.roleId,
   );
   const isClient = ["client", "promotional"].includes(field(selectedRole ?? {}, "role") as string);
-  const selectedOrganization = (organizations.data ?? []).find(
+  const mergedOrganizations = filterAndSortOrganizations(
+    organizations.data ?? [],
+    "",
+  );
+  const selectedOrganization = mergedOrganizations.find(
     (organization) => organization.id === form.organizationId,
   );
   const organizationOptions = filterAndSortOrganizations(
@@ -1030,9 +1034,6 @@ function AddUserModal({
     organizationSearch,
   );
   const availablePrograms = selectedOrganization?.programs ?? [];
-  const selectedProjectId = availablePrograms.find((program) =>
-    form.programs.includes(program.id),
-  )?.projectId;
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const submit = async (event: FormEvent) => {
@@ -1142,39 +1143,44 @@ function AddUserModal({
         {roles.error ? <p className="form-error">{roles.error}</p> : null}
         {isClient ? (
           <>
-            <input
-              aria-label="Search organizations"
-              type="search"
-              placeholder="Search organizations"
-              value={organizationSearch}
-              onChange={(event) => {
-                setOrganizationSearch(event.target.value);
-                setForm({ ...form, organizationId: "", programs: [] });
-              }}
-            />
-            <select
-              aria-label="Organization"
-              value={form.organizationId}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  organizationId: event.target.value,
-                  programs: [],
-                })
-              }
-              required
-            >
-              <option value="">
+            <div className="organization-picker">
+              <label htmlFor="organization-search">
+                Search and select an organization
+              </label>
+              <input
+                aria-label="Search organizations"
+                id="organization-search"
+                type="search"
+                placeholder="Type an organization name…"
+                value={organizationSearch}
+                onChange={(event) => setOrganizationSearch(event.target.value)}
+              />
+              <select
+                aria-describedby="organization-search-status"
+                aria-label="Organization"
+                value={form.organizationId}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    organizationId: event.target.value,
+                    programs: [],
+                  })
+                }
+                required
+              >
+                <option value="">Choose an organization…</option>
+                {organizationOptions.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name}
+                  </option>
+                ))}
+              </select>
+              <small id="organization-search-status">
                 {organizationSearch
-                  ? `Select organization (${organizationOptions.length} matches)`
-                  : "Select organization"}
-              </option>
-              {organizationOptions.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organization.name}
-                </option>
-              ))}
-            </select>
+                  ? `${organizationOptions.length} matching organization${organizationOptions.length === 1 ? "" : "s"}`
+                  : `${organizationOptions.length} organizations available`}
+              </small>
+            </div>
             {organizationSearch && organizationOptions.length === 0 ? (
               <p className="form-hint">No organizations match that search.</p>
             ) : null}
@@ -1186,17 +1192,11 @@ function AddUserModal({
                 <legend>Set programs for Client</legend>
                 {availablePrograms.length ? (
                   availablePrograms.map((program) => {
-                    const disabled = Boolean(
-                      selectedProjectId &&
-                      program.projectId !== selectedProjectId &&
-                      !form.programs.includes(program.id),
-                    );
                     return (
                       <label key={program.id}>
                         <input
                           type="checkbox"
                           checked={form.programs.includes(program.id)}
-                          disabled={disabled}
                           onChange={(event) =>
                             setForm({
                               ...form,

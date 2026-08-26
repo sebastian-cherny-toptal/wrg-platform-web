@@ -1,6 +1,6 @@
 import { Download } from 'lucide-react'
 import { toJpeg, toPng, toSvg } from 'html-to-image'
-import { useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Button, cn } from './ui'
 
 type DownloadFormat = 'jpg' | 'png' | 'svg'
@@ -58,6 +58,23 @@ export function ImageDownloadMenu({
 }) {
   const [open, setOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
 
   async function download(format: DownloadFormat) {
     setOpen(false)
@@ -73,6 +90,7 @@ export function ImageDownloadMenu({
     <div
       className={cn('download-exclude relative', className)}
       onClick={(event) => event.stopPropagation()}
+      ref={menuRef}
     >
       {iconOnly ? (
         <button
