@@ -35,12 +35,12 @@ type DraftState = {
 
 const currentYear = new Date().getFullYear();
 const defaultCategoryPricing: CategoryPricing[] = [
-  { tier: "Boutique", employeeSize: "15–24", priceCents: 0 },
-  { tier: "Small", employeeSize: "25–99", priceCents: 0 },
-  { tier: "Medium", employeeSize: "100–199", priceCents: 0 },
-  { tier: "Large", employeeSize: "200–499", priceCents: 0 },
-  { tier: "Mega", employeeSize: "500–999", priceCents: 0 },
-  { tier: "Major", employeeSize: "1,000+", priceCents: 0 },
+  { tier: "Boutique", employeeSize: "15–24", priceCents: 108_000 },
+  { tier: "Small", employeeSize: "25–99", priceCents: 111_000 },
+  { tier: "Medium", employeeSize: "100–199", priceCents: 122_500 },
+  { tier: "Large", employeeSize: "200–499", priceCents: 128_500 },
+  { tier: "Mega", employeeSize: "500–999", priceCents: 136_500 },
+  { tier: "Major", employeeSize: "1,000+", priceCents: 141_500 },
 ];
 
 function readStoredDraft(): Partial<DraftState> | null {

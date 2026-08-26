@@ -503,8 +503,17 @@ export const reportProductSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  priceCents: z.number().int().nonnegative(),
+  priceCents: z.number().int().nonnegative().nullable(),
   available: z.boolean(),
+  purchaseMode: z.enum(["checkout", "contact"]),
+  fulfillment: z.enum(["instant", "manual"]),
+  requiresStandardPackage: z.boolean(),
+  priceAvailable: z.boolean(),
+  owned: z.boolean(),
+  standardPackageOwned: z.boolean(),
+  purchasable: z.boolean(),
+  deliveryMessage: z.string(),
+  selection: z.string().optional(),
 });
 
 export const paymentIntentSchema = z.object({

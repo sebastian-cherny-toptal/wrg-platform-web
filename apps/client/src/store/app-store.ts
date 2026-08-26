@@ -8,6 +8,7 @@ type CartLine = {
   name: string
   priceCents: number
   quantity: number
+  keys?: Record<string, string>
 }
 
 type AppState = {

@@ -31,7 +31,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '../api/client'
+import { api, cachePurchasedReportAccess } from '../api/client'
 import { routeMap } from '../app/metadata'
 import { ImageDownloadMenu } from '../components/image-download-menu'
 import { Badge, Button, Card, PageHeader, StatePanel, cn } from '../components/ui'
@@ -511,112 +511,141 @@ export function CatalogPage() {
   const cart = useAppStore((state) => state.cart)
   const [verbatimFilter, setVerbatimFilter] = useState('')
   const products = catalog.data ?? []
+  const standardPackage = products.find((product) => product.id === 'report-standard-package')
   const sortedVerbatims = products.find((product) => product.id === 'report-verbatims-sorted')
   const keyImpact = products.find((product) => product.id === 'report-kia')
+  const responseDetail = products.find((product) => product.id === 'report-response-detail')
   const resorted = products.find((product) => product.id === 'report-resort')
-  const isPromotional = useAppStore((state) => state.session?.user.role === 'promotional')
+  const custom = products.find((product) => product.id === 'report-custom')
+  const standardInCart = cart.some((item) => item.productId === 'report-standard-package')
+  const standardReady = standardInCart
+    ? true
+    : (standardPackage?.standardPackageOwned ?? false)
+  const inCart = (productId: string) => cart.some((item) => item.productId === productId)
+  const addProduct = (product: NonNullable<typeof standardPackage>, keys?: Record<string, string>) => {
+    if (product.priceCents === null) return
+    addToCart({
+      productId: product.id,
+      name: product.name,
+      priceCents: product.priceCents,
+      ...(keys ? { keys } : {}),
+    })
+  }
+  const advancedProducts = [sortedVerbatims, keyImpact, responseDetail].filter(
+    (product): product is NonNullable<typeof product> => Boolean(product),
+  )
   return (
     <>
       <PageHeader
         actions={<Link to={routeMap.cart}><Button className="gap-2" variant="secondary"><ShoppingCart className="size-4" /> Cart</Button></Link>}
         breadcrumbs={[{ label: 'My Reports', path: routeMap.dashboard }, { label: 'Reports Store' }]}
         title="Reports Store"
-        description="Purchase additional reports and data segmented by demographics to gain deeper insights into your workforce."
+        description={`Purchase your ${program?.name ?? 'employee feedback'} ${program?.year ?? ''} feedback data dashboard for access to your employee feedback.`}
       />
-      <div className="p-5 lg:p-6">
-        {isPromotional ? (
-        <Card className="mb-5 p-6 shadow-none lg:p-8">
-          <div className="max-w-5xl">
-            <h2 className="text-2xl font-semibold">Employee Feedback Data Dashboard</h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-600">
-              This report identifies key motivators of employee engagement within your unique population. This information is vital to knowing what workplace attributes are most important. <strong className="text-zinc-900">Here&apos;s what you get:</strong>
-            </p>
-            <ul className="mt-6 grid gap-5">
-              <li className="text-sm leading-6 text-zinc-600">
-                <strong className="text-zinc-900">Phone Call.</strong> A 30-minute phone call with our Survey Specialist will help you go through the results and get answers to questions.
-              </li>
-              <li className="text-sm leading-6 text-zinc-600">
-                <strong className="text-zinc-900">Online Data Dashboard.</strong> This is a place where you can get all your data in the ways you need it, including downloading it in charts and graphs.
-              </li>
-              {reportCards.map((report) => (
-                <li className="border-t border-zinc-100 pt-5 text-sm leading-6 text-zinc-600" key={report.path}>
-                  <strong className="text-zinc-900">{report.title}{report.title === 'Benefits & Best Practices' ? ' Report' : ''}.</strong>{' '}
-                  {report.description}{' '}
-                  <Link className="ml-2 inline-flex items-center whitespace-nowrap font-semibold text-red-600" to={report.path}>
-                    View Report <ArrowRight className="ml-1 size-4" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
-        ) : null}
+      <div className="bg-zinc-50 p-5 lg:p-6">
         {catalog.isPending ? <StatePanel kind="loading" title="Loading catalog" message="Checking currently available reports." /> : null}
         {catalog.isError ? <StatePanel kind="error" title="Catalog unavailable" message={catalog.error.message} /> : null}
-        {catalog.data?.length === 0 ? (
-          <StatePanel
-            kind="empty"
-            title="No report products configured"
-            message="There are no additional reports available for this program yet. Please contact a Survey Professional at SurveyPro@workforcerg.com for assistance."
-            action={<a href="mailto:SurveyPro@workforcerg.com"><Button>Contact a Survey Professional</Button></a>}
-          />
-        ) : null}
-        {catalog.data ? (
-          <div className="grid gap-5 md:grid-cols-2">
-            {sortedVerbatims ? (
-              <Card className="flex min-h-[360px] flex-col p-6 shadow-none">
-                <div className="flex items-start justify-between gap-4">
-                  <span className="grid size-14 place-items-center rounded-full bg-violet-100 text-violet-700"><MessageSquareText /></span>
-                  <strong className="text-xl text-red-600">{money.format(sortedVerbatims.priceCents / 100)}</strong>
+        {standardPackage ? (
+          <Card className="overflow-hidden border-violet-200 shadow-sm">
+            <div className="h-0.5 bg-gradient-to-r from-violet-600 to-red-500" />
+            <div className="p-5 lg:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex gap-4">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-600 text-white"><BarChart3 className="size-5" /></span>
+                  <div>
+                    <h2 className="text-lg font-bold">{standardPackage.name}</h2>
+                    <p className="text-xs font-semibold text-violet-600">WRG&apos;s Standard Report Package</p>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{standardPackage.description}</p>
+                  </div>
                 </div>
-                <h2 className="mt-5 text-lg font-semibold">{sortedVerbatims.name}</h2>
-                <p className="mt-2 text-sm leading-6 text-zinc-500">{sortedVerbatims.description}</p>
-                <select className="mt-5 h-11 rounded-lg border border-zinc-300 bg-white px-3 text-sm" onChange={(event) => setVerbatimFilter(event.target.value)} value={verbatimFilter}>
-                  <option value="">Select filtering report</option>{(surveyFilters.data ?? []).map((filter) => <option key={filter.questionId} value={filter.label}>{filter.label}</option>)}
-                </select>
-                <Button
-                  className="mt-3 bg-red-600 hover:bg-red-700"
-                  disabled={!verbatimFilter || cart.some((item) => item.productId === sortedVerbatims.id)}
-                  onClick={() => addToCart({ productId: sortedVerbatims.id, name: sortedVerbatims.name, priceCents: sortedVerbatims.priceCents })}
-                >
-                  {cart.some((item) => item.productId === sortedVerbatims.id) ? 'Added to Cart' : 'Add to Cart'}
-                </Button>
-                <p className="mt-3 text-xs text-zinc-500">Instant access after purchase.</p>
-              </Card>
-            ) : null}
-            {keyImpact ? (
-              <Card className="flex min-h-[360px] flex-col p-6 shadow-none">
-                <div className="flex items-start justify-between gap-4">
-                  <span className="grid size-14 place-items-center rounded-full bg-violet-100 text-violet-700"><FileChartColumn /></span>
-                  <strong className="text-xl text-red-600">{money.format(keyImpact.priceCents / 100)}</strong>
+                <strong className="text-sm text-zinc-600">
+                  {standardPackage.priceCents === null ? 'Price unavailable' : money.format(standardPackage.priceCents / 100)}
+                </strong>
+              </div>
+              <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                  ['Phone call with specialist', '30-minute review of your feedback with a SurveyPro'],
+                  ['Online data dashboard', 'Interactive dashboard with downloadable graphics and reports'],
+                  ['Workforce Feedback Results', 'Employee survey feedback broken down by demographic'],
+                  ['Employee Verbatims', 'Employee feedback from open-ended questions'],
+                  ['Workforce Benchmark Comparisons', 'Compare your employee score with other participants'],
+                  ['Benefits & Best Practices', 'Compare employer benefits, policies, and practices'],
+                ].map(([title, description]) => (
+                  <div className="rounded-lg border border-violet-100 bg-violet-50 px-3 py-2.5" key={title}>
+                    <p className="flex gap-2 text-xs font-semibold text-zinc-900"><span className="text-violet-600">✓</span>{title}</p>
+                    <p className="mt-1 pl-4 text-[11px] text-zinc-500">{description}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-zinc-200 pt-4">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-700">ⓘ Immediate access upon successful credit card payment</p>
+                  <p className="mt-2 text-[11px] italic text-zinc-400">All credit card transactions are subject to a 3% fee. Invoice requests are handled by WRG.</p>
                 </div>
-                <h2 className="mt-5 text-lg font-semibold">{keyImpact.name}</h2>
-                <p className="mt-2 text-sm leading-6 text-zinc-500">{keyImpact.description}</p>
-                <div className="mt-auto flex items-center justify-between gap-3 pt-5">
-                  <Link className="text-sm font-semibold text-red-600" to={routeMap.keyImpactAnalysis}>View Report →</Link>
+                <div className="flex gap-2">
+                  <Link to={routeMap.dashboard}><Button variant="secondary">View demo</Button></Link>
                   <Button
-                    className="bg-red-600 hover:bg-red-700"
-                    disabled={cart.some((item) => item.productId === keyImpact.id)}
-                    onClick={() => addToCart({ productId: keyImpact.id, name: keyImpact.name, priceCents: keyImpact.priceCents })}
+                    className="bg-red-500 hover:bg-red-600"
+                    disabled={standardPackage.owned || inCart(standardPackage.id) || standardPackage.priceCents === null}
+                    onClick={() => addProduct(standardPackage)}
                   >
-                    {cart.some((item) => item.productId === keyImpact.id) ? 'Added to Cart' : 'Add to Cart'}
+                    {standardPackage.owned ? 'Purchased' : inCart(standardPackage.id) ? 'Added to cart' : standardPackage.priceCents === null ? 'Unavailable' : 'Add to cart'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        ) : null}
+
+        <div className="my-6 flex items-center gap-4"><h2 className="whitespace-nowrap text-sm font-bold">Advanced Reports</h2><span className="h-px w-full bg-zinc-200" /></div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {advancedProducts.map((product) => {
+            const isSorted = product.id === 'report-verbatims-sorted'
+            const isKia = product.id === 'report-kia'
+            const demoPath = isSorted ? routeMap.employeeVerbatims : isKia ? routeMap.keyImpactAnalysis : routeMap.responseDetail
+            const locked = !standardReady
+            const disabled = locked || product.owned || inCart(product.id) || product.priceCents === null || (isSorted && !verbatimFilter)
+            return (
+              <Card className={cn('flex min-h-[350px] flex-col p-4 shadow-none', isSorted && 'border-violet-500')} key={product.id}>
+                {isSorted ? <span className="-mt-7 self-center rounded-full bg-violet-600 px-3 py-1 text-[10px] font-bold text-white">Most popular</span> : null}
+                <span className="mt-1 grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600">
+                  {isSorted ? <MessageSquareText className="size-4" /> : isKia ? <FileChartColumn className="size-4" /> : <FileText className="size-4" />}
+                </span>
+                <h3 className="mt-3 text-sm font-bold">{product.name}</h3>
+                <strong className="mt-3 text-xl text-red-500">{product.priceCents === null ? 'Unavailable' : money.format(product.priceCents / 100)}</strong>
+                <p className="mt-3 text-xs leading-5 text-zinc-500">{product.description}</p>
+                <p className="mt-2 text-xs text-zinc-600"><span className="mr-2 text-violet-600">✓</span>{product.deliveryMessage}</p>
+                {isSorted ? (
+                  <select className="mt-3 h-10 rounded-lg border border-zinc-300 bg-white px-3 text-xs" onChange={(event) => setVerbatimFilter(event.target.value)} value={verbatimFilter}>
+                    <option value="">Select demographic filter…</option>
+                    {(surveyFilters.data ?? []).map((filter) => <option key={filter.questionId} value={filter.questionId}>{filter.label}</option>)}
+                  </select>
+                ) : null}
+                {locked ? <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">♙ Requires the Standard package</p> : null}
+                <div className="mt-auto grid gap-2 pt-4">
+                  <Link to={demoPath}><Button className="w-full" variant="secondary">View demo</Button></Link>
+                  <Button
+                    className="w-full bg-red-500 hover:bg-red-600"
+                    disabled={disabled}
+                    onClick={() => addProduct(product, isSorted ? { EV_Sorting_Filter: verbatimFilter } : undefined)}
+                  >
+                    {product.owned ? 'Purchased' : inCart(product.id) ? 'Added to cart' : 'Add to cart'}
                   </Button>
                 </div>
               </Card>
-            ) : null}
-            {resorted ? (
-              <Card className="flex min-h-[230px] flex-col p-6 shadow-none md:col-span-2 md:flex-row md:items-start md:gap-6">
-                <span className="grid size-14 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-700"><PackageCheck /></span>
-                <div className="flex-1">
-                  <h2 className="text-lg font-semibold">{resorted.name}</h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">{resorted.description}</p>
-                  <a className="mt-5 inline-block text-sm font-semibold text-red-600" href="mailto:SurveyPro@workforcerg.com">Contact a Survey Professional →</a>
-                </div>
-                <strong className="text-sm text-red-600">Pricing: VARIES</strong>
-              </Card>
-            ) : null}
-          </div>
-        ) : null}
+            )
+          })}
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {[resorted, custom].filter((product): product is NonNullable<typeof product> => Boolean(product)).map((product) => (
+            <Card className="flex items-center gap-3 px-4 py-3 shadow-none" key={product.id}>
+              <span className="grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><PackageCheck className="size-4" /></span>
+              <div className="min-w-0 flex-1"><h3 className="text-sm font-bold">{product.name}</h3><p className="text-xs text-zinc-500">{product.description}</p></div>
+              <a className="whitespace-nowrap text-xs font-semibold text-violet-600" href={`mailto:SurveyPro@workforcerg.com?subject=${encodeURIComponent(product.name)}`}>Contact →</a>
+            </Card>
+          ))}
+        </div>
       </div>
     </>
   )
@@ -653,8 +682,15 @@ export function CartPage() {
 
 export function CheckoutPage() {
   const cart = useAppStore((state) => state.cart)
+  const clearCart = useAppStore((state) => state.clearCart)
   const program = useSelectedProgram()
   const total = cart.reduce((sum, item) => sum + item.priceCents * item.quantity, 0)
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'invoice'>('card')
+  const cardFee = Math.round(total * 0.03)
+  const checkoutTotal = paymentMethod === 'card' ? total + cardFee : total
+  const [invoiceSubmitting, setInvoiceSubmitting] = useState(false)
+  const [invoiceError, setInvoiceError] = useState<string | null>(null)
+  const [invoiceSubmitted, setInvoiceSubmitted] = useState(false)
   const paymentKey = `${program?.id ?? 'none'}:${cart.map((item) => `${item.productId}:${item.quantity}:${item.priceCents}`).join(',')}`
   const [paymentState, setPaymentState] = useState<{
     key: string
@@ -666,7 +702,7 @@ export function CheckoutPage() {
   const error = currentPayment?.error ?? null
 
   useEffect(() => {
-    if (!program || total <= 0) return
+    if (!program || total <= 0 || paymentMethod !== 'card') return
     let active = true
     api.commerce.createPaymentIntent({
       programId: program.id,
@@ -675,7 +711,7 @@ export function CheckoutPage() {
       items: cart.map((item) => ({
         title: item.name,
         amount: item.priceCents * item.quantity / 100,
-        keys: { productId: item.productId },
+        keys: { productId: item.productId, ...item.keys },
       })),
     }).then((intent) => {
       if (active) setPaymentState({ key: paymentKey, clientSecret: intent.client_secret, error: null })
@@ -687,7 +723,35 @@ export function CheckoutPage() {
       })
     })
     return () => { active = false }
-  }, [cart, paymentKey, program, total])
+  }, [cart, paymentKey, paymentMethod, program, total])
+
+  async function requestInvoice() {
+    if (!program) return
+    setInvoiceSubmitting(true)
+    setInvoiceError(null)
+    try {
+      await api.commerce.requestInvoice({
+        programId: program.id,
+        amount: total / 100,
+        currency: 'USD',
+        items: cart.map((item) => ({
+          title: item.name,
+          amount: item.priceCents * item.quantity / 100,
+          keys: { productId: item.productId, ...item.keys },
+        })),
+      })
+      setInvoiceSubmitted(true)
+      clearCart()
+    } catch (reason: unknown) {
+      setInvoiceError(reason instanceof Error ? reason.message : 'Unable to request an invoice')
+    } finally {
+      setInvoiceSubmitting(false)
+    }
+  }
+
+  if (invoiceSubmitted) {
+    return <div className="p-6"><Card className="mx-auto max-w-2xl border-emerald-200 p-8 text-center"><CheckCircle2 className="mx-auto size-10 text-emerald-600" /><h1 className="mt-4 text-2xl font-bold">Invoice request received</h1><p className="mt-3 text-sm leading-6 text-zinc-600">Your order is pending. WRG will send an invoice within 48 business hours. Report access will be granted after payment is recorded.</p><Link to={routeMap.dashboard}><Button className="mt-6">Return to dashboard</Button></Link></Card></div>
+  }
 
   if (cart.length === 0) {
     return <div className="p-6"><StatePanel kind="empty" title="Your cart is empty" message="Add a report before checking out." action={<Link to={routeMap.catalog}><Button>Browse reports</Button></Link>} /></div>
@@ -697,16 +761,31 @@ export function CheckoutPage() {
       <PageHeader title="Checkout" description="Confirm the reports and billing summary for the selected survey program." />
       <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
         <Card className="p-6">
-          <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 text-violet-600" /><div><h2 className="text-xl font-bold">Secure checkout</h2><p className="mt-1 text-sm text-zinc-500">Credit and debit card details are collected securely by Stripe.</p></div></div>
-          {error ? <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-          {!clientSecret && !error ? <div className="mt-6"><StatePanel kind="loading" title="Preparing payment" message="Opening the secure card form." /></div> : null}
-          {clientSecret && stripePromise ? <Elements stripe={stripePromise} options={{ clientSecret }}><StripeCheckoutForm /></Elements> : null}
-          {!stripePromise ? <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Stripe is not configured. Set VITE_STRIPE_PUBLISHABLE_KEY to enable card payments.</div> : null}
+          <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 text-violet-600" /><div><h2 className="text-xl font-bold">Choose payment method</h2><p className="mt-1 text-sm text-zinc-500">Pay by card for immediate eligible access, or ask WRG to invoice your organization.</p></div></div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'card' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('card')} type="button"><strong className="text-sm">Credit card</strong><p className="mt-1 text-xs text-zinc-500">Immediate access after successful payment. A 3% fee applies.</p></button>
+            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'invoice' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('invoice')} type="button"><strong className="text-sm">Request an invoice</strong><p className="mt-1 text-xs text-zinc-500">Access begins after WRG records payment.</p></button>
+          </div>
+          {paymentMethod === 'card' ? (
+            <>
+              {error ? <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+              {!clientSecret && !error ? <div className="mt-6"><StatePanel kind="loading" title="Preparing payment" message="Opening the secure card form." /></div> : null}
+              {clientSecret && stripePromise ? <Elements stripe={stripePromise} options={{ clientSecret }}><StripeCheckoutForm /></Elements> : null}
+              {!stripePromise ? <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Stripe is not configured. Set VITE_STRIPE_PUBLISHABLE_KEY to enable card payments.</div> : null}
+            </>
+          ) : (
+            <div className="mt-6">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">This order will be logged as pending. WRG will create the invoice and grant access after payment is recorded.</div>
+              {invoiceError ? <p className="mt-4 text-sm text-red-700">{invoiceError}</p> : null}
+              <Button className="mt-5" disabled={invoiceSubmitting} onClick={() => void requestInvoice()}>{invoiceSubmitting ? 'Submitting…' : 'Request invoice'}</Button>
+            </div>
+          )}
         </Card>
         <aside className="h-fit rounded-2xl bg-slate-900 p-6 text-white">
           <h2 className="font-bold">Order summary</h2>
           <p className="mt-2 text-sm text-slate-400">{cart.length} report product{cart.length === 1 ? '' : 's'}</p>
-          <div className="mt-5 flex justify-between border-t border-slate-700 pt-5 text-lg font-bold"><span>Total</span><span>{money.format(total / 100)}</span></div>
+          <div className="mt-5 grid gap-2 border-t border-slate-700 pt-5 text-sm text-slate-300"><div className="flex justify-between"><span>Subtotal</span><span>{money.format(total / 100)}</span></div>{paymentMethod === 'card' ? <div className="flex justify-between"><span>Card fee (3%)</span><span>{money.format(cardFee / 100)}</span></div> : null}</div>
+          <div className="mt-4 flex justify-between border-t border-slate-700 pt-4 text-lg font-bold"><span>Total</span><span>{money.format(checkoutTotal / 100)}</span></div>
         </aside>
       </div>
     </>
@@ -720,6 +799,8 @@ function StripeCheckoutForm() {
   const stripe = useStripe()
   const elements = useElements()
   const clearCart = useAppStore((state) => state.clearCart)
+  const cart = useAppStore((state) => state.cart)
+  const navigate = useNavigate()
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -739,8 +820,9 @@ function StripeCheckoutForm() {
       return
     }
     if (result.paymentIntent.status === 'succeeded' || result.paymentIntent.status === 'processing') {
+      cachePurchasedReportAccess(cart.map(({ productId }) => productId))
       clearCart()
-      window.location.assign(routeMap.dashboard)
+      void navigate(routeMap.dashboard)
     }
   }
 

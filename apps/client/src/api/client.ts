@@ -95,6 +95,35 @@ function clearClientSession(): void {
   window.localStorage.removeItem(clientSessionStorageKey);
 }
 
+export function cachePurchasedReportAccess(productIds: string[]): void {
+  const state = useAppStore.getState();
+  const session = state.session;
+  const selectedProgramId = state.selectedProgramId;
+  if (!session || !selectedProgramId) return;
+  const purchased = new Set(productIds);
+  const programs = session.user.programs.map((program) => {
+    if (program.id !== selectedProgramId) return program;
+    const entitlements = { ...program.entitlements };
+    if (purchased.has("report-standard-package")) {
+      entitlements.WFR_Access = "yes";
+      entitlements.EV_Access = "yes";
+      entitlements.WBC_Access = "yes";
+      entitlements.BBP_Access = "yes";
+    }
+    if (purchased.has("report-response-detail")) {
+      entitlements.RD_Access = "yes";
+    }
+    if (purchased.has("report-verbatims-sorted")) {
+      entitlements.SEV_Access = "yes";
+    }
+    return { ...program, entitlements };
+  });
+  const next = { ...session, user: { ...session.user, programs } };
+  window.localStorage.setItem(clientSessionStorageKey, JSON.stringify(next));
+  state.setSession(next);
+  useAppStore.getState().selectProgram(selectedProgramId);
+}
+
 function closeUnauthorizedSession(): void {
   clearImpersonationSession();
   clearClientSession();
@@ -181,6 +210,7 @@ async function backendClientLogin(input: {
         BBP_Access: entitlement(enrollment.reportAccess.BBP_Access),
         RD_Access: entitlement(enrollment.reportAccess.RD_Access),
         KIA_Access: entitlement(enrollment.reportAccess.KIA_Access),
+        SEV_Access: entitlement(enrollment.reportAccess.SEV_Access),
         CR_Access: entitlement(enrollment.reportAccess.CR_Access),
       },
     };
@@ -319,6 +349,7 @@ async function downloadRequest(
   path: string,
   filename: string,
   method: "GET" | "POST" = "GET",
+  body?: Record<string, unknown>,
 ): Promise<void> {
   const accessToken = impersonationToken() ?? clientToken();
   const response = await fetch(`${env.compatibilityApiBaseUrl}${path}`, {
@@ -330,7 +361,7 @@ async function downloadRequest(
       ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
-    ...(method === "POST" ? { body: "{}" } : {}),
+    ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
   });
   if (!response.ok) {
     if (response.status === 401 && accessToken) closeUnauthorizedSession();
@@ -703,11 +734,18 @@ export const api = {
         "Annual_Trends_Report.xlsx",
         "POST",
       ),
-    downloadVerbatimsWorkbook: (programId: string, isDummy = false) =>
+    downloadVerbatimsWorkbook: (
+      programId: string,
+      isDummy = false,
+      filterQuestion?: string,
+    ) =>
       downloadRequest(
         `/client/getOpenResponsesAnswersReport?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
-        "Employee_Verbatims_Report.xlsx",
+        filterQuestion
+          ? "Sorted_Employee_Verbatims_Report.xlsx"
+          : "Employee_Verbatims_Report.xlsx",
         "POST",
+        filterQuestion ? { queryFilter: { questionId: filterQuestion } } : {},
       ),
     downloadBenchmarkWorkbook: (programId: string, isDummy = false) =>
       downloadRequest(
@@ -740,6 +778,20 @@ export const api = {
       method: "POST",
       body: { amount: input.amount, currency: input.currency, items: input.items },
       schema: paymentIntentSchema,
+    }),
+    requestInvoice: (input: {
+      programId: string;
+      amount: number;
+      currency: string;
+      items: { title: string; amount: number; keys: Record<string, unknown> }[];
+    }) => request(`/payment/checkout?selectedProgramId=${encodeURIComponent(input.programId)}`, {
+      method: "POST",
+      body: { total: input.amount, currency: input.currency, items: input.items },
+      schema: z.object({
+        success: z.literal(true),
+        status: z.literal("pending"),
+        message: z.string(),
+      }),
     }),
   },
 };

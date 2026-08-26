@@ -1826,7 +1826,7 @@ export function EmployeeVerbatimsPage() {
           <div className="rounded-xl bg-white p-4 text-zinc-900">
             <p className="text-[13px] text-zinc-500">Price</p>
             <strong className="text-2xl">
-              {sortedVerbatims
+              {sortedVerbatims?.priceCents != null
                 ? `$ ${(sortedVerbatims.priceCents / 100).toLocaleString()}`
                 : "—"}
             </strong>
@@ -1840,24 +1840,44 @@ export function EmployeeVerbatimsPage() {
             >
               <option value="">Select filtering report</option>
               {(availableFilters.data ?? []).map((item) => (
-                <option key={item.questionId} value={item.label}>
+                <option key={item.questionId} value={item.questionId}>
                   {item.label}
                 </option>
               ))}
             </select>
             <Button
               className="mt-3 w-full"
-              disabled={!filter || inCart || !sortedVerbatims}
+              disabled={!filter || inCart || (sortedVerbatims?.owned ?? false) || sortedVerbatims?.priceCents == null}
               onClick={() =>
                 addToCart({
                   productId: "report-verbatims-sorted",
                   name: sortedVerbatims?.name ?? "Sorted Employee Verbatims",
                   priceCents: sortedVerbatims?.priceCents ?? 0,
+                  keys: { EV_Sorting_Filter: filter },
                 })
               }
             >
-              {inCart ? "Added to Cart" : "Add to Cart"}
+              {sortedVerbatims?.owned
+                ? "Purchased"
+                : inCart
+                  ? "Added to Cart"
+                  : "Add to Cart"}
             </Button>
+            {sortedVerbatims?.owned && sortedVerbatims.selection ? (
+              <Button
+                className="mt-2 w-full"
+                onClick={() =>
+                  api.reports.downloadVerbatimsWorkbook(
+                    program?.id ?? "",
+                    isDummy,
+                    sortedVerbatims.selection,
+                  )
+                }
+                variant="secondary"
+              >
+                Download sorted report
+              </Button>
+            ) : null}
           </div>
         </section>
         <Card className="mt-6 overflow-hidden shadow-none">
