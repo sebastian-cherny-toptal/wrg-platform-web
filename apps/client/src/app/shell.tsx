@@ -119,7 +119,8 @@ function ReportGroup({
 
 function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
   const location = useLocation()
-  const highlightedEntitlements = useAppStore((state) => state.purchaseCelebration?.entitlements ?? [])
+  const purchaseCelebration = useAppStore((state) => state.purchaseCelebration)
+  const highlightedEntitlements = purchaseCelebration?.entitlements ?? []
   const directBasicLinks: ClientLink[] = [
     { title: 'Employee Verbatims', path: routeMap.employeeVerbatims, entitlement: 'EV_Access' },
     { title: 'Benefits & Best Practices', path: routeMap.benefitsBestPractices, entitlement: 'BBP_Access' },
