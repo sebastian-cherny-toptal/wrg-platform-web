@@ -147,6 +147,9 @@ function WizardActions({
 type OrganizationProgramDraft = NonNullable<
   HistoricalImportMetadata["organizationPrograms"]
 >[number];
+type ZohoWinnerOrganization = NonNullable<
+  HistoricalImportMetadata["zohoWinnerOrganizations"]
+>[number];
 
 function organizationProgramKey(entry: OrganizationProgramDraft): string {
   return entry.organizationProgramId ?? entry.organizationKey ?? "";
@@ -174,6 +177,47 @@ export function filterWinnerOrganizations(
         left.termIndex - right.termIndex || left.index - right.index,
     )
     .map(({ entry }) => entry);
+}
+
+function normalizeOrganizationIdentity(
+  value: string | null | undefined,
+): string {
+  return (value ?? "")
+    .normalize("NFKD")
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/gu, " ")
+    .trim();
+}
+
+export function applyZohoWinners(
+  entries: OrganizationProgramDraft[],
+  winners: ZohoWinnerOrganization[],
+): OrganizationProgramDraft[] {
+  const winnerIds = new Map(
+    winners.map((winner) => [winner.organizationId.trim(), winner]),
+  );
+  const winnerNames = new Map(
+    winners.flatMap((winner) => {
+      const name = normalizeOrganizationIdentity(winner.organizationName);
+      return name ? [[name, winner] as const] : [];
+    }),
+  );
+  return entries.map((entry) => {
+    const winner =
+      (entry.sourceOrganizationId
+        ? winnerIds.get(entry.sourceOrganizationId.trim())
+        : undefined) ??
+      winnerNames.get(normalizeOrganizationIdentity(entry.organizationName));
+    return winner
+      ? {
+          ...entry,
+          isWinner: true,
+          ...(winner.currentYearCategory
+            ? { currentYearCategory: winner.currentYearCategory }
+            : {}),
+        }
+      : entry;
+  });
 }
 
 function WinnerMultiSelect({
@@ -394,14 +438,33 @@ function MetadataStep({
   editing: boolean;
   onSaved: (next: DraftState) => void;
 }) {
+  const programsForProject = (project: ProjectRecord | undefined) =>
+    project
+      ? zohoPrograms.filter(
+          (program) =>
+            (project.externalId && program.projectId === project.externalId) ||
+            normalizeOrganizationIdentity(program.projectName) ===
+              normalizeOrganizationIdentity(project.name),
+        )
+      : [];
+  const abbreviationForProject = (project: ProjectRecord | undefined) =>
+    project?.abbreviation ??
+    programsForProject(project).find(({ projectAbbreviation }) =>
+      Boolean(projectAbbreviation),
+    )?.projectAbbreviation ??
+    "";
+  const initialProjectId = draft.metadata?.projectId ?? projects[0]?.id;
+  const initialProject = projects.find(({ id }) => id === initialProjectId);
   const [form, setForm] = useState<HistoricalImportMetadata>({
-    projectId: draft.metadata?.projectId ?? projects[0]?.id,
-    projectName: draft.metadata?.projectName ?? "",
+    projectId: initialProjectId,
+    projectName: draft.metadata?.projectName ?? initialProject?.name ?? "",
     programId: draft.metadata?.programId,
     zohoProgramId: draft.metadata?.zohoProgramId,
     programName: draft.metadata?.programName ?? "",
     programYear: draft.metadata?.programYear ?? currentYear - 1,
-    projectAbbreviation: draft.metadata?.projectAbbreviation ?? "",
+    projectAbbreviation:
+      draft.metadata?.projectAbbreviation ??
+      abbreviationForProject(initialProject),
     efsLaunchDate: draft.metadata?.efsLaunchDate ?? `${currentYear - 1}-01-01`,
     efsDeadline: draft.metadata?.efsDeadline ?? `${currentYear - 1}-12-31`,
     organizationPrograms: draft.metadata?.organizationPrograms,
@@ -416,6 +479,8 @@ function MetadataStep({
     Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId) ||
       zohoPrograms.length === 0,
   );
+  const selectedProject = projects.find(({ id }) => id === form.projectId);
+  const availableZohoPrograms = programsForProject(selectedProject);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -432,6 +497,7 @@ function MetadataStep({
         programYear: form.programYear,
         efsLaunchDate: form.efsLaunchDate,
         efsDeadline: form.efsDeadline,
+        zohoWinnerOrganizations: form.zohoWinnerOrganizations,
         organizationPrograms: form.organizationPrograms,
         reportCatalog: form.reportCatalog,
         categoryPricing: form.categoryPricing,
@@ -484,13 +550,22 @@ function MetadataStep({
           <select
             value={form.projectId ?? "new"}
             disabled={editing}
-            onChange={(event) =>
+            onChange={(event) => {
+              const project = projects.find(
+                ({ id }) => id === event.target.value,
+              );
+              setManualProgram(!project);
               setForm({
                 ...form,
-                projectId:
-                  event.target.value === "new" ? undefined : event.target.value,
-              })
-            }
+                projectId: project?.id,
+                projectName: project?.name ?? "",
+                projectAbbreviation: abbreviationForProject(project),
+                programId: undefined,
+                zohoProgramId: undefined,
+                programName: "",
+                zohoWinnerOrganizations: [],
+              });
+            }}
           >
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
@@ -542,6 +617,7 @@ function MetadataStep({
                       ...form,
                       zohoProgramId: undefined,
                       programName: "",
+                      zohoWinnerOrganizations: [],
                     });
                     return;
                   }
@@ -560,6 +636,11 @@ function MetadataStep({
                       form.efsLaunchDate,
                     efsDeadline:
                       selected.efsDeadline?.slice(0, 10) ?? form.efsDeadline,
+                    projectAbbreviation:
+                      selectedProject?.abbreviation ??
+                      selected.projectAbbreviation ??
+                      form.projectAbbreviation,
+                    zohoWinnerOrganizations: selected.winnerOrganizations,
                     categoryPricing:
                       selected.categoryPricing ?? form.categoryPricing,
                   });
@@ -568,7 +649,7 @@ function MetadataStep({
                 <option value="" disabled>
                   Choose a Zoho program
                 </option>
-                {zohoPrograms.map((program) => (
+                {availableZohoPrograms.map((program) => (
                   <option key={program.id} value={program.id}>
                     {program.name}
                     {program.year ? ` (${program.year})` : ""}
@@ -614,6 +695,7 @@ function MetadataStep({
           Project abbreviation
           <input
             value={form.projectAbbreviation ?? ""}
+            readOnly={Boolean(form.projectId)}
             onChange={(event) =>
               setForm({ ...form, projectAbbreviation: event.target.value })
             }
@@ -624,6 +706,7 @@ function MetadataStep({
           <input
             type="date"
             value={form.efsLaunchDate}
+            readOnly={Boolean(form.programId || form.zohoProgramId)}
             onChange={(event) =>
               setForm({ ...form, efsLaunchDate: event.target.value })
             }
@@ -636,6 +719,7 @@ function MetadataStep({
             type="date"
             min={form.efsLaunchDate}
             value={form.efsDeadline}
+            readOnly={Boolean(form.programId || form.zohoProgramId)}
             onChange={(event) =>
               setForm({ ...form, efsDeadline: event.target.value })
             }
@@ -716,18 +800,24 @@ function UploadStep({
       );
       const summary = await api.validateHistoricalImport(draft.importId);
       setValidation(summary);
-      const nextOrganizations = summary.organizations.map((organization) => ({
-        organizationKey: organization.key,
-        organizationName: organization.displayName,
-        surveysSent:
-          organizationPrograms.find(
-            ({ organizationKey }) => organizationKey === organization.key,
-          )?.surveysSent ?? organization.efsRespondents,
-        isWinner:
-          organizationPrograms.find(
-            ({ organizationKey }) => organizationKey === organization.key,
-          )?.isWinner ?? false,
-      }));
+      const nextOrganizations = applyZohoWinners(
+        summary.organizations.map((organization) => ({
+          organizationKey: organization.key,
+          ...(organization.workbookOrganizationId
+            ? { sourceOrganizationId: organization.workbookOrganizationId }
+            : {}),
+          organizationName: organization.displayName,
+          surveysSent:
+            organizationPrograms.find(
+              ({ organizationKey }) => organizationKey === organization.key,
+            )?.surveysSent ?? organization.efsRespondents,
+          isWinner:
+            organizationPrograms.find(
+              ({ organizationKey }) => organizationKey === organization.key,
+            )?.isWinner ?? false,
+        })),
+        draft.metadata.zohoWinnerOrganizations ?? [],
+      );
       setOrganizationPrograms(nextOrganizations);
       const nextDraft = {
         ...draft,
@@ -1078,8 +1168,8 @@ function WinnersStep({
       {actions("top")}
       <p className="wizard-copy">
         Configure the winner and non-winner cohorts used by benchmark reports.
-        You can upload a ranking extract for bulk matching or move
-        organizations manually.
+        You can upload a ranking extract for bulk matching or move organizations
+        manually.
       </p>
       {organizationPrograms.length ? (
         <>
@@ -1125,8 +1215,8 @@ function WinnersStep({
         </>
       ) : (
         <p className="form-error">
-          No organizations are available. Return to the upload step and
-          validate the program workbooks first.
+          No organizations are available. Return to the upload step and validate
+          the program workbooks first.
         </p>
       )}
       {error ? <p className="form-error">{error}</p> : null}
@@ -1564,9 +1654,9 @@ export function HistoricalImportPage() {
               ? 4
               : draft.validation
                 ? 3
-              : draft.importId && draft.metadata
-                ? 2
-                : 1
+                : draft.importId && draft.metadata
+                  ? 2
+                  : 1
         }
         onStepChange={setStep}
       />

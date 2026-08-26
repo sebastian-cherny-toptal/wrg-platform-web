@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
-import { filterWinnerOrganizations } from "./historical-import";
+import {
+  applyZohoWinners,
+  filterWinnerOrganizations,
+} from "./historical-import";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -34,6 +37,29 @@ describe("winner organization filtering", () => {
       organizations[0],
     ]);
   });
+
+  it("automatically marks Zoho winners by organization ID or name", () => {
+    expect(
+      applyZohoWinners(
+        [{ ...organizations[0], sourceOrganizationId: "49" }, organizations[1]],
+        [
+          {
+            organizationId: "49",
+            organizationName: "Different display name",
+            currentYearCategory: "Large",
+          },
+          {
+            organizationId: "50",
+            organizationName: "Beta Company",
+            currentYearCategory: null,
+          },
+        ],
+      ),
+    ).toMatchObject([
+      { isWinner: true, currentYearCategory: "Large" },
+      { isWinner: true },
+    ]);
+  });
 });
 
 describe("historical import API client", () => {
@@ -49,8 +75,12 @@ describe("historical import API client", () => {
               id: "zoho-program-1",
               name: "Baton Rouge 2026",
               year: 2026,
+              projectId: "zoho-project-1",
+              projectName: "Baton Rouge",
+              projectAbbreviation: "BR",
               efsLaunchDate: "2026-01-15",
               efsDeadline: "2026-04-30",
+              winnerOrganizations: [],
             },
           ],
         }),
@@ -62,8 +92,12 @@ describe("historical import API client", () => {
         id: "zoho-program-1",
         name: "Baton Rouge 2026",
         year: 2026,
+        projectId: "zoho-project-1",
+        projectName: "Baton Rouge",
+        projectAbbreviation: "BR",
         efsLaunchDate: "2026-01-15",
         efsDeadline: "2026-04-30",
+        winnerOrganizations: [],
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(

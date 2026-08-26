@@ -440,6 +440,7 @@ export const keyImpactAnalysisSchema = z.object({
   data: z.object({
     _id: z.string().optional(),
     fileName: z.string().optional(),
+    mapping: z.record(z.string(), z.number()),
     report: z.array(
       z.object({
         label: z.string(),

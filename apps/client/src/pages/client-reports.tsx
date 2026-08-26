@@ -11,6 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { toPng } from "html-to-image";
 import {
   useEffect,
   useMemo,
@@ -219,6 +220,94 @@ function DownloadReportButton({
     >
       <Download className="size-4" /> {downloading ? "Preparing…" : label}
     </Button>
+  );
+}
+
+function ResponseDetailDownloadMenu({
+  onDownloadFull,
+  onDownloadFiltered,
+  filteredDisabled,
+}: {
+  onDownloadFull: () => Promise<void> | void;
+  onDownloadFiltered: () => Promise<void> | void;
+  filteredDisabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [downloading, setDownloading] = useState<"full" | "filtered" | null>(
+    null,
+  );
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+  const download = async (
+    type: "full" | "filtered",
+    action: () => Promise<void> | void,
+  ) => {
+    setDownloading(type);
+    try {
+      await action();
+      setOpen(false);
+    } finally {
+      setDownloading(null);
+    }
+  };
+  return (
+    <div className="relative" ref={rootRef}>
+      <Button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="gap-2 rounded-md"
+        disabled={downloading !== null}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Download className="size-4" />
+        {downloading ? "Preparing…" : "Download Report"}
+        <ChevronDown className="size-4" />
+      </Button>
+      {open ? (
+        <div
+          aria-label="Download report options"
+          className="absolute right-0 top-12 z-30 min-w-56 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-xl"
+          role="menu"
+        >
+          <button
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-violet-50 disabled:cursor-wait disabled:text-zinc-400"
+            disabled={downloading !== null}
+            onClick={() => download("full", onDownloadFull)}
+            role="menuitem"
+            type="button"
+          >
+            <Download className="size-4" />
+            {downloading === "full" ? "Preparing…" : "Download full report"}
+          </button>
+          <button
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-violet-50 disabled:cursor-not-allowed disabled:text-zinc-400"
+            disabled={filteredDisabled || downloading !== null}
+            onClick={() => download("filtered", onDownloadFiltered)}
+            role="menuitem"
+            type="button"
+          >
+            <Download className="size-4" />
+            {downloading === "filtered"
+              ? "Preparing…"
+              : "Download filtered report"}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -2822,8 +2911,15 @@ export function ResponseDetailPage() {
             onChange={setFilterQuestion}
             value={effectiveFilterQuestion}
           />
-          <DownloadReportButton
-            onDownload={() =>
+          <ResponseDetailDownloadMenu
+            filteredDisabled={!effectiveFilterQuestion}
+            onDownloadFiltered={() =>
+              api.reports.downloadResponseDetailWorkbook(
+                program?.id ?? "",
+                effectiveFilterQuestion,
+              )
+            }
+            onDownloadFull={() =>
               api.reports.downloadResponseDetailWorkbook(program?.id ?? "")
             }
           />
@@ -2894,17 +2990,175 @@ export function ResponseDetailPage() {
   );
 }
 
+type KeyImpactBubble = {
+  category: string;
+  percentage: number;
+  question: string;
+};
+
+const keyImpactBubblePositions = [
+  { x: 235, y: 195 },
+  { x: 540, y: 190 },
+  { x: 815, y: 215 },
+  { x: 370, y: 475 },
+  { x: 635, y: 465 },
+  { x: 865, y: 475 },
+  { x: 135, y: 455 },
+  { x: 225, y: 675 },
+  { x: 460, y: 670 },
+  { x: 675, y: 665 },
+] as const;
+
+const keyImpactColors = [
+  "#7c3aed",
+  "#8b5cf6",
+  "#a78bfa",
+  "#c4b5fd",
+  "#ddd6fe",
+  "#ede9fe",
+  "#f0edff",
+  "#f3f0ff",
+  "#f5f3ff",
+  "#f7f5ff",
+];
+
+function bubbleLabel(category: string): string[] {
+  if (category === "Communication and Workplace Culture") {
+    return ["Communication and", "Workplace Culture"];
+  }
+  if (category === "Employee Benefits") return ["Employee", "Benefits"];
+  return [category];
+}
+
+function KeyImpactBubbleChart({
+  bubbles,
+  onSelect,
+}: {
+  bubbles: KeyImpactBubble[];
+  onSelect: (bubble: KeyImpactBubble) => void;
+}) {
+  return (
+    <div className="overflow-x-auto" data-testid="key-impact-chart">
+      <svg
+        aria-label="Key impact contribution bubbles"
+        className="mx-auto h-auto min-w-[760px] max-w-[1080px]"
+        role="img"
+        viewBox="0 0 1000 790"
+      >
+        {bubbles.map((bubble, index) => {
+          const position = keyImpactBubblePositions[index];
+          if (!position) return null;
+          const radius = 55 + bubble.percentage * 7;
+          const lines = bubbleLabel(bubble.category);
+          return (
+            <g
+              aria-label={`${bubble.question}, ${bubble.percentage.toFixed(2)}% of contribution`}
+              className="cursor-pointer outline-none [&>circle]:transition [&>circle]:duration-200 hover:[&>circle]:brightness-95 focus-visible:[&>circle]:stroke-violet-900 focus-visible:[&>circle]:stroke-[5px]"
+              key={bubble.question}
+              onClick={() => onSelect(bubble)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(bubble);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              transform={`translate(${position.x} ${position.y})`}
+            >
+              <circle fill={keyImpactColors[index]} r={radius} />
+              <text
+                className="pointer-events-none fill-zinc-950 text-[15px] font-bold"
+                textAnchor="middle"
+              >
+                {lines.map((line, lineIndex) => (
+                  <tspan
+                    dy={lineIndex === 0 ? `${-(lines.length - 1) * 0.55}em` : "1.1em"}
+                    key={line}
+                    x="0"
+                  >
+                    {line}
+                  </tspan>
+                ))}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function KeyImpactDialog({
+  bubble,
+  onClose,
+}: {
+  bubble: KeyImpactBubble;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/75 p-6"
+      onClick={onClose}
+      role="presentation"
+    >
+      <section
+        aria-labelledby="key-impact-dialog-title"
+        aria-modal="true"
+        className="relative w-full max-w-md animate-fade-in rounded-2xl bg-white px-8 py-10 text-center shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <button
+          aria-label="Close contribution details"
+          className="absolute right-4 top-4 grid size-8 place-items-center rounded-full text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+          onClick={onClose}
+        >
+          <X className="size-4" />
+        </button>
+        <h2 className="text-xl font-semibold text-zinc-950" id="key-impact-dialog-title">
+          {bubble.category}
+        </h2>
+        <p className="mt-4 text-base leading-6 text-zinc-500">
+          {bubble.question} –{" "}
+          <strong className="font-semibold text-violet-600">
+            {bubble.percentage.toFixed(2)}% of contribution
+          </strong>
+          .
+        </p>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
 export function KeyImpactAnalysisPage() {
   const program = useSelectedProgram();
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [selectedBubble, setSelectedBubble] = useState<KeyImpactBubble | null>(
+    null,
+  );
   const analysis = useQuery({
     queryKey: ["key-impact-analysis", program?.id],
     queryFn: () => api.reports.keyImpactAnalysis(program?.id ?? ""),
     enabled: Boolean(program),
   });
   const report = analysis.data?.data.report ?? [];
-  const maxValue = Math.max(
-    1,
-    ...report.map((item) => Number(item.value) || 0),
+  const bubbles = Object.entries(analysis.data?.data.mapping ?? {}).map(
+    ([question, percentage]) => ({
+      question,
+      percentage,
+      category:
+        report.find((item) => item.key === question)?.label ?? "Key Impact",
+    }),
   );
   return (
     <>
@@ -2913,14 +3167,27 @@ export function KeyImpactAnalysisPage() {
         title="Key Impact Analysis"
       />
       <div className="p-6">
-        {analysis.data?.data.data.signedUrl ? (
+        {analysis.data ? (
           <DownloadReportButton
-            onDownload={() =>
-              api.reports.downloadCustomReport(
-                analysis.data.data.data.signedUrl ?? "",
-                analysis.data.data.fileName ?? "Key_Impact_Analysis.pdf",
-              )
-            }
+            onDownload={async () => {
+              const signedUrl = analysis.data.data.data.signedUrl;
+              if (signedUrl) {
+                await api.reports.downloadCustomReport(
+                  signedUrl,
+                  analysis.data.data.fileName ?? "Key_Impact_Analysis.pdf",
+                );
+                return;
+              }
+              if (!chartRef.current) return;
+              const image = await toPng(chartRef.current, {
+                backgroundColor: "#ffffff",
+                pixelRatio: 2,
+              });
+              const link = document.createElement("a");
+              link.download = `Key_Impact_Analysis_${program?.year ?? "report"}.png`;
+              link.href = image;
+              link.click();
+            }}
           />
         ) : null}
         {analysis.isPending ? (
@@ -2938,41 +3205,29 @@ export function KeyImpactAnalysisPage() {
               <Button onClick={() => void analysis.refetch()}>Try again</Button>
             }
           />
-        ) : report.length === 0 ? (
+        ) : bubbles.length === 0 ? (
           <StatePanel
             kind="empty"
             title="No key impact analysis"
             message="The backend returned no key-impact results for this program."
           />
         ) : (
-          <Card className="mt-10 p-6 shadow-none">
-            <div className="grid gap-5">
-              {report.map((item) => {
-                const value = Number(item.value) || 0;
-                return (
-                  <div key={`${item.label}-${item.key}`}>
-                    <div className="mb-2 flex items-start justify-between gap-4 text-sm">
-                      <div>
-                        <strong>{item.label}</strong>
-                        <p className="mt-1 text-zinc-500">{item.key}</p>
-                      </div>
-                      <strong>{value}</strong>
-                    </div>
-                    <div className="h-3 overflow-hidden rounded-full bg-zinc-100">
-                      <div
-                        className="h-full rounded-full bg-violet-600"
-                        style={{
-                          width: `${Math.max(0, Math.min(100, (value / maxValue) * 100))}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+          <Card className="mt-10 overflow-hidden p-4 shadow-none sm:p-8">
+            <div ref={chartRef}>
+              <KeyImpactBubbleChart
+                bubbles={bubbles}
+                onSelect={setSelectedBubble}
+              />
             </div>
           </Card>
         )}
       </div>
+      {selectedBubble ? (
+        <KeyImpactDialog
+          bubble={selectedBubble}
+          onClose={() => setSelectedBubble(null)}
+        />
+      ) : null}
     </>
   );
 }

@@ -22,7 +22,9 @@ export type AdminAuth = {
 
 export type ProjectRecord = {
   id: string;
+  externalId?: string;
   name: string;
+  abbreviation?: string;
   createdAt: string | null;
   programs: ProgramRecord[];
 };
@@ -42,9 +44,19 @@ export type ZohoProgramOption = {
   id: string;
   name: string;
   year: number | null;
+  projectId: string | null;
+  projectName: string | null;
+  projectAbbreviation: string | null;
   efsLaunchDate: string | null;
   efsDeadline: string | null;
+  winnerOrganizations: ZohoWinnerOrganization[];
   categoryPricing?: CategoryPricing[];
+};
+
+export type ZohoWinnerOrganization = {
+  organizationId: string;
+  organizationName: string | null;
+  currentYearCategory: string | null;
 };
 
 export type CategoryPricing = {
@@ -84,9 +96,11 @@ export type HistoricalImportMetadata = {
   projectAbbreviation?: string;
   efsLaunchDate: string;
   efsDeadline: string;
+  zohoWinnerOrganizations?: ZohoWinnerOrganization[];
   organizationPrograms?: Array<{
     organizationProgramId?: string;
     organizationKey?: string;
+    sourceOrganizationId?: string;
     organizationName?: string;
     surveysSent: number;
     isWinner: boolean;
@@ -384,7 +398,12 @@ function project(raw: unknown): ProjectRecord {
   const value = object(raw);
   return {
     id: stringValue(value._id) || stringValue(value.id),
+    externalId: stringValue(value.id) || undefined,
     name: stringValue(value.Name) || stringValue(value.name),
+    abbreviation:
+      stringValue(value.Project_Abbreviation) ||
+      stringValue(value.projectAbbreviation) ||
+      undefined,
     createdAt:
       stringValue(value.createAt) || stringValue(value.createdAt) || null,
     programs: array(value.Programs ?? value.programs).map(program),
@@ -732,8 +751,20 @@ export const api = {
         id: stringValue(value.id),
         name: stringValue(value.name),
         year: Number.isInteger(parsedYear) ? parsedYear : null,
+        projectId: stringValue(value.projectId) || null,
+        projectName: stringValue(value.projectName) || null,
+        projectAbbreviation: stringValue(value.projectAbbreviation) || null,
         efsLaunchDate: stringValue(value.efsLaunchDate) || null,
         efsDeadline: stringValue(value.efsDeadline) || null,
+        winnerOrganizations: array(value.winnerOrganizations).map((entry) => {
+          const winner = object(entry);
+          return {
+            organizationId: stringValue(winner.organizationId),
+            organizationName: stringValue(winner.organizationName) || null,
+            currentYearCategory:
+              stringValue(winner.currentYearCategory) || null,
+          };
+        }),
         ...(Array.isArray(value.categoryPricing)
           ? { categoryPricing: value.categoryPricing as CategoryPricing[] }
           : {}),

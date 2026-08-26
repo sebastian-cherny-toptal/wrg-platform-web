@@ -719,10 +719,15 @@ export const api = {
         `/client/employerBenchmarkReportExcel?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         "Benefits_&_Best_Practices.xlsx",
       ),
-    downloadResponseDetailWorkbook: (programId: string) =>
+    downloadResponseDetailWorkbook: (
+      programId: string,
+      filterQuestion?: string,
+    ) =>
       downloadRequest(
-        `/client/responseDetailReportExcel?selectedProgramId=${encodeURIComponent(programId)}`,
-        "Response_Detail_Report.xlsx",
+        `/client/responseDetailReportExcel?selectedProgramId=${encodeURIComponent(programId)}${filterQuestion ? `&filterQuestion=${encodeURIComponent(filterQuestion)}` : ""}`,
+        filterQuestion
+          ? "Response_Detail_Filtered_Report.xlsx"
+          : "Response_Detail_Report.xlsx",
       ),
   },
   commerce: {
