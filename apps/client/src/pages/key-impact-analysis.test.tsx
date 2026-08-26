@@ -40,6 +40,7 @@ describe("Key Impact Analysis page", () => {
 
   it("renders contribution bubbles and opens their details", async () => {
     useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "catalog").mockResolvedValue([]);
     vi.spyOn(api.reports, "keyImpactAnalysis").mockResolvedValue({
       success: true,
       message: "success",
@@ -71,5 +72,46 @@ describe("Key Impact Analysis page", () => {
     expect(screen.getByRole("dialog")).toBeVisible();
     expect(screen.getByText("15.49% of contribution")).toBeVisible();
     expect(screen.getAllByText("Your Job").length).toBeGreaterThan(0);
+  });
+
+  it("requests fake data and shows the purchase banner in demo mode", async () => {
+    useAppStore.getState().setSession(session);
+    const analysis = vi.spyOn(api.reports, "keyImpactAnalysis").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: {
+        mapping: { [question]: 15.49 },
+        report: [{ label: "Your Job", key: question, value: 0.1549 }],
+        data: { signedUrl: null },
+      },
+    });
+    vi.spyOn(api.reports, "catalog").mockResolvedValue([{
+      id: "report-kia",
+      name: "Key Impact Analysis",
+      description: "Demo product",
+      priceCents: 50000,
+      available: true,
+      purchaseMode: "checkout",
+      fulfillment: "manual",
+      requiresStandardPackage: true,
+      priceAvailable: true,
+      owned: false,
+      standardPackageOwned: true,
+      purchasable: true,
+      deliveryMessage: "Available after purchase",
+    }]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/key-impact-analysis?demo=report-kia"]}>
+          <KeyImpactAnalysisPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Viewing demo")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add to cart" })).toBeVisible();
+    expect(analysis).toHaveBeenCalledWith("program-2026", true);
   });
 });

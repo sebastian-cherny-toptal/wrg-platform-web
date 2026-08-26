@@ -7,7 +7,9 @@ test('client can enter the fixture reporting workspace', async ({ page }) => {
   await page.getByLabel('Username').fill(clientFixtureUsername)
   await page.getByRole('button', { name: 'Log In' }).click()
   await page.getByRole('button', { name: 'Yes' }).click()
-  await page.getByLabel('Email').fill('client@example.invalid')
+  const email = page.getByLabel('Email')
+  await expect(email).toBeFocused()
+  await email.fill('client@example.invalid')
   await page.getByRole('button', { name: 'Continue Log In' }).click()
 
   await expect(page.getByRole('heading', { name: /Welcome, Demo Client/ })).toBeVisible()

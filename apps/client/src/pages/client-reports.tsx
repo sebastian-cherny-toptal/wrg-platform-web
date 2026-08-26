@@ -3193,13 +3193,23 @@ function KeyImpactDialog({
 
 export function KeyImpactAnalysisPage() {
   const program = useSelectedProgram();
+  const [searchParams] = useSearchParams();
+  const isDemo = searchParams.get("demo") === "report-kia";
+  const addToCart = useAppStore((state) => state.addToCart);
+  const inCart = useAppStore((state) => state.cart.some((item) => item.productId === "report-kia"));
+  const catalog = useQuery({
+    queryKey: ["report-catalog", program?.id],
+    queryFn: () => api.reports.catalog(program?.id),
+    enabled: Boolean(program),
+  });
+  const keyImpactProduct = catalog.data?.find((product) => product.id === "report-kia");
   const chartRef = useRef<HTMLDivElement>(null);
   const [selectedBubble, setSelectedBubble] = useState<KeyImpactBubble | null>(
     null,
   );
   const analysis = useQuery({
-    queryKey: ["key-impact-analysis", program?.id],
-    queryFn: () => api.reports.keyImpactAnalysis(program?.id ?? ""),
+    queryKey: ["key-impact-analysis", program?.id, isDemo],
+    queryFn: () => api.reports.keyImpactAnalysis(program?.id ?? "", isDemo),
     enabled: Boolean(program),
   });
   const report = analysis.data?.data.report ?? [];
@@ -3217,8 +3227,14 @@ export function KeyImpactAnalysisPage() {
         description="This report identifies key motivators of employee engagement within your unique population. This information is vital to knowing what workplace attributes are most important to retain your top talent and drive high productivity among all staff."
         title="Key Impact Analysis"
       />
+      {isDemo && keyImpactProduct ? (
+        <div className="fixed right-5 top-5 z-[65] flex max-w-md items-center gap-4 rounded-xl border border-violet-200 bg-white p-4 shadow-xl" role="status">
+          <div className="min-w-0 flex-1"><strong className="text-sm text-violet-700">Viewing demo</strong><p className="mt-1 text-xs text-zinc-500">You&apos;re viewing fake Key Impact Analysis data.</p></div>
+          <Button disabled={inCart || keyImpactProduct.owned || keyImpactProduct.priceCents == null} onClick={() => addToCart({ productId: keyImpactProduct.id, name: keyImpactProduct.name, priceCents: keyImpactProduct.priceCents ?? 0 })}>{inCart ? "Added" : "Add to cart"}</Button>
+        </div>
+      ) : null}
       <div className="p-6">
-        {analysis.data ? (
+        {analysis.data && !isDemo ? (
           <DownloadReportButton
             onDownload={async () => {
               const signedUrl = analysis.data.data.data.signedUrl;

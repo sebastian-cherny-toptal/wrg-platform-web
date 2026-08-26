@@ -672,9 +672,9 @@ export const api = {
         `/client/getCustomReport?selectedProgramId=${encodeURIComponent(programId)}`,
         { schema: customReportsSchema },
       ),
-    keyImpactAnalysis: (programId: string) =>
+    keyImpactAnalysis: (programId: string, isDummy = false) =>
       request(
-        `/client/getKeyImpactAnalysis?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/getKeyImpactAnalysis?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         { schema: keyImpactAnalysisSchema },
       ),
     downloadCustomReport: (url: string, filename: string) =>

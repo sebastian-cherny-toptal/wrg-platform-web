@@ -37,7 +37,8 @@ function Guard({
   const demoProduct = new URLSearchParams(location.search).get('demo')
   const demoAccess =
     (entitlement === 'EV_Access' && demoProduct === 'report-verbatims-sorted') ||
-    (entitlement === 'RD_Access' && demoProduct === 'report-response-detail')
+    (entitlement === 'RD_Access' && demoProduct === 'report-response-detail') ||
+    (entitlement === 'KIA_Access' && demoProduct === 'report-kia')
   if (entitlement && !promotionalAccess && !demoAccess && !hasEntitlement(entitlement)) return <Navigate replace to={routeMap.forbidden} />
   return <Outlet />
 }

@@ -276,6 +276,7 @@ function EmailModal({
             Email
           </label>
           <input
+            autoFocus
             id="client-login-email"
             name="email"
             type="email"
