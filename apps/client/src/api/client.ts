@@ -28,6 +28,7 @@ import {
   type Session,
 } from "./schemas";
 import { useAppStore } from "../store/app-store";
+import type { ClientEntitlement } from "../app/metadata";
 
 export type ResponsePatternRanges = {
   positive?: [number, number];
@@ -95,12 +96,13 @@ function clearClientSession(): void {
   window.localStorage.removeItem(clientSessionStorageKey);
 }
 
-export function cachePurchasedReportAccess(productIds: string[]): void {
+export function cachePurchasedReportAccess(products: { productId: string; name: string }[]): void {
   const state = useAppStore.getState();
   const session = state.session;
   const selectedProgramId = state.selectedProgramId;
   if (!session || !selectedProgramId) return;
-  const purchased = new Set(productIds);
+  const purchased = new Set(products.map(({ productId }) => productId));
+  const gainedEntitlements = new Set<ClientEntitlement>();
   const programs = session.user.programs.map((program) => {
     if (program.id !== selectedProgramId) return program;
     const entitlements = { ...program.entitlements };
@@ -109,12 +111,18 @@ export function cachePurchasedReportAccess(productIds: string[]): void {
       entitlements.EV_Access = "yes";
       entitlements.WBC_Access = "yes";
       entitlements.BBP_Access = "yes";
+      gainedEntitlements.add("WFR_Access");
+      gainedEntitlements.add("EV_Access");
+      gainedEntitlements.add("WBC_Access");
+      gainedEntitlements.add("BBP_Access");
     }
     if (purchased.has("report-response-detail")) {
       entitlements.RD_Access = "yes";
+      gainedEntitlements.add("RD_Access");
     }
     if (purchased.has("report-verbatims-sorted")) {
       entitlements.SEV_Access = "yes";
+      gainedEntitlements.add("EV_Access");
     }
     return { ...program, entitlements };
   });
@@ -122,6 +130,10 @@ export function cachePurchasedReportAccess(productIds: string[]): void {
   window.localStorage.setItem(clientSessionStorageKey, JSON.stringify(next));
   state.setSession(next);
   useAppStore.getState().selectProgram(selectedProgramId);
+  useAppStore.getState().celebratePurchase(
+    products.map(({ name }) => name),
+    [...gainedEntitlements],
+  );
 }
 
 function closeUnauthorizedSession(): void {
@@ -636,18 +648,19 @@ export const api = {
         `/client/employerBenchmarkReport?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         { schema: employerBenchmarkSchema },
       ),
-    responseDetailSections: (programId: string) =>
+    responseDetailSections: (programId: string, isDummy = false) =>
       request(
-        `/client/responseDetailReportSectionQuestions?selectedProgramId=${encodeURIComponent(programId)}`,
+        `/client/responseDetailReportSectionQuestions?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         { schema: responseDetailSectionsSchema },
       ),
     responseDetailResult: (
       programId: string,
       questionId: string,
       filterQuestion: string,
+      isDummy = false,
     ) =>
       request(
-        `/client/responseDetailReportQuestionResult?selectedProgramId=${encodeURIComponent(programId)}&version=1`,
+        `/client/responseDetailReportQuestionResult?selectedProgramId=${encodeURIComponent(programId)}&version=1${dummyQuery(isDummy)}`,
         {
           method: "POST",
           body: { QuestionId: questionId, filterQuestion },

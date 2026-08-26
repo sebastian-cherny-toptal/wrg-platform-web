@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
@@ -36,7 +37,7 @@ describe("Employee Verbatims page", () => {
     useAppStore.getState().setSession(null);
   });
 
-  it("shows the open-ended answers directly beneath their questions", async () => {
+  it("keeps questions closed until their row is clicked", async () => {
     useAppStore.getState().setSession(session);
     vi.spyOn(api.reports, "openResponseQuestions").mockResolvedValue({
       success: true,
@@ -90,12 +91,10 @@ describe("Employee Verbatims page", () => {
       </QueryClientProvider>,
     );
 
-    expect(
-      await screen.findByText("The people and the supportive culture."),
-    ).toBeVisible();
-    expect(
-      screen.getByText("What makes this a great place to work?"),
-    ).toBeVisible();
+    const question = await screen.findByText("What makes this a great place to work?");
+    expect(answers).not.toHaveBeenCalled();
+    await userEvent.click(question);
+    expect(await screen.findByText("The people and the supportive culture.")).toBeVisible();
     expect(answers).toHaveBeenCalledWith("program-2026", "question-1");
   });
 });

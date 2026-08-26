@@ -30,10 +30,15 @@ function Guard({
   allowPromotional?: boolean
 }) {
   const session = useAppStore((state) => state.session)
+  const location = useLocation()
   if (role === 'guest' && session) return <Navigate replace to={routeMap.dashboard} />
   if (role === 'client' && !session) return <Navigate replace to={routeMap.clientLogin} />
   const promotionalAccess = allowPromotional && session?.user.role === 'promotional'
-  if (entitlement && !promotionalAccess && !hasEntitlement(entitlement)) return <Navigate replace to={routeMap.forbidden} />
+  const demoProduct = new URLSearchParams(location.search).get('demo')
+  const demoAccess =
+    (entitlement === 'EV_Access' && demoProduct === 'report-verbatims-sorted') ||
+    (entitlement === 'RD_Access' && demoProduct === 'report-response-detail')
+  if (entitlement && !promotionalAccess && !demoAccess && !hasEntitlement(entitlement)) return <Navigate replace to={routeMap.forbidden} />
   return <Outlet />
 }
 

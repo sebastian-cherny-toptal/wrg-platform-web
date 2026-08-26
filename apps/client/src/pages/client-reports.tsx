@@ -20,7 +20,7 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   api,
   type ReportQueryFilter,
@@ -170,6 +170,7 @@ function ReportHeader({
 }) {
   const program = useSelectedProgram();
   const [cartOpen, setCartOpen] = useState(false);
+  const cartCount = useAppStore((state) => state.cart.reduce((total, item) => total + item.quantity, 0));
   const yearTitle = customBreadcrumb
     ? title
     : `${title} ${program?.year ?? ""}`.trim();
@@ -178,11 +179,12 @@ function ReportHeader({
       <PageHeader
         actions={
           <Button
-            className="gap-2 font-medium"
+            className="relative gap-2 pr-8 font-medium"
             onClick={() => setCartOpen(true)}
             variant="secondary"
           >
             <ShoppingCart className="size-4" /> Cart
+            <span className="absolute right-2 grid min-w-5 place-items-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{cartCount}</span>
           </Button>
         }
         breadcrumbs={[
@@ -1778,10 +1780,12 @@ export function AnnualTrendsPage() {
 
 export function EmployeeVerbatimsPage() {
   const [filter, setFilter] = useState("");
+  const [searchParams] = useSearchParams();
+  const isDemo = searchParams.get("demo") === "report-verbatims-sorted";
   const program = useSelectedProgram();
   const isDummy = useAppStore(
     (state) => state.session?.user.role === "promotional",
-  );
+  ) || isDemo;
   const addToCart = useAppStore((state) => state.addToCart);
   const inCart = useAppStore((state) =>
     state.cart.some((item) => item.productId === "report-verbatims-sorted"),
@@ -1805,12 +1809,20 @@ export function EmployeeVerbatimsPage() {
   const sortedVerbatims = catalog.data?.find(
     (product) => product.id === "report-verbatims-sorted",
   );
+  const selectedPurchasedFilter = sortedVerbatims?.selection ?? "";
+  const effectiveSortingFilter = filter || (isDemo ? availableFilters.data?.[0]?.questionId ?? "" : "");
   return (
     <>
       <ReportHeader
         description="Any responses to open-ended survey questions are contained in this report"
         title="Employee Verbatims"
       />
+      {isDemo && sortedVerbatims ? (
+        <div className="fixed right-5 top-5 z-[65] flex max-w-md items-center gap-4 rounded-xl border border-violet-200 bg-white p-4 shadow-xl" role="status">
+          <div className="min-w-0 flex-1"><strong className="text-sm text-violet-700">Viewing demo</strong><p className="mt-1 text-xs text-zinc-500">You&apos;re viewing fake Employee Verbatims data.</p></div>
+          <Button disabled={inCart || sortedVerbatims.owned || !effectiveSortingFilter || sortedVerbatims.priceCents == null} onClick={() => addToCart({ productId: sortedVerbatims.id, name: sortedVerbatims.name, priceCents: sortedVerbatims.priceCents ?? 0, keys: { EV_Sorting_Filter: effectiveSortingFilter } })}>{inCart ? "Added" : "Add to cart"}</Button>
+        </div>
+      ) : null}
       <div className="p-6">
         <section className="grid min-h-[225px] gap-6 rounded-2xl bg-violet-600 p-7 text-white md:grid-cols-[160px_minmax(0,1fr)_230px] md:items-center">
           <div className="mx-auto grid size-32 place-items-center rounded-full bg-white/15">
@@ -1831,12 +1843,16 @@ export function EmployeeVerbatimsPage() {
                 : "—"}
             </strong>
             <p className="mt-3 text-xs font-medium text-zinc-700">
-              Select one of these options
+              {sortedVerbatims?.owned ? "Sorted by" : "Select one of these options"}
             </p>
-            <select
+            {sortedVerbatims?.owned ? (
+              <select className="mt-3 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm" value={selectedPurchasedFilter} disabled>
+                <option value={selectedPurchasedFilter}>{(availableFilters.data?.find((item) => item.questionId === selectedPurchasedFilter)?.label ?? selectedPurchasedFilter) || "Purchased filter"}</option>
+              </select>
+            ) : <select
               className="mt-3 h-10 w-full rounded-md border border-zinc-300 px-3 text-sm"
               onChange={(event) => setFilter(event.target.value)}
-              value={filter}
+              value={effectiveSortingFilter}
             >
               <option value="">Select filtering report</option>
               {(availableFilters.data ?? []).map((item) => (
@@ -1844,8 +1860,8 @@ export function EmployeeVerbatimsPage() {
                   {item.label}
                 </option>
               ))}
-            </select>
-            <Button
+            </select>}
+            {!sortedVerbatims?.owned ? <Button
               className="mt-3 w-full"
               disabled={!filter || inCart || (sortedVerbatims?.owned ?? false) || sortedVerbatims?.priceCents == null}
               onClick={() =>
@@ -1862,7 +1878,7 @@ export function EmployeeVerbatimsPage() {
                 : inCart
                   ? "Added to Cart"
                   : "Add to Cart"}
-            </Button>
+            </Button> : null}
             {sortedVerbatims?.owned && sortedVerbatims.selection ? (
               <Button
                 className="mt-2 w-full"
@@ -1942,6 +1958,7 @@ function EmployeeVerbatimQuestion({
   question: { caption: string; id: string | number };
   isDummy: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const answers = useQuery({
     queryKey: ["open-response-answers", programId, question.id, isDummy],
     queryFn: () =>
@@ -1953,13 +1970,13 @@ function EmployeeVerbatimQuestion({
             true,
           )
         : api.reports.openResponseAnswers(programId, String(question.id)),
-    enabled: Boolean(programId),
+    enabled: Boolean(programId) && open,
   });
   return (
-    <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
-      <h3 className="border-b border-zinc-200 bg-white p-4 text-sm font-semibold leading-6 text-zinc-800">
-        {question.caption}
-      </h3>
+    <details className="group overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer list-none items-center gap-3 bg-white p-4 text-sm font-semibold leading-6 text-zinc-800">
+        <span className="flex-1">{question.caption}</span><ChevronRight className="size-4 transition group-open:rotate-90" />
+      </summary>
       <div className="grid gap-3 p-4">
         {answers.isPending ? (
           <p className="text-sm text-zinc-500">Loading employee responses…</p>
@@ -1996,7 +2013,7 @@ function EmployeeVerbatimQuestion({
           ))
         )}
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -2848,10 +2865,12 @@ function ResponseDetailQuestion({
   programId,
   filterQuestion,
   question,
+  isDummy,
 }: {
   programId: string;
   filterQuestion: string;
   question: { QuestionId: string | number; Caption: string };
+  isDummy: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const result = useQuery({
@@ -2860,12 +2879,14 @@ function ResponseDetailQuestion({
       programId,
       question.QuestionId,
       filterQuestion,
+      isDummy,
     ],
     queryFn: () =>
       api.reports.responseDetailResult(
         programId,
         String(question.QuestionId),
         filterQuestion,
+        isDummy,
       ),
     enabled: open,
   });
@@ -2899,15 +2920,21 @@ function ResponseDetailQuestion({
 
 export function ResponseDetailPage() {
   const program = useSelectedProgram();
+  const [searchParams] = useSearchParams();
+  const isDemo = searchParams.get("demo") === "report-response-detail";
+  const addToCart = useAppStore((state) => state.addToCart);
+  const inCart = useAppStore((state) => state.cart.some((item) => item.productId === "report-response-detail"));
+  const catalog = useQuery({ queryKey: ["report-catalog", program?.id], queryFn: () => api.reports.catalog(program?.id), enabled: Boolean(program) });
+  const responseDetailProduct = catalog.data?.find((product) => product.id === "report-response-detail");
   const [filterQuestion, setFilterQuestion] = useState("");
   const filters = useQuery({
-    queryKey: ["survey-filters", program?.id],
-    queryFn: () => api.reports.surveyFilters(program?.id ?? ""),
+    queryKey: ["survey-filters", program?.id, isDemo],
+    queryFn: () => api.reports.surveyFilters(program?.id ?? "", isDemo),
     enabled: Boolean(program),
   });
   const sections = useQuery({
-    queryKey: ["response-detail-sections", program?.id],
-    queryFn: () => api.reports.responseDetailSections(program?.id ?? ""),
+    queryKey: ["response-detail-sections", program?.id, isDemo],
+    queryFn: () => api.reports.responseDetailSections(program?.id ?? "", isDemo),
     enabled: Boolean(program),
   });
   const effectiveFilterQuestion =
@@ -2923,6 +2950,9 @@ export function ResponseDetailPage() {
         description="This in-depth report reflects, by each survey question and for each demographic, the percentage of responses distributed across the entire 6-point scale."
         title="Response Detail"
       />
+      {isDemo && responseDetailProduct ? (
+        <div className="fixed right-5 top-5 z-[65] flex max-w-md items-center gap-4 rounded-xl border border-violet-200 bg-white p-4 shadow-xl" role="status"><div className="min-w-0 flex-1"><strong className="text-sm text-violet-700">Viewing demo</strong><p className="mt-1 text-xs text-zinc-500">You&apos;re viewing fake Response Detail data.</p></div><Button disabled={inCart || responseDetailProduct.owned || responseDetailProduct.priceCents == null} onClick={() => addToCart({ productId: responseDetailProduct.id, name: responseDetailProduct.name, priceCents: responseDetailProduct.priceCents ?? 0 })}>{inCart ? "Added" : "Add to cart"}</Button></div>
+      ) : null}
       <div className="p-6">
         <div className="flex items-center justify-between gap-3">
           <FilterButton
@@ -2931,7 +2961,7 @@ export function ResponseDetailPage() {
             onChange={setFilterQuestion}
             value={effectiveFilterQuestion}
           />
-          <ResponseDetailDownloadMenu
+          {!isDemo ? <ResponseDetailDownloadMenu
             filteredDisabled={!effectiveFilterQuestion}
             onDownloadFiltered={() =>
               api.reports.downloadResponseDetailWorkbook(
@@ -2942,7 +2972,7 @@ export function ResponseDetailPage() {
             onDownloadFull={() =>
               api.reports.downloadResponseDetailWorkbook(program?.id ?? "")
             }
-          />
+          /> : null}
         </div>
         {selectedFilter ? (
           <span className="mt-4 inline-flex rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">
@@ -2998,6 +3028,7 @@ export function ResponseDetailPage() {
                         key={String(question.QuestionId)}
                         programId={program?.id ?? ""}
                         question={question}
+                        isDummy={isDemo}
                       />
                     ))}
                   </div>

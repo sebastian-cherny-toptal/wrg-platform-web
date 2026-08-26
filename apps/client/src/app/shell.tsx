@@ -49,11 +49,13 @@ function SidebarLink({
   children,
   nested = false,
   onNavigate,
+  highlight = false,
 }: {
   to: string
   children: ReactNode
   nested?: boolean
   onNavigate: () => void
+  highlight?: boolean
 }) {
   return (
     <NavLink
@@ -65,6 +67,7 @@ function SidebarLink({
           'flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white',
           nested && 'min-h-8 py-1.5 pl-1 text-[13px] font-normal text-zinc-400',
           isActive && 'rounded-md bg-violet-600 text-white hover:bg-violet-600',
+          highlight && !isActive && 'bg-emerald-600 text-white ring-1 ring-emerald-300 hover:bg-emerald-600',
         )
       }
     >
@@ -78,11 +81,13 @@ function ReportGroup({
   links,
   locationPath,
   onNavigate,
+  highlightedEntitlements,
 }: {
   title: string
   links: ClientLink[]
   locationPath: string
   onNavigate: () => void
+  highlightedEntitlements: readonly string[]
 }) {
   const visibleLinks = links.filter(isClientLinkVisible)
   if (!visibleLinks.length) return null
@@ -103,7 +108,7 @@ function ReportGroup({
       </summary>
       <div className="ml-3 border-l border-zinc-600 pl-2">
         {visibleLinks.map((link) => (
-          <SidebarLink key={link.path} nested onNavigate={onNavigate} to={link.path}>
+          <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
             {link.title}
           </SidebarLink>
         ))}
@@ -114,6 +119,7 @@ function ReportGroup({
 
 function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
   const location = useLocation()
+  const highlightedEntitlements = useAppStore((state) => state.purchaseCelebration?.entitlements ?? [])
   const directBasicLinks: ClientLink[] = [
     { title: 'Employee Verbatims', path: routeMap.employeeVerbatims, entitlement: 'EV_Access' },
     { title: 'Benefits & Best Practices', path: routeMap.benefitsBestPractices, entitlement: 'BBP_Access' },
@@ -137,10 +143,11 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
             locationPath={location.pathname}
             onNavigate={onNavigate}
             title="Workforce Feedback Results"
+            highlightedEntitlements={highlightedEntitlements}
           />
           {directBasicLinks.slice(0, 1).map((link) =>
             isClientLinkVisible(link) ? (
-              <SidebarLink key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
             ) : null,
           )}
           <ReportGroup
@@ -148,16 +155,17 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
             locationPath={location.pathname}
             onNavigate={onNavigate}
             title="Workforce Benchmark Comparisons"
+            highlightedEntitlements={highlightedEntitlements}
           />
           {directBasicLinks.slice(1).map((link) =>
             isClientLinkVisible(link) ? (
-              <SidebarLink key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
             ) : null,
           )}
 
           <p className="mb-1 mt-3 px-2 text-xs font-medium tracking-wide text-violet-400">ADDITIONAL REPORTS</p>
           {additionalLinks.filter(isClientLinkVisible).map((link) => (
-            <SidebarLink key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+            <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
           ))}
         </div>
       </details>
@@ -198,6 +206,14 @@ export function AppShell() {
   const setSession = useAppStore((state) => state.setSession)
   const selectedProgramId = useAppStore((state) => state.selectedProgramId)
   const cartCount = useAppStore((state) => state.cart.reduce((total, item) => total + item.quantity, 0))
+  const purchaseCelebration = useAppStore((state) => state.purchaseCelebration)
+  const clearPurchaseCelebration = useAppStore((state) => state.clearPurchaseCelebration)
+
+  useEffect(() => {
+    if (!purchaseCelebration) return
+    const timeout = window.setTimeout(clearPurchaseCelebration, 10_000)
+    return () => window.clearTimeout(timeout)
+  }, [clearPurchaseCelebration, purchaseCelebration])
 
   const logout = async () => {
     await api.session.logout()
@@ -239,6 +255,12 @@ export function AppShell() {
   return (
     <>
       <PageViewLogger />
+      {purchaseCelebration ? (
+        <div className="fixed right-5 top-5 z-[70] flex max-w-sm items-start gap-3 rounded-xl border border-emerald-200 bg-white p-4 text-sm shadow-xl" role="status">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-100 font-bold text-emerald-700">✓</span>
+          <p className="leading-5 text-zinc-700"><strong className="text-zinc-900">Purchase successful!</strong><br />You&apos;ve successfully gained access to {purchaseCelebration.productNames.join(', ')}!</p>
+        </div>
+      ) : null}
       <div className="h-screen overflow-hidden bg-[#f7f7f8] text-zinc-900 lg:flex">
       {session.impersonation ? (
         <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-gradient-to-l from-[#EC413D] to-[#FF683A] px-6 py-1.5 text-sm font-bold uppercase text-white lg:left-[310px]">
@@ -254,7 +276,7 @@ export function AppShell() {
         <div className="ml-auto flex items-center gap-2">
           <NavLink className="relative p-2" to={routeMap.cart} aria-label={`Cart with ${cartCount} items`}>
             <ShoppingCart className="size-5" />
-            {cartCount ? <span className="absolute right-0 top-0 rounded-full bg-violet-600 px-1.5 text-[10px] font-bold">{cartCount}</span> : null}
+            <span className="absolute right-0 top-0 rounded-full bg-violet-600 px-1.5 text-[10px] font-bold">{cartCount}</span>
           </NavLink>
           <button className="p-2" onClick={() => setMenuOpen((value) => !value)} aria-label="Toggle navigation">
             {menuOpen ? <X /> : <Menu />}

@@ -140,6 +140,7 @@ export function DashboardPage() {
   const responseRateRef = useRef<HTMLElement>(null)
   const statementsRef = useRef<HTMLDivElement>(null)
   const session = useAppStore((state) => state.session)
+  const cartCount = useAppStore((state) => state.cart.reduce((total, item) => total + item.quantity, 0))
   const isPromotional = session?.user.role === 'promotional'
   const [promotionalModalOpen, setPromotionalModalOpen] = useState(isPromotional)
   useEffect(() => {
@@ -178,8 +179,9 @@ export function DashboardPage() {
           <h1 aria-label={`Welcome, ${session?.user.displayName ?? 'client'}`} className="text-[30px] font-bold leading-[36px] text-[#111111]">{program?.name ?? 'Dashboard'}</h1>
           <p className="mt-0.5 text-[16px] leading-6 text-zinc-500">Welcome, {isPromotional ? session.user.displayName : program?.organizationName ?? session?.user.displayName}!</p>
         </div>
-        <button className="hidden h-10 w-[89px] items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-900 hover:bg-zinc-50 lg:inline-flex" onClick={() => setCartOpen(true)}>
+        <button className="relative hidden h-10 min-w-[89px] items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 pr-8 text-sm font-medium text-zinc-900 hover:bg-zinc-50 lg:inline-flex" onClick={() => setCartOpen(true)}>
           <ShoppingCart className="size-4" /> Cart
+          <span className="absolute right-2 grid min-w-5 place-items-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{cartCount}</span>
         </button>
       </div>
 
@@ -509,6 +511,7 @@ export function CatalogPage() {
   })
   const addToCart = useAppStore((state) => state.addToCart)
   const cart = useAppStore((state) => state.cart)
+  const cartCount = cart.reduce((total, item) => total + item.quantity, 0)
   const isPromotional = useAppStore((state) => state.session?.user.role === 'promotional')
   const [verbatimFilter, setVerbatimFilter] = useState('')
   const products = catalog.data ?? []
@@ -538,7 +541,7 @@ export function CatalogPage() {
   return (
     <>
       <PageHeader
-        actions={<Link to={routeMap.cart}><Button className="gap-2" variant="secondary"><ShoppingCart className="size-4" /> Cart</Button></Link>}
+        actions={<Link to={routeMap.cart}><Button className="relative gap-2 pr-8" variant="secondary"><ShoppingCart className="size-4" /> Cart<span className="absolute right-2 grid min-w-5 place-items-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{cartCount}</span></Button></Link>}
         breadcrumbs={[{ label: 'My Reports', path: routeMap.dashboard }, { label: 'Reports Store' }]}
         title="Reports Store"
         description={`Purchase your ${program?.name ?? 'employee feedback'} ${program?.year ?? ''} feedback data dashboard for access to your employee feedback.`}
@@ -586,9 +589,9 @@ export function CatalogPage() {
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{standardPackage.description}</p>
                   </div>
                 </div>
-                <strong className="text-sm text-zinc-600">
+                {!standardPackage.owned ? <strong className="text-sm text-zinc-600">
                   {standardPackage.priceCents === null ? 'Price unavailable' : money.format(standardPackage.priceCents / 100)}
-                </strong>
+                </strong> : null}
               </div>
               <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {[
@@ -606,12 +609,12 @@ export function CatalogPage() {
                 ))}
               </div>
               <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-zinc-200 pt-4">
-                <div>
+                {!standardPackage.owned ? <div>
                   <p className="text-xs font-semibold text-emerald-700">ⓘ Immediate access upon successful credit card payment</p>
                   <p className="mt-2 text-[11px] italic text-zinc-400">All credit card transactions are subject to a 3% fee. Invoice requests are handled by WRG.</p>
-                </div>
+                </div> : <p className="text-sm font-semibold text-emerald-700">✓ Purchased</p>}
                 <div className="flex gap-2">
-                  <Link to={routeMap.dashboard}><Button variant="secondary">View demo</Button></Link>
+                  {!standardPackage.owned ? <Link to={routeMap.dashboard}><Button variant="secondary">View demo</Button></Link> : null}
                   <Button
                     className="bg-red-500 hover:bg-red-600"
                     disabled={standardPackage.owned || inCart(standardPackage.id) || standardPackage.priceCents === null}
@@ -651,7 +654,7 @@ export function CatalogPage() {
                 ) : null}
                 {locked ? <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">♙ Requires the Standard package</p> : null}
                 <div className="mt-auto grid gap-2 pt-4">
-                  <Link to={demoPath}><Button className="w-full" variant="secondary">View demo</Button></Link>
+                  {!product.owned ? <Link to={`${demoPath}?demo=${product.id}`}><Button className="w-full" variant="secondary">View demo</Button></Link> : null}
                   <Button
                     className="w-full bg-red-500 hover:bg-red-600"
                     disabled={disabled}
@@ -848,7 +851,7 @@ function StripeCheckoutForm() {
       return
     }
     if (result.paymentIntent.status === 'succeeded' || result.paymentIntent.status === 'processing') {
-      cachePurchasedReportAccess(cart.map(({ productId }) => productId))
+      cachePurchasedReportAccess(cart.map(({ productId, name }) => ({ productId, name })))
       clearCart()
       void navigate(routeMap.dashboard)
     }

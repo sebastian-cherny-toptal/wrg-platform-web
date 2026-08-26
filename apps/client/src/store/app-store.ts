@@ -15,11 +15,14 @@ type AppState = {
   session: Session | null
   selectedProgramId: string | null
   cart: CartLine[]
+  purchaseCelebration: { productNames: string[]; entitlements: ClientEntitlement[] } | null
   setSession: (session: Session | null) => void
   selectProgram: (programId: string) => void
   addToCart: (line: Omit<CartLine, 'quantity'>) => void
   removeFromCart: (productId: string) => void
   clearCart: () => void
+  celebratePurchase: (productNames: string[], entitlements: ClientEntitlement[]) => void
+  clearPurchaseCelebration: () => void
 }
 
 function latestProgram<T extends { year: number }>(programs: T[]): T | undefined {
@@ -35,6 +38,7 @@ export const useAppStore = create<AppState>()(
       session: null,
       selectedProgramId: null,
       cart: [],
+      purchaseCelebration: null,
       setSession: (session) =>
         set({
           session,
@@ -56,6 +60,9 @@ export const useAppStore = create<AppState>()(
       removeFromCart: (productId) =>
         set((state) => ({ cart: state.cart.filter((item) => item.productId !== productId) })),
       clearCart: () => set({ cart: [] }),
+      celebratePurchase: (productNames, entitlements) =>
+        set({ purchaseCelebration: { productNames, entitlements } }),
+      clearPurchaseCelebration: () => set({ purchaseCelebration: null }),
     }),
     {
       name: 'wrg-platform-state',
