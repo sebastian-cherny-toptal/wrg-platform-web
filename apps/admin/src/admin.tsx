@@ -77,6 +77,13 @@ const navigation = [
   { to: "/admin/role-permissions", label: "Roles", icon: ShieldCheck },
 ];
 
+function formatMoney(amountMinor: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(amountMinor / 100);
+}
+
 function useLoad<T>(key: string, loader: () => Promise<T>) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState("");
@@ -1385,7 +1392,7 @@ export function UsersManagementPage() {
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const users = (loaded.data ?? []).filter((user) =>
-    `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.role ?? ""}`
+    `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.role ?? ""} ${JSON.stringify(user.payments)}`
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
@@ -1442,6 +1449,9 @@ export function UsersManagementPage() {
               "Organization",
               "Date Created",
               "Last Login",
+              "Product Payments",
+              "Total Paid",
+              "Last Payment",
               "Status",
               "Actions",
             ]}
@@ -1458,7 +1468,35 @@ export function UsersManagementPage() {
                 user.organization?.name ?? "—",
                 formatDate(user.createdAt),
                 formatDateTime(user.lastLogin),
-                <span className="status-pill">Active</span>,
+                user.payments.length ? (
+                  <div className="payment-status-list">
+                    {user.payments.map((payment, index) => (
+                      <div className="payment-status-item" key={`${payment.productId ?? payment.productName}-${payment.paymentDatetime ?? index}`}>
+                        <span>
+                          <strong>{payment.productName}</strong>
+                          {payment.programName ? <small>{payment.programName}</small> : null}
+                        </span>
+                        <span className="payment-status-pill" data-status={payment.status.toLowerCase()}>
+                          {payment.status.replaceAll("_", " ")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : "—",
+                user.totalPaid.length
+                  ? user.totalPaid
+                      .map(({ amountMinor, currency }) =>
+                        formatMoney(amountMinor, currency),
+                      )
+                      .join(" · ")
+                  : formatMoney(0, "USD"),
+                formatDateTime(user.lastPaymentDatetime),
+                <span
+                  className={user.status === "ACTIVE" ? "status-pill" : "payment-status-pill"}
+                  data-status={user.status.toLowerCase()}
+                >
+                  {user.status.replaceAll("_", " ")}
+                </span>,
                 <div className="row-actions">
                   <button
                     className="icon-button"

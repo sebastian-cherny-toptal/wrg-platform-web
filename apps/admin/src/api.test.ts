@@ -145,6 +145,54 @@ describe("admin API projections", () => {
     ).toBe("Example Company");
   });
 
+  it("projects each user's product payment history and totals", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            data: [
+              {
+                id: "user-id",
+                fullName: "Client Person",
+                email: "client@example.com",
+                status: "ACTIVE",
+                payments: [
+                  {
+                    productId: "report-kia",
+                    productName: "Key Impact Analysis",
+                    programName: "Feedback 2026",
+                    status: "PAID",
+                    amountMinor: 82000,
+                    currency: "USD",
+                    paymentDatetime: "2026-08-20T12:00:00.000Z",
+                  },
+                ],
+                totalPaid: [{ currency: "USD", amountMinor: 82000 }],
+                lastPaymentDatetime: "2026-08-20T12:00:00.000Z",
+              },
+            ],
+          }),
+      }),
+    );
+
+    await expect(api.users()).resolves.toMatchObject([
+      {
+        payments: [
+          {
+            productName: "Key Impact Analysis",
+            status: "PAID",
+            amountMinor: 82000,
+          },
+        ],
+        totalPaid: [{ currency: "USD", amountMinor: 82000 }],
+        lastPaymentDatetime: "2026-08-20T12:00:00.000Z",
+      },
+    ]);
+  });
+
   it("projects the programs available to an organization", () => {
     expect(
       organization({

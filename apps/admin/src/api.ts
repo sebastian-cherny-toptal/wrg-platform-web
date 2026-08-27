@@ -84,6 +84,17 @@ export type UserRecord = {
   createdAt: string | null;
   lastLogin: string | null;
   status: string;
+  payments: Array<{
+    productId: string | null;
+    productName: string;
+    programName: string | null;
+    status: string;
+    amountMinor: number;
+    currency: string;
+    paymentDatetime: string | null;
+  }>;
+  totalPaid: Array<{ currency: string; amountMinor: number }>;
+  lastPaymentDatetime: string | null;
 };
 
 export type HistoricalImportMetadata = {
@@ -568,14 +579,14 @@ export const api = {
 
   async projects(): Promise<ProjectRecord[]> {
     const response = await request<unknown>(
-      "/admin/getprojects?expand=programs",
+      "/zoho/projects",
     );
     return array(object(response).data).map(project);
   },
 
   async project(id: string): Promise<ProjectRecord> {
     const response = await request<unknown>(
-      `/admin/getprojects/${encodeURIComponent(id)}?expand=programs`,
+      `/zoho/project/${encodeURIComponent(id)}`,
     );
     const rows = array(object(response).data).map(project);
     if (!rows[0]) throw new ApiError("Project not found", 404);
@@ -638,6 +649,31 @@ export const api = {
           stringValue(value.createdAt) || stringValue(value.createAt) || null,
         lastLogin: stringValue(value.lastLogin) || null,
         status: stringValue(value.status),
+        payments: array(value.payments).map((paymentValue) => {
+          const payment = object(paymentValue);
+          return {
+            productId: stringValue(payment.productId) || null,
+            productName: stringValue(payment.productName, "Order"),
+            programName: stringValue(payment.programName) || null,
+            status: stringValue(payment.status),
+            amountMinor:
+              typeof payment.amountMinor === "number"
+                ? payment.amountMinor
+                : 0,
+            currency: stringValue(payment.currency, "USD"),
+            paymentDatetime: stringValue(payment.paymentDatetime) || null,
+          };
+        }),
+        totalPaid: array(value.totalPaid).map((totalValue) => {
+          const total = object(totalValue);
+          return {
+            currency: stringValue(total.currency, "USD"),
+            amountMinor:
+              typeof total.amountMinor === "number" ? total.amountMinor : 0,
+          };
+        }),
+        lastPaymentDatetime:
+          stringValue(value.lastPaymentDatetime) || null,
       };
     });
   },
