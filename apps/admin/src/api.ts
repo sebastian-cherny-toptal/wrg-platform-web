@@ -104,10 +104,10 @@ export type HistoricalImportMetadata = {
   programId?: string;
   zohoProgramId?: string;
   programName: string;
-  programYear: number;
+  programYear?: number;
   projectAbbreviation?: string;
-  efsLaunchDate: string;
-  efsDeadline: string;
+  efsLaunchDate?: string;
+  efsDeadline?: string;
   zohoWinnerOrganizations?: ZohoWinnerOrganization[];
   organizationPrograms?: Array<{
     organizationProgramId?: string;

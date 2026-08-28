@@ -735,7 +735,13 @@ function MetadataStep({
                     {program.year ? ` (${program.year})` : ""}
                   </option>
                 ))}
-                <option value="manual">Enter a program manually</option>
+                {
+                  form.projectId ? (
+                    <option value="manual">Please select a project</option>
+                  ) : (
+                    <option value="manual">Enter a program manually</option>
+                  )
+                }
               </select>
               {zohoError ? <small>{zohoError}</small> : null}
             </label>
@@ -807,7 +813,7 @@ function MetadataStep({
           <>
             <div className="wizard-fixed-field">
               <span>Program year</span>
-              <strong>{form.programYear}</strong>
+              <strong>{form.programYear ?? "—"}</strong>
             </div>
             <div className="wizard-fixed-field">
               <span>Project abbreviation</span>
@@ -815,11 +821,11 @@ function MetadataStep({
             </div>
             <div className="wizard-fixed-field">
               <span>EFS launch date</span>
-              <strong>{form.efsLaunchDate}</strong>
+              <strong>{form.efsLaunchDate ?? "—"}</strong>
             </div>
             <div className="wizard-fixed-field">
               <span>EFS deadline</span>
-              <strong>{form.efsDeadline}</strong>
+              <strong>{form.efsDeadline ?? "—"}</strong>
             </div>
           </>
         )}
