@@ -43,15 +43,17 @@ describe("winner organization filtering", () => {
     expect(
       applyZohoOrganizations(organizations.slice(0, 2), [
         {
-          organizationId: "49",
-          organizationName: "Alpha Company - Baton Rouge 2026",
+          organizationId: "460737994",
+          organizationName:
+            "Alpha Company-460737994-Best Places to Work in Baton Rouge 2026",
           isWinner: true,
           surveysSent: 125,
           currentYearCategory: "Large",
         },
         {
-          organizationId: "50",
-          organizationName: "Beta Company - Baton Rouge 2026",
+          organizationId: "952037468",
+          organizationName:
+            "Beta Company-952037468-Best Places to Work in Baton Rouge 2026",
           isWinner: false,
           surveysSent: 80,
           currentYearCategory: "Small",

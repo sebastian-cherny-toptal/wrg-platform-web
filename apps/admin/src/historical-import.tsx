@@ -238,8 +238,13 @@ export function filterAndSortProjects(
     );
 }
 
-function zohoOrganizationName(value: string | null | undefined): string {
-  return (value ?? "").split(" - ")[0]?.trim() ?? "";
+function zohoOrganizationName(organization: ZohoOrganizationInfo): string {
+  const value = organization.organizationName ?? "";
+  const marker = `-${organization.organizationId.trim()}-`;
+  const markerIndex = value.lastIndexOf(marker);
+  if (markerIndex > 0) return value.slice(0, markerIndex).trim();
+  const withoutCompositeSuffix = value.replace(/-\d{6,}-.+$/u, "").trim();
+  return withoutCompositeSuffix.split(" - ")[0]?.trim() ?? "";
 }
 
 function findZohoOrganization(
@@ -259,7 +264,7 @@ function findZohoOrganization(
       organization.organizationName,
     );
     const splitName = normalizeOrganizationIdentity(
-      zohoOrganizationName(organization.organizationName),
+      zohoOrganizationName(organization),
     );
     return Boolean(entryName && (entryName === fullName || entryName === splitName));
   });
