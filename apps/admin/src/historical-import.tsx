@@ -438,33 +438,19 @@ function CategoryPricingEditor({
 function MetadataStep({
   draft,
   projects,
-  zohoPrograms,
-  zohoError,
   editing,
   onSaved,
 }: {
   draft: Partial<DraftState>;
   projects: ProjectRecord[];
-  zohoPrograms: ZohoProgramOption[];
-  zohoError: string;
   editing: boolean;
   onSaved: (next: DraftState) => void;
 }) {
-  const programsForProject = (project: ProjectRecord | undefined) =>
-    project
-      ? zohoPrograms.filter(
-          (program) =>
-            (project.externalId && program.projectId === project.externalId) ||
-            normalizeOrganizationIdentity(program.projectName) ===
-              normalizeOrganizationIdentity(project.name),
-        )
-      : [];
+  const [zohoPrograms, setZohoPrograms] = useState<ZohoProgramOption[]>([]);
+  const [zohoError, setZohoError] = useState("");
+  const [loadingPrograms, setLoadingPrograms] = useState(false);
   const abbreviationForProject = (project: ProjectRecord | undefined) =>
-    project?.abbreviation ??
-    programsForProject(project).find(({ projectAbbreviation }) =>
-      Boolean(projectAbbreviation),
-    )?.projectAbbreviation ??
-    "";
+    project?.abbreviation ?? "";
   const initialProjectId =
     draft.metadata?.zohoProjectId ??
     draft.metadata?.projectId ??
@@ -493,16 +479,54 @@ function MetadataStep({
   const [projectSearch, setProjectSearch] = useState("");
   const [manualProgram, setManualProgram] = useState(
     !editing &&
-      (Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId) ||
-        zohoPrograms.length === 0),
+      Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId),
   );
   const selectedProject = projects.find(({ id }) => id === form.projectId);
-  const availableZohoPrograms = programsForProject(selectedProject);
+  const selectedZohoProjectId = selectedProject
+    ? (selectedProject.externalId ?? selectedProject.id)
+    : undefined;
+  const availableZohoPrograms = zohoPrograms;
   const visibleProjects = filterAndSortProjects(projects, projectSearch);
   const selectedProjectIsVisible = visibleProjects.some(
     ({ id }) => id === form.projectId,
   );
   const metadataIsManual = manualProgram || !form.projectId;
+
+  useEffect(() => {
+    if (editing || !selectedZohoProjectId) {
+      setZohoPrograms([]);
+      setZohoError("");
+      setLoadingPrograms(false);
+      return;
+    }
+    let active = true;
+    setZohoPrograms([]);
+    setZohoError("");
+    setLoadingPrograms(true);
+    void api
+      .zohoPrograms(selectedZohoProjectId)
+      .then((programs) => {
+        if (!active) return;
+        setZohoPrograms(programs);
+        if (!programs.length) {
+          setZohoError(
+            "No Zoho programs are available for this project. You can enter one manually.",
+          );
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setZohoError(
+          "Zoho programs for this project could not be loaded. You can enter one manually.",
+        );
+      })
+      .finally(() => {
+        if (active) setLoadingPrograms(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [editing, selectedZohoProjectId]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -597,6 +621,8 @@ function MetadataStep({
               const project = projects.find(
                 ({ id }) => id === event.target.value,
               );
+              setZohoPrograms([]);
+              setZohoError("");
               setManualProgram(!project);
               setForm({
                 ...form,
@@ -659,6 +685,7 @@ function MetadataStep({
               Program
               <select
                 aria-label="Program"
+                disabled={loadingPrograms || !selectedProject}
                 required
                 value={manualProgram ? "manual" : (form.zohoProgramId ?? "")}
                 onChange={(event) => {
@@ -672,7 +699,7 @@ function MetadataStep({
                     });
                     return;
                   }
-                  const selected = zohoPrograms.find(
+                  const selected = availableZohoPrograms.find(
                     ({ id }) => id === event.target.value,
                   );
                   if (!selected) return;
@@ -698,7 +725,9 @@ function MetadataStep({
                 }}
               >
                 <option value="" disabled>
-                  Choose a Zoho program
+                  {loadingPrograms
+                    ? "Loading programs…"
+                    : "Choose a Zoho program"}
                 </option>
                 {availableZohoPrograms.map((program) => (
                   <option key={program.id} value={program.id}>
@@ -1527,8 +1556,6 @@ export function HistoricalImportPage() {
   const [step, setStep] = useState<WizardStep>(stored?.importId ? 2 : 1);
   const [draft, setDraft] = useState<Partial<DraftState>>(stored ?? {});
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [zohoPrograms, setZohoPrograms] = useState<ZohoProgramOption[]>([]);
-  const [zohoError, setZohoError] = useState("");
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [initialError, setInitialError] = useState("");
 
@@ -1539,23 +1566,6 @@ export function HistoricalImportPage() {
         const availableProjects = await api.projects();
         if (!active) return;
         setProjects(availableProjects);
-        if (!programId) {
-          try {
-            const availableZohoPrograms = await api.zohoPrograms();
-            if (!active) return;
-            setZohoPrograms(availableZohoPrograms);
-            if (!availableZohoPrograms.length) {
-              setZohoError(
-                "No Zoho programs are available. You can enter one manually.",
-              );
-            }
-          } catch {
-            if (!active) return;
-            setZohoError(
-              "Zoho programs could not be loaded. You can enter one manually.",
-            );
-          }
-        }
         if (programId) {
           const [program, organizations, reportCatalog] = await Promise.all([
             api.program(programId),
@@ -1636,7 +1646,7 @@ export function HistoricalImportPage() {
       <State
         loading
         title="Loading program wizard"
-        message="Retrieving projects and program values."
+        message="Retrieving projects."
       />
     );
   } else if (initialError) {
@@ -1646,8 +1656,6 @@ export function HistoricalImportPage() {
       <MetadataStep
         draft={draft}
         projects={projects}
-        zohoPrograms={zohoPrograms}
-        zohoError={zohoError}
         editing={editing}
         onSaved={(next) => {
           setDraft(next);

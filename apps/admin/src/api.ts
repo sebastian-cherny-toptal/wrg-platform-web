@@ -779,8 +779,10 @@ export const api = {
     });
   },
 
-  async zohoPrograms(): Promise<ZohoProgramOption[]> {
-    const response = await request<unknown>("/zoho/programs");
+  async zohoPrograms(projectId: string): Promise<ZohoProgramOption[]> {
+    const response = await request<unknown>(
+      `/zoho/projects/${encodeURIComponent(projectId)}/programs`,
+    );
     return array(object(response).data).map((entry) => {
       const value = object(entry);
       const parsedYear = Number(value.year);

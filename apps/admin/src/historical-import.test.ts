@@ -110,7 +110,7 @@ describe("historical import API client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(api.zohoPrograms()).resolves.toEqual([
+    await expect(api.zohoPrograms("zoho-project-1")).resolves.toEqual([
       {
         id: "zoho-program-1",
         name: "Baton Rouge 2026",
@@ -124,7 +124,7 @@ describe("historical import API client", () => {
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/zoho/programs"),
+      expect.stringContaining("/zoho/projects/zoho-project-1/programs"),
       expect.any(Object),
     );
   });
