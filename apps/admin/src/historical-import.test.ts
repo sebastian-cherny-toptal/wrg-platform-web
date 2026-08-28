@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
 import {
   applyZohoWinners,
+  applyZohoOrganizations,
   filterAndSortProjects,
   filterWinnerOrganizations,
 } from "./historical-import";
@@ -61,6 +62,38 @@ describe("winner organization filtering", () => {
       { isWinner: true },
     ]);
   });
+
+  it("applies all program-scoped Zoho organization fields and splits deal names", () => {
+    expect(
+      applyZohoOrganizations(organizations.slice(0, 2), [
+        {
+          organizationId: "49",
+          organizationName: "Alpha Company - Baton Rouge 2026",
+          isWinner: true,
+          surveysSent: 125,
+          currentYearCategory: "Large",
+        },
+        {
+          organizationId: "50",
+          organizationName: "Beta Company - Baton Rouge 2026",
+          isWinner: false,
+          surveysSent: 80,
+          currentYearCategory: "Small",
+        },
+      ]),
+    ).toMatchObject([
+      {
+        isWinner: true,
+        surveysSent: 125,
+        currentYearCategory: "Large",
+      },
+      {
+        isWinner: false,
+        surveysSent: 80,
+        currentYearCategory: "Small",
+      },
+    ]);
+  });
 });
 
 describe("project options", () => {
@@ -104,6 +137,7 @@ describe("historical import API client", () => {
               efsLaunchDate: "2026-01-15",
               efsDeadline: "2026-04-30",
               winnerOrganizations: [],
+              organizations: [],
             },
           ],
         }),
@@ -121,6 +155,7 @@ describe("historical import API client", () => {
         efsLaunchDate: "2026-01-15",
         efsDeadline: "2026-04-30",
         winnerOrganizations: [],
+        organizations: [],
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(

@@ -50,7 +50,16 @@ export type ZohoProgramOption = {
   efsLaunchDate: string | null;
   efsDeadline: string | null;
   winnerOrganizations: ZohoWinnerOrganization[];
+  organizations: ZohoOrganizationInfo[];
   categoryPricing?: CategoryPricing[];
+};
+
+export type ZohoOrganizationInfo = {
+  organizationId: string;
+  organizationName: string | null;
+  isWinner: boolean;
+  surveysSent: number;
+  currentYearCategory: string | null;
 };
 
 export type ZohoWinnerOrganization = {
@@ -109,6 +118,7 @@ export type HistoricalImportMetadata = {
   efsLaunchDate?: string;
   efsDeadline?: string;
   zohoWinnerOrganizations?: ZohoWinnerOrganization[];
+  zohoOrganizations?: ZohoOrganizationInfo[];
   organizationPrograms?: Array<{
     organizationProgramId?: string;
     organizationKey?: string;
@@ -803,6 +813,22 @@ export const api = {
             organizationName: stringValue(winner.organizationName) || null,
             currentYearCategory:
               stringValue(winner.currentYearCategory) || null,
+          };
+        }),
+        organizations: array(value.organizations).map((entry) => {
+          const organization = object(entry);
+          const surveysSent = Number(organization.surveysSent);
+          return {
+            organizationId: stringValue(organization.organizationId),
+            organizationName:
+              stringValue(organization.organizationName) || null,
+            isWinner: organization.isWinner === true,
+            surveysSent:
+              Number.isInteger(surveysSent) && surveysSent >= 0
+                ? surveysSent
+                : 0,
+            currentYearCategory:
+              stringValue(organization.currentYearCategory) || null,
           };
         }),
         ...(Array.isArray(value.categoryPricing)

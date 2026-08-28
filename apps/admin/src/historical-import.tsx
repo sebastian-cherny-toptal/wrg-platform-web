@@ -16,6 +16,7 @@ import {
   type HistoricalImportStatus,
   type HistoricalImportValidationSummary,
   type ProjectRecord,
+  type ZohoOrganizationInfo,
   type ZohoProgramOption,
 } from "./api";
 import { PageHeader, State } from "./admin";
@@ -43,6 +44,14 @@ const defaultCategoryPricing: CategoryPricing[] = [
   { tier: "Mega", employeeSize: "500–999", priceCents: 136_500 },
   { tier: "Major", employeeSize: "1,000+", priceCents: 141_500 },
 ];
+const organizationCategories = [
+  "Boutique",
+  "Small",
+  "Medium",
+  "Large",
+  "Mega",
+  "Major",
+] as const;
 
 function readStoredDraft(): Partial<DraftState> | null {
   try {
@@ -230,6 +239,49 @@ export function applyZohoWinners(
             : {}),
         }
       : entry;
+  });
+}
+
+function zohoOrganizationName(value: string | null | undefined): string {
+  return (value ?? "").split(" - ")[0]?.trim() ?? "";
+}
+
+function findZohoOrganization(
+  entry: OrganizationProgramDraft,
+  organizations: ZohoOrganizationInfo[],
+): ZohoOrganizationInfo | undefined {
+  if (entry.sourceOrganizationId) {
+    const byId = organizations.find(
+      ({ organizationId }) =>
+        organizationId.trim() === entry.sourceOrganizationId?.trim(),
+    );
+    if (byId) return byId;
+  }
+  const entryName = normalizeOrganizationIdentity(entry.organizationName);
+  return organizations.find((organization) => {
+    const fullName = normalizeOrganizationIdentity(
+      organization.organizationName,
+    );
+    const splitName = normalizeOrganizationIdentity(
+      zohoOrganizationName(organization.organizationName),
+    );
+    return Boolean(entryName && (entryName === fullName || entryName === splitName));
+  });
+}
+
+export function applyZohoOrganizations(
+  entries: OrganizationProgramDraft[],
+  organizations: ZohoOrganizationInfo[],
+): OrganizationProgramDraft[] {
+  return entries.map((entry) => {
+    const organization = findZohoOrganization(entry, organizations);
+    if (!organization) return entry;
+    return {
+      ...entry,
+      isWinner: organization.isWinner,
+      surveysSent: organization.surveysSent,
+      currentYearCategory: organization.currentYearCategory ?? undefined,
+    };
   });
 }
 
@@ -467,9 +519,11 @@ function MetadataStep({
     projectAbbreviation:
       draft.metadata?.projectAbbreviation ??
       abbreviationForProject(initialProject),
-    efsLaunchDate: draft.metadata?.efsLaunchDate ?? `${currentYear - 1}-01-01`,
-    efsDeadline: draft.metadata?.efsDeadline ?? `${currentYear - 1}-12-31`,
+    efsLaunchDate: draft.metadata?.efsLaunchDate ?? '-',
+    efsDeadline: draft.metadata?.efsDeadline ?? '-',
     organizationPrograms: draft.metadata?.organizationPrograms,
+    zohoWinnerOrganizations: draft.metadata?.zohoWinnerOrganizations,
+    zohoOrganizations: draft.metadata?.zohoOrganizations,
     reportCatalog: draft.metadata?.reportCatalog,
     categoryPricing:
       draft.metadata?.categoryPricing ??
@@ -547,6 +601,7 @@ function MetadataStep({
         efsLaunchDate: form.efsLaunchDate,
         efsDeadline: form.efsDeadline,
         zohoWinnerOrganizations: form.zohoWinnerOrganizations,
+        zohoOrganizations: form.zohoOrganizations,
         organizationPrograms: form.organizationPrograms,
         reportCatalog: form.reportCatalog,
         categoryPricing: form.categoryPricing,
@@ -620,6 +675,7 @@ function MetadataStep({
                 zohoProgramId: undefined,
                 programName: "",
                 zohoWinnerOrganizations: [],
+                zohoOrganizations: [],
               });
             }}
             options={[
@@ -673,6 +729,7 @@ function MetadataStep({
                       zohoProgramId: undefined,
                       programName: "",
                       zohoWinnerOrganizations: [],
+                      zohoOrganizations: [],
                     });
                     return;
                   }
@@ -696,6 +753,7 @@ function MetadataStep({
                       selected.projectAbbreviation ??
                       form.projectAbbreviation,
                     zohoWinnerOrganizations: selected.winnerOrganizations,
+                    zohoOrganizations: selected.organizations,
                     categoryPricing:
                       selected.categoryPricing ?? form.categoryPricing,
                   });
@@ -874,7 +932,7 @@ function UploadStep({
       );
       const summary = await api.validateHistoricalImport(draft.importId);
       setValidation(summary);
-      const nextOrganizations = applyZohoWinners(
+      const nextOrganizations = applyZohoOrganizations(
         summary.organizations.map((organization) => ({
           organizationKey: organization.key,
           ...(organization.workbookOrganizationId
@@ -890,7 +948,7 @@ function UploadStep({
               ({ organizationKey }) => organizationKey === organization.key,
             )?.isWinner ?? false,
         })),
-        draft.metadata.zohoWinnerOrganizations ?? [],
+        draft.metadata.zohoOrganizations ?? [],
       );
       setOrganizationPrograms(nextOrganizations);
       const nextDraft = {
@@ -1007,55 +1065,6 @@ function UploadStep({
           />
         </label>
       </div>
-      {draft.metadata.programId &&
-      organizationPrograms.length &&
-      !validation?.workbooks.length ? (
-        <div className="table-card">
-          <table aria-label="Surveys Sent by organization">
-            <thead>
-              <tr>
-                <th>Organization</th>
-                <th>Surveys Sent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {organizationPrograms.map((entry, index) => (
-                <tr
-                  key={
-                    entry.organizationProgramId ??
-                    entry.organizationKey ??
-                    index
-                  }
-                >
-                  <td>{entry.organizationName ?? "Organization"}</td>
-                  <td>
-                    <input
-                      className="table-number-input"
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={entry.surveysSent}
-                      onChange={(event) =>
-                        setOrganizationPrograms((current) =>
-                          current.map((item, itemIndex) =>
-                            itemIndex === index
-                              ? {
-                                  ...item,
-                                  surveysSent: Number(event.target.value),
-                                }
-                              : item,
-                          ),
-                        )
-                      }
-                      aria-label={`Surveys Sent for ${entry.organizationName ?? "organization"}`}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
       {validation ? (
         <>
           <div className="summary-grid">
@@ -1072,71 +1081,25 @@ function UploadStep({
               </div>
             ))}
           </div>
-          <IssueList issues={validation.issues} />
-          {validation.organizations.length ? (
-            <div className="table-card">
-              <table aria-label="Organization reconciliation">
-                <thead>
-                  <tr>
-                    <th>Organization</th>
-                    <th>Workbook ID</th>
-                    <th>EA respondents</th>
-                    <th>EFS respondents</th>
-                    <th>Surveys Sent</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {validation.organizations.map((organization) => (
-                    <tr key={organization.key}>
-                      <td>{organization.displayName}</td>
-                      <td>{organization.workbookOrganizationId ?? "—"}</td>
-                      <td>{organization.eaRespondents}</td>
-                      <td>{organization.efsRespondents}</td>
-                      <td>
-                        <input
-                          className="table-number-input"
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={
-                            organizationPrograms.find(
-                              ({ organizationKey }) =>
-                                organizationKey === organization.key,
-                            )?.surveysSent ?? organization.efsRespondents
-                          }
-                          onChange={(event) =>
-                            setOrganizationPrograms((current) => [
-                              ...current.filter(
-                                ({ organizationKey }) =>
-                                  organizationKey !== organization.key,
-                              ),
-                              {
-                                organizationKey: organization.key,
-                                organizationName: organization.displayName,
-                                surveysSent: Number(event.target.value),
-                                isWinner:
-                                  current.find(
-                                    ({ organizationKey }) =>
-                                      organizationKey === organization.key,
-                                  )?.isWinner ?? false,
-                              },
-                            ])
-                          }
-                          aria-label={`Surveys Sent for ${organization.displayName}`}
-                        />
-                      </td>
-                      <td>
-                        {organization.warnings.length
-                          ? organization.warnings.join("; ")
-                          : "Matched"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
+          <div className="issue-list">
+            {validation.organizations.flatMap((organization) =>
+              organization.warnings
+                .filter(
+                  (warning) =>
+                    warning === "Present in EA only" ||
+                    warning === "Present in EFS only",
+                )
+                .map((warning) => (
+                  <div
+                    className="issue-item warning"
+                    key={`${organization.key}-${warning}`}
+                  >
+                    <AlertTriangle size={16} />
+                    <span>{organization.displayName}: {warning}</span>
+                  </div>
+                )),
+            )}
+          </div>
         </>
       ) : null}
       {error ? <p className="form-error">{error}</p> : null}
@@ -1165,6 +1128,39 @@ function WinnersStep({
   }>();
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
+  const zohoOrganizations = draft.metadata.zohoOrganizations ?? [];
+  const sortedOrganizationPrograms = [...organizationPrograms].sort(
+    (left, right) => {
+      const leftMatched = Boolean(findZohoOrganization(left, zohoOrganizations));
+      const rightMatched = Boolean(
+        findZohoOrganization(right, zohoOrganizations),
+      );
+      return (
+        Number(leftMatched) - Number(rightMatched) ||
+        (left.organizationName ?? "").localeCompare(
+          right.organizationName ?? "",
+        )
+      );
+    },
+  );
+  const winnerCount = organizationPrograms.filter(({ isWinner }) => isWinner).length;
+  const categoryCounts = organizationCategories.map((category) => ({
+    category,
+    count: organizationPrograms.filter(
+      ({ currentYearCategory }) => currentYearCategory === category,
+    ).length,
+  }));
+
+  const updateOrganization = (
+    key: string,
+    update: Partial<OrganizationProgramDraft>,
+  ) => {
+    setOrganizationPrograms((current) =>
+      current.map((entry) =>
+        organizationProgramKey(entry) === key ? { ...entry, ...update } : entry,
+      ),
+    );
+  };
 
   const uploadRankingWorkbook = async (file: File) => {
     setWorking(true);
@@ -1241,12 +1237,24 @@ function WinnersStep({
     <div className="wizard-panel">
       {actions("top")}
       <p className="wizard-copy">
-        Configure the winner and non-winner cohorts used by benchmark reports.
-        You can upload a ranking extract for bulk matching or move organizations
-        manually.
+        Review the organization information loaded from Zoho, then adjust the
+        winner, Surveys Sent, or category values when needed. You can also
+        upload a ranking extract for bulk updates.
       </p>
       {organizationPrograms.length ? (
         <>
+          <section className="organization-summary" aria-label="Organization summary">
+            <div>
+              <strong>{winnerCount}</strong>
+              <span>Winners</span>
+            </div>
+            {categoryCounts.map(({ category, count }) => (
+              <div key={category}>
+                <strong>{count}</strong>
+                <span>{category}</span>
+              </div>
+            ))}
+          </section>
           <section className="ranking-upload">
             <div>
               <strong>Bulk winner and category matching</strong>
@@ -1282,10 +1290,87 @@ function WinnersStep({
               </small>
             ) : null}
           </section>
-          <WinnerMultiSelect
-            organizationPrograms={organizationPrograms}
-            onChange={setOrganizationPrograms}
-          />
+          <div className="table-card organization-config-table">
+            <table aria-label="Organization winner, surveys, and category configuration">
+              <thead>
+                <tr>
+                  <th>Organization</th>
+                  <th>Winner</th>
+                  <th>EFS respondents</th>
+                  <th>Surveys Sent</th>
+                  <th>Category</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedOrganizationPrograms.map((entry) => {
+                  const key = organizationProgramKey(entry);
+                  const matched = Boolean(
+                    findZohoOrganization(entry, zohoOrganizations),
+                  );
+                  const validationOrganization = draft.validation?.organizations.find(
+                    ({ key: organizationKey }) => organizationKey === entry.organizationKey,
+                  );
+                  return (
+                    <tr className={matched ? undefined : "zoho-unmatched-row"} key={key}>
+                      <td>
+                        <strong>{entry.organizationName ?? "Organization"}</strong>
+                        {!matched ? (
+                          <span className="zoho-unmatched-message">
+                            No information in Zoho for this organization
+                          </span>
+                        ) : null}
+                      </td>
+                      <td>
+                        <input
+                          aria-label={`Winner for ${entry.organizationName ?? "organization"}`}
+                          checked={entry.isWinner}
+                          onChange={(event) =>
+                            updateOrganization(key, { isWinner: event.target.checked })
+                          }
+                          type="checkbox"
+                        />
+                      </td>
+                      <td>{validationOrganization?.efsRespondents ?? "—"}</td>
+                      <td>
+                        <input
+                          aria-label={`Surveys Sent for ${entry.organizationName ?? "organization"}`}
+                          className="table-number-input"
+                          min={0}
+                          onChange={(event) =>
+                            updateOrganization(key, {
+                              surveysSent: Number(event.target.value),
+                            })
+                          }
+                          step={1}
+                          type="number"
+                          value={entry.surveysSent}
+                        />
+                      </td>
+                      <td>
+                        <div className="category-radio-group">
+                          {organizationCategories.map((category) => (
+                            <label key={category}>
+                              <input
+                                checked={entry.currentYearCategory === category}
+                                name={`category-${key}`}
+                                onChange={() =>
+                                  updateOrganization(key, {
+                                    currentYearCategory: category,
+                                  })
+                                }
+                                type="radio"
+                              />
+                              <span>{category}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </>
       ) : (
         <p className="form-error">
@@ -1567,11 +1652,11 @@ export function HistoricalImportPage() {
               projectAbbreviation: "",
               efsLaunchDate: datePart(
                 details.StartDate ?? details.startsAt,
-                `${program.year ?? currentYear}-01-01`,
+                '-',
               ),
               efsDeadline: datePart(
                 details.EndDate ?? details.endsAt,
-                `${program.year ?? currentYear}-12-31`,
+                '-',
               ),
               reportCatalog,
               categoryPricing: Array.isArray(details.categoryPricing)
