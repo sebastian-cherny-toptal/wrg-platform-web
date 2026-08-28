@@ -415,6 +415,7 @@ function project(raw: unknown): ProjectRecord {
     abbreviation:
       stringValue(value.Project_Abbreviation) ||
       stringValue(value.projectAbbreviation) ||
+      stringValue(value.abbreviation) ||
       undefined,
     createdAt:
       stringValue(value.createAt) || stringValue(value.createdAt) || null,
