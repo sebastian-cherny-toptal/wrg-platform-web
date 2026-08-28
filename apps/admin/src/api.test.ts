@@ -90,6 +90,29 @@ describe("admin API projections", () => {
     );
   });
 
+  it("deletes imported projects and programs through admin endpoints", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.deleteProject("project/id");
+    await api.deleteProgram("program/id");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/admin/projects/project%2Fid"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/admin/programs/program%2Fid"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("keeps the Zoho project source available to the import wizard", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

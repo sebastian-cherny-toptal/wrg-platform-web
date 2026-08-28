@@ -347,10 +347,41 @@ export function AdminShell() {
 }
 
 export function ProjectsPage() {
+  const { auth } = useAuth();
   const loaded = useLoad("projects", api.projects);
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [sort, setSort] = useState("createdAt:desc");
+  const [deleting, setDeleting] = useState("");
+  const [notice, setNotice] = useState("");
+  const canDelete = Boolean(
+    auth?.user.roles.some(
+      (role) => role === "admin" || role === "super_admin",
+    ) || auth?.user.permissions.includes("ops.manage"),
+  );
+  const deleteProject = async (project: ProjectRecord) => {
+    if (
+      !window.confirm(
+        `Delete ${project.name}? This permanently deletes the project and all ${project.programs.length} associated program${project.programs.length === 1 ? "" : "s"}, including their organization enrollments and survey data. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(project.id);
+    setNotice("");
+    try {
+      await api.deleteProject(project.id);
+      loaded.reload();
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "Project could not be deleted.",
+      );
+    } finally {
+      setDeleting("");
+    }
+  };
   const rows = useMemo(() => {
     const filtered = (loaded.data ?? []).filter(
       (item) =>
@@ -415,11 +446,25 @@ export function ProjectsPage() {
               formatDate(item.createdAt),
               item.programs.length,
               item.programs.map((entry) => entry.name).join(", ") || "—",
-              <Link className="action-link" to={`/admin/projects/${item.id}`}>
-                View Details <ChevronRight size={18} />
-              </Link>,
+              <div className="row-actions">
+                <Link className="action-link" to={`/admin/projects/${item.id}`}>
+                  View <ChevronRight size={18} />
+                </Link>
+                {canDelete ? (
+                  <button
+                    className="icon-button danger-text"
+                    title="Delete"
+                    aria-label={`Delete ${item.name}`}
+                    disabled={deleting === item.id}
+                    onClick={() => void deleteProject(item)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                ) : null}
+              </div>,
             ])}
           />
+          {notice ? <div className="notice">{notice}</div> : null}
           <Pager count={rows.length} shown={10} />
         </>
       )}
@@ -429,10 +474,18 @@ export function ProjectsPage() {
 
 export function ProjectDetailPage() {
   const { projectId = "" } = useParams();
+  const { auth } = useAuth();
   const loaded = useLoad(`project:${projectId}`, () => api.project(projectId));
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [deleting, setDeleting] = useState("");
+  const [notice, setNotice] = useState("");
+  const canDelete = Boolean(
+    auth?.user.roles.some(
+      (role) => role === "admin" || role === "super_admin",
+    ) || auth?.user.permissions.includes("ops.manage"),
+  );
   if (loaded.loading)
     return (
       <State loading title="Loading project" message="Retrieving programs." />
@@ -450,6 +503,29 @@ export function ProjectDetailPage() {
       item.name.toLowerCase().includes(search.toLowerCase()) &&
       (!date || item.createdAt?.slice(0, 10) === date),
   );
+  const deleteProgram = async (program: ProgramRecord) => {
+    if (
+      !window.confirm(
+        `Delete ${program.name}? This permanently deletes the program, all ${program.organizationCount} associated organization enrollment${program.organizationCount === 1 ? "" : "s"}, and its survey data. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(program.id);
+    setNotice("");
+    try {
+      await api.deleteProgram(program.id);
+      loaded.reload();
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "Program could not be deleted.",
+      );
+    } finally {
+      setDeleting("");
+    }
+  };
   return (
     <>
       <PageHeader
@@ -496,11 +572,33 @@ export function ProjectDetailPage() {
           formatDate(item.createdAt),
           item.organizationCount,
           <div className="row-actions">
-            <Link className="action-link" to={`/admin/projects/${project.id}/programs/${item.id}/edit`}>Edit program <ChevronRight size={17} /></Link>
-            <Link className="action-link" to={`/admin/projects/${project.id}/programs/${item.id}`}>View Details <ChevronRight size={18} /></Link>
+            <Link
+              className="action-link"
+              to={`/admin/projects/${project.id}/programs/${item.id}/edit`}
+            >
+              Edit <ChevronRight size={17} />
+            </Link>
+            <Link
+              className="action-link"
+              to={`/admin/projects/${project.id}/programs/${item.id}`}
+            >
+              View <ChevronRight size={18} />
+            </Link>
+            {canDelete ? (
+              <button
+                className="icon-button danger-text"
+                title="Delete"
+                aria-label={`Delete ${item.name}`}
+                disabled={deleting === item.id}
+                onClick={() => void deleteProgram(item)}
+              >
+                <Trash2 size={16} />
+              </button>
+            ) : null}
           </div>,
         ])}
       />
+      {notice ? <div className="notice">{notice}</div> : null}
       <Pager count={programs.length} shown={10} />
     </>
   );
@@ -621,19 +719,32 @@ export function ProgramDetailPage() {
             label="Number of Organizations"
             value={String(program.organizationCount || organizations.length)}
           />
-          <Detail label="EFS Launch Date" value={formatCalendarDate(details.StartDate ?? details.startsAt)} />
-          <Detail label="EFS Deadline" value={formatCalendarDate(details.EndDate ?? details.endsAt)} />
           <Detail
-            label="Winners Count"
-            value={String(program.winnersCount)}
+            label="EFS Launch Date"
+            value={formatCalendarDate(details.StartDate ?? details.startsAt)}
           />
+          <Detail
+            label="EFS Deadline"
+            value={formatCalendarDate(details.EndDate ?? details.endsAt)}
+          />
+          <Detail label="Winners Count" value={String(program.winnersCount)} />
         </div>
       ) : null}
       <div className="section-row">
         <h2 className="section-title">Organization</h2>
         <div className="row-actions">
-          <Link className="secondary-button compact action-link" to={`/admin/projects/${projectId}/programs/${program.id}/edit`}>Edit program <ChevronRight size={16} /></Link>
-          <button className="primary-button compact" onClick={() => void resync()}>Re-Sync All Deals</button>
+          <Link
+            className="secondary-button compact action-link"
+            to={`/admin/projects/${projectId}/programs/${program.id}/edit`}
+          >
+            Edit program <ChevronRight size={16} />
+          </Link>
+          <button
+            className="primary-button compact"
+            onClick={() => void resync()}
+          >
+            Re-Sync All Deals
+          </button>
         </div>
       </div>
       {notice ? <div className="notice">{notice}</div> : null}
@@ -680,7 +791,10 @@ export function ProgramDetailPage() {
               View Dashboard <ChevronRight size={18} />
             </button>
             {canUploadBenefits ? (
-              <button className="action-link button-link" onClick={() => setCatalogOrganization(item)}>
+              <button
+                className="action-link button-link"
+                onClick={() => setCatalogOrganization(item)}
+              >
                 Configure store <ShoppingBag size={17} />
               </button>
             ) : null}
@@ -717,12 +831,34 @@ export function ProgramDetailPage() {
           }}
         />
       ) : null}
-      {catalogOrganization ? <CatalogModal scope={{ kind: "organization", id: catalogOrganization.organizationProgramId, label: `${catalogOrganization.name} — ${program.name}` }} onClose={() => setCatalogOrganization(null)} onSaved={() => setNotice(`The report store was updated for ${catalogOrganization.name}.`)} /> : null}
+      {catalogOrganization ? (
+        <CatalogModal
+          scope={{
+            kind: "organization",
+            id: catalogOrganization.organizationProgramId,
+            label: `${catalogOrganization.name} — ${program.name}`,
+          }}
+          onClose={() => setCatalogOrganization(null)}
+          onSaved={() =>
+            setNotice(
+              `The report store was updated for ${catalogOrganization.name}.`,
+            )
+          }
+        />
+      ) : null}
     </>
   );
 }
 
-function CatalogModal({ scope, onClose, onSaved }: { scope: { kind: "program" | "organization"; id: string; label: string }; onClose: () => void; onSaved: () => void }) {
+function CatalogModal({
+  scope,
+  onClose,
+  onSaved,
+}: {
+  scope: { kind: "program" | "organization"; id: string; label: string };
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [products, setProducts] = useState<import("./api").ReportProduct[]>([]);
   const [inherit, setInherit] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -730,29 +866,101 @@ function CatalogModal({ scope, onClose, onSaved }: { scope: { kind: "program" | 
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
-    Promise.all([api.reportProductTemplates(), scope.kind === "program" ? api.programCatalog(scope.id) : api.organizationCatalog(scope.id)])
+    Promise.all([
+      api.reportProductTemplates(),
+      scope.kind === "program"
+        ? api.programCatalog(scope.id)
+        : api.organizationCatalog(scope.id),
+    ])
       .then(([templates, configured]) => {
         if (!active) return;
-        const selected = Array.isArray(configured) ? configured : configured.products;
-        setProducts(templates.map((template) => selected.find(({ id }) => id === template.id) ?? { ...template, available: false }));
+        const selected = Array.isArray(configured)
+          ? configured
+          : configured.products;
+        setProducts(
+          templates.map(
+            (template) =>
+              selected.find(({ id }) => id === template.id) ?? {
+                ...template,
+                available: false,
+              },
+          ),
+        );
         if (!Array.isArray(configured)) setInherit(configured.inherited);
-      }).catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load catalog")).finally(() => active && setLoading(false));
-    return () => { active = false; };
+      })
+      .catch((caught) =>
+        setError(
+          caught instanceof Error ? caught.message : "Unable to load catalog",
+        ),
+      )
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
   }, [scope.id, scope.kind]);
   const save = async () => {
-    setSaving(true); setError("");
+    setSaving(true);
+    setError("");
     try {
-      if (scope.kind === "program") await api.saveProgramCatalog(scope.id, products);
+      if (scope.kind === "program")
+        await api.saveProgramCatalog(scope.id, products);
       else await api.saveOrganizationCatalog(scope.id, products, inherit);
-      onSaved(); onClose();
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save catalog"); setSaving(false); }
+      onSaved();
+      onClose();
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Unable to save catalog",
+      );
+      setSaving(false);
+    }
   };
-  return <Modal title={`Configure report store — ${scope.label}`} onClose={onClose}>
-    {scope.kind === "organization" ? <label className="inherit-catalog"><input type="checkbox" checked={inherit} onChange={(event) => setInherit(event.target.checked)} /><span><strong>Use program catalog</strong><small>Keep this organization synchronized with program-wide products and prices.</small></span></label> : null}
-    {loading ? <p className="modal-copy">Loading catalog…</p> : inherit ? <p className="notice">This organization currently uses the program catalog. Turn off the option above to customize it.</p> : <CatalogEditor products={products} onChange={setProducts} />}
-    {error ? <p className="form-error">{error}</p> : null}
-    <div className="modal-actions"><button className="secondary-button" onClick={onClose} disabled={saving}>Cancel</button><button className="primary-button" onClick={() => void save()} disabled={saving || loading}>{saving ? "Saving…" : "Save catalog"}</button></div>
-  </Modal>;
+  return (
+    <Modal title={`Configure report store — ${scope.label}`} onClose={onClose}>
+      {scope.kind === "organization" ? (
+        <label className="inherit-catalog">
+          <input
+            type="checkbox"
+            checked={inherit}
+            onChange={(event) => setInherit(event.target.checked)}
+          />
+          <span>
+            <strong>Use program catalog</strong>
+            <small>
+              Keep this organization synchronized with program-wide products and
+              prices.
+            </small>
+          </span>
+        </label>
+      ) : null}
+      {loading ? (
+        <p className="modal-copy">Loading catalog…</p>
+      ) : inherit ? (
+        <p className="notice">
+          This organization currently uses the program catalog. Turn off the
+          option above to customize it.
+        </p>
+      ) : (
+        <CatalogEditor products={products} onChange={setProducts} />
+      )}
+      {error ? <p className="form-error">{error}</p> : null}
+      <div className="modal-actions">
+        <button
+          className="secondary-button"
+          onClick={onClose}
+          disabled={saving}
+        >
+          Cancel
+        </button>
+        <button
+          className="primary-button"
+          onClick={() => void save()}
+          disabled={saving || loading}
+        >
+          {saving ? "Saving…" : "Save catalog"}
+        </button>
+      </div>
+    </Modal>
+  );
 }
 
 function Modal({
@@ -1023,7 +1231,9 @@ function AddUserModal({
   const selectedRole = (roles.data ?? []).find(
     (role) => field(role, "_id", "id") === form.roleId,
   );
-  const isClient = ["client", "promotional"].includes(field(selectedRole ?? {}, "role") as string);
+  const isClient = ["client", "promotional"].includes(
+    field(selectedRole ?? {}, "role") as string,
+  );
   const mergedOrganizations = filterAndSortOrganizations(
     organizations.data ?? [],
     "",
@@ -1156,7 +1366,9 @@ function AddUserModal({
                 searchPlaceholder="Search organizations…"
                 required
               />
-              <small>{mergedOrganizations.length} organizations available</small>
+              <small>
+                {mergedOrganizations.length} organizations available
+              </small>
             </div>
             {organizations.error ? (
               <p className="form-error">{organizations.error}</p>
@@ -1438,18 +1650,28 @@ export function UsersManagementPage() {
                 user.payments.length ? (
                   <div className="payment-status-list">
                     {user.payments.map((payment, index) => (
-                      <div className="payment-status-item" key={`${payment.productId ?? payment.productName}-${payment.paymentDatetime ?? index}`}>
+                      <div
+                        className="payment-status-item"
+                        key={`${payment.productId ?? payment.productName}-${payment.paymentDatetime ?? index}`}
+                      >
                         <span>
                           <strong>{payment.productName}</strong>
-                          {payment.programName ? <small>{payment.programName}</small> : null}
+                          {payment.programName ? (
+                            <small>{payment.programName}</small>
+                          ) : null}
                         </span>
-                        <span className="payment-status-pill" data-status={payment.status.toLowerCase()}>
+                        <span
+                          className="payment-status-pill"
+                          data-status={payment.status.toLowerCase()}
+                        >
                           {payment.status.replaceAll("_", " ")}
                         </span>
                       </div>
                     ))}
                   </div>
-                ) : "—",
+                ) : (
+                  "—"
+                ),
                 user.totalPaid.length
                   ? user.totalPaid
                       .map(({ amountMinor, currency }) =>
@@ -1459,7 +1681,11 @@ export function UsersManagementPage() {
                   : formatMoney(0, "USD"),
                 formatDateTime(user.lastPaymentDatetime),
                 <span
-                  className={user.status === "ACTIVE" ? "status-pill" : "payment-status-pill"}
+                  className={
+                    user.status === "ACTIVE"
+                      ? "status-pill"
+                      : "payment-status-pill"
+                  }
                   data-status={user.status.toLowerCase()}
                 >
                   {user.status.replaceAll("_", " ")}
@@ -1467,6 +1693,7 @@ export function UsersManagementPage() {
                 <div className="row-actions">
                   <button
                     className="icon-button"
+                    title="Edit"
                     aria-label={`Edit ${user.fullName}`}
                     onClick={() => setEditing(user)}
                   >
@@ -1475,6 +1702,7 @@ export function UsersManagementPage() {
                   <button
                     className="icon-button"
                     aria-label={`Reset password for ${user.fullName}`}
+                    title="Reset password"
                     disabled={resetting === user.id}
                     onClick={() => void resetPassword(user)}
                   >
@@ -1482,6 +1710,7 @@ export function UsersManagementPage() {
                   </button>
                   <button
                     className="icon-button danger-text"
+                    title="Delete"
                     aria-label={`Delete ${user.fullName}`}
                     onClick={() => {
                       if (

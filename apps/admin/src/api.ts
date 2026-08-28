@@ -605,6 +605,12 @@ export const api = {
     return rows[0];
   },
 
+  async deleteProject(id: string): Promise<void> {
+    await request(`/admin/projects/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+
   async zohoProjects(): Promise<ProjectRecord[]> {
     const response = await request<unknown>("/zoho/projects");
     return array(object(response).data).map(project);
@@ -616,6 +622,12 @@ export const api = {
     );
     const data = object(object(response).data);
     return program({ ...object(data.program), ...data });
+  },
+
+  async deleteProgram(id: string): Promise<void> {
+    await request(`/admin/programs/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   },
 
   async organizations(programId?: string): Promise<OrganizationRecord[]> {
@@ -674,9 +686,7 @@ export const api = {
             programName: stringValue(payment.programName) || null,
             status: stringValue(payment.status),
             amountMinor:
-              typeof payment.amountMinor === "number"
-                ? payment.amountMinor
-                : 0,
+              typeof payment.amountMinor === "number" ? payment.amountMinor : 0,
             currency: stringValue(payment.currency, "USD"),
             paymentDatetime: stringValue(payment.paymentDatetime) || null,
           };
@@ -689,8 +699,7 @@ export const api = {
               typeof total.amountMinor === "number" ? total.amountMinor : 0,
           };
         }),
-        lastPaymentDatetime:
-          stringValue(value.lastPaymentDatetime) || null,
+        lastPaymentDatetime: stringValue(value.lastPaymentDatetime) || null,
       };
     });
   },
@@ -854,8 +863,7 @@ export const api = {
       const surveysSent = Number(organization.surveysSent);
       return {
         organizationId: stringValue(organization.organizationId),
-        organizationName:
-          stringValue(organization.organizationName) || null,
+        organizationName: stringValue(organization.organizationName) || null,
         isWinner: organization.isWinner === true,
         surveysSent:
           Number.isInteger(surveysSent) && surveysSent >= 0 ? surveysSent : 0,
