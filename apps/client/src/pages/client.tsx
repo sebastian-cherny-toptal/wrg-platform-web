@@ -31,6 +31,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { SearchableSelect } from '@wrg/platform-ui'
 import { api, cachePurchasedReportAccess } from '../api/client'
 import { routeMap } from '../app/metadata'
 import { ImageDownloadMenu } from '../components/image-download-menu'
@@ -647,10 +648,15 @@ export function CatalogPage() {
                 <p className="mt-3 text-xs leading-5 text-zinc-500">{product.description}</p>
                 <p className="mt-2 text-xs text-zinc-600"><span className="mr-2 text-violet-600">✓</span>{product.deliveryMessage}</p>
                 {isSorted ? (
-                  <select className="mt-3 h-10 rounded-lg border border-zinc-300 bg-white px-3 text-xs" onChange={(event) => setVerbatimFilter(event.target.value)} value={verbatimFilter}>
-                    <option value="">Select demographic filter…</option>
-                    {(surveyFilters.data ?? []).map((filter) => <option key={filter.questionId} value={filter.questionId}>{filter.label}</option>)}
-                  </select>
+                  <SearchableSelect
+                    ariaLabel="Demographic filter"
+                    className="mt-3 text-xs"
+                    onChange={setVerbatimFilter}
+                    options={(surveyFilters.data ?? []).map((filter) => ({ value: filter.questionId, label: filter.label }))}
+                    placeholder="Select demographic filter…"
+                    searchPlaceholder="Search demographics…"
+                    value={verbatimFilter}
+                  />
                 ) : null}
                 {locked ? <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">♙ Requires the Standard package</p> : null}
                 <div className="mt-auto grid gap-2 pt-4">

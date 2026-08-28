@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { SearchableSelect } from "@wrg/platform-ui";
 import {
   api,
   type CategoryPricing,
@@ -476,7 +477,6 @@ function MetadataStep({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [projectSearch, setProjectSearch] = useState("");
   const [manualProgram, setManualProgram] = useState(
     !editing &&
       Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId),
@@ -486,10 +486,7 @@ function MetadataStep({
     ? (selectedProject.externalId ?? selectedProject.id)
     : undefined;
   const availableZohoPrograms = zohoPrograms;
-  const visibleProjects = filterAndSortProjects(projects, projectSearch);
-  const selectedProjectIsVisible = visibleProjects.some(
-    ({ id }) => id === form.projectId,
-  );
+  const visibleProjects = filterAndSortProjects(projects, "");
   const metadataIsManual = manualProgram || !form.projectId;
 
   useEffect(() => {
@@ -539,6 +536,7 @@ function MetadataStep({
           ? {
               zohoProjectId: selectedProject.externalId ?? selectedProject.id,
               projectName: selectedProject.name,
+              projectAbbreviation: selectedProject.abbreviation,
             }
           : {}),
         ...(!form.projectId ? { projectName: form.projectName?.trim() } : {}),
@@ -596,30 +594,16 @@ function MetadataStep({
         enter the program schedule.
       </p>
       <div className="wizard-grid">
-        {!editing ? (
-          <label>
-            Search projects
-            <input
-              type="search"
-              placeholder="Type part of a project name"
-              value={projectSearch}
-              onChange={(event) => setProjectSearch(event.target.value)}
-            />
-          </label>
-        ) : null}
         <label>
           Project
-          <select
-            value={
-              !editing && form.projectId && !selectedProjectIsVisible
-                ? ""
-                : (form.projectId ?? "new")
-            }
+          <SearchableSelect
+            ariaLabel="Project"
+            value={form.projectId ?? "new"}
             disabled={editing}
             required
-            onChange={(event) => {
+            onChange={(projectId) => {
               const project = projects.find(
-                ({ id }) => id === event.target.value,
+                ({ id }) => id === projectId,
               );
               setZohoPrograms([]);
               setZohoError("");
@@ -635,22 +619,13 @@ function MetadataStep({
                 zohoWinnerOrganizations: [],
               });
             }}
-          >
-            {!visibleProjects.length ||
-            (!editing && form.projectId && !selectedProjectIsVisible) ? (
-              <option value="" disabled>
-                {visibleProjects.length
-                  ? "Choose a filtered project"
-                  : "No projects match your search"}
-              </option>
-            ) : null}
-            {visibleProjects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-            <option value="new">Create a new project</option>
-          </select>
+            options={[
+              ...visibleProjects.map((project) => ({ value: project.id, label: project.name })),
+              { value: "new", label: "Create a new project" },
+            ]}
+            placeholder="Choose a project"
+            searchPlaceholder="Search projects…"
+          />
         </label>
         {!form.projectId ? (
           <label>
@@ -683,13 +658,12 @@ function MetadataStep({
           <>
             <label>
               Program
-              <select
-                aria-label="Program"
+              <SearchableSelect
                 disabled={loadingPrograms || !selectedProject}
                 required
                 value={manualProgram ? "manual" : (form.zohoProgramId ?? "")}
-                onChange={(event) => {
-                  if (event.target.value === "manual") {
+                onChange={(programId) => {
+                  if (programId === "manual") {
                     setManualProgram(true);
                     setForm({
                       ...form,
@@ -700,7 +674,7 @@ function MetadataStep({
                     return;
                   }
                   const selected = availableZohoPrograms.find(
-                    ({ id }) => id === event.target.value,
+                    ({ id }) => id === programId,
                   );
                   if (!selected) return;
                   setManualProgram(false);
@@ -723,26 +697,20 @@ function MetadataStep({
                       selected.categoryPricing ?? form.categoryPricing,
                   });
                 }}
-              >
-                <option value="" disabled>
-                  {loadingPrograms
-                    ? "Loading programs…"
-                    : "Choose a Zoho program"}
-                </option>
-                {availableZohoPrograms.map((program) => (
-                  <option key={program.id} value={program.id}>
-                    {program.name}
-                    {program.year ? ` (${program.year})` : ""}
-                  </option>
-                ))}
-                {
-                  form.projectId ? (
-                    <option value="manual">Please select a project</option>
-                  ) : (
-                    <option value="manual">Enter a program manually</option>
-                  )
-                }
-              </select>
+                ariaLabel="Program"
+                options={[
+                  ...availableZohoPrograms.map((program) => ({
+                    value: program.id,
+                    label: `${program.name}${program.year ? ` (${program.year})` : ""}`,
+                  })),
+                  {
+                    value: "manual",
+                    label: form.projectId ? "Please select a project" : "Enter a program manually",
+                  },
+                ]}
+                placeholder={loadingPrograms ? "Loading programs…" : "Choose a Zoho program"}
+                searchPlaceholder="Search programs…"
+              />
               {zohoError ? <small>{zohoError}</small> : null}
             </label>
             {manualProgram ? (

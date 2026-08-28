@@ -21,6 +21,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
+import { SearchableSelect } from "@wrg/platform-ui";
 import {
   api,
   type ReportQueryFilter,
@@ -643,19 +644,15 @@ function FilterButton({
         <div className="absolute left-0 top-12 z-20 w-64 rounded-xl border border-zinc-200 bg-white p-4 shadow-xl">
           <label className="grid gap-2 text-xs font-semibold text-zinc-600">
             Compare by
-            <select
-              className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-normal text-zinc-900"
+            <SearchableSelect
+              ariaLabel="Compare by demographic"
               disabled={loading}
-              onChange={(event) => onChange(event.target.value)}
+              onChange={onChange}
+              options={filters.map((filter) => ({ value: filter.questionId, label: filter.label }))}
+              placeholder="Select a demographic"
+              searchPlaceholder="Search demographics…"
               value={value}
-            >
-              <option value="">Select a demographic</option>
-              {filters.map((filter) => (
-                <option key={filter.questionId} value={filter.questionId}>
-                  {filter.label}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <Button className="mt-3 w-full" onClick={() => setOpen(false)}>
             Apply Filter
@@ -1846,21 +1843,26 @@ export function EmployeeVerbatimsPage() {
               {sortedVerbatims?.owned ? "Sorted by" : "Select one of these options"}
             </p>
             {sortedVerbatims?.owned ? (
-              <select className="mt-3 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm" value={selectedPurchasedFilter} disabled>
-                <option value={selectedPurchasedFilter}>{(availableFilters.data?.find((item) => item.questionId === selectedPurchasedFilter)?.label ?? selectedPurchasedFilter) || "Purchased filter"}</option>
-              </select>
-            ) : <select
-              className="mt-3 h-10 w-full rounded-md border border-zinc-300 px-3 text-sm"
-              onChange={(event) => setFilter(event.target.value)}
+              <SearchableSelect
+                ariaLabel="Purchased sorting filter"
+                className="mt-3 text-sm"
+                disabled
+                onChange={() => undefined}
+                options={[{
+                  value: selectedPurchasedFilter,
+                  label: (availableFilters.data?.find((item) => item.questionId === selectedPurchasedFilter)?.label ?? selectedPurchasedFilter) || "Purchased filter",
+                }]}
+                value={selectedPurchasedFilter}
+              />
+            ) : <SearchableSelect
+              ariaLabel="Filtering report"
+              className="mt-3 text-sm"
+              onChange={setFilter}
+              options={(availableFilters.data ?? []).map((item) => ({ value: item.questionId, label: item.label }))}
+              placeholder="Select filtering report"
+              searchPlaceholder="Search reports…"
               value={effectiveSortingFilter}
-            >
-              <option value="">Select filtering report</option>
-              {(availableFilters.data ?? []).map((item) => (
-                <option key={item.questionId} value={item.questionId}>
-                  {item.label}
-                </option>
-              ))}
-            </select>}
+            />}
             {!sortedVerbatims?.owned ? <Button
               className="mt-3 w-full"
               disabled={!filter || inCart || (sortedVerbatims?.owned ?? false) || sortedVerbatims?.priceCents == null}

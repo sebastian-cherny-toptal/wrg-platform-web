@@ -33,7 +33,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { WorkforceLogoWhite } from "@wrg/platform-ui";
+import { SearchableSelect, WorkforceLogoWhite } from "@wrg/platform-ui";
 import {
   api,
   field,
@@ -167,18 +167,14 @@ function Toolbar({
     <div className="toolbar">
       <div className="toolbar-left">
         {setSort && sortOptions ? (
-          <select
-            className="select-button"
-            aria-label="Sort records"
-            value={sort}
-            onChange={(event) => setSort(event.target.value)}
-          >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            ariaLabel="Sort records"
+            className="toolbar-select"
+            onChange={setSort}
+            options={sortOptions}
+            searchPlaceholder="Search sort options…"
+            value={sort ?? ""}
+          />
         ) : null}
         {setDate ? (
           <label className="date-control">
@@ -1024,7 +1020,6 @@ function AddUserModal({
     organizationId: "",
     programs: [] as string[],
   });
-  const [organizationSearch, setOrganizationSearch] = useState("");
   const selectedRole = (roles.data ?? []).find(
     (role) => field(role, "_id", "id") === form.roleId,
   );
@@ -1035,10 +1030,6 @@ function AddUserModal({
   );
   const selectedOrganization = mergedOrganizations.find(
     (organization) => organization.id === form.organizationId,
-  );
-  const organizationOptions = filterAndSortOrganizations(
-    organizations.data ?? [],
-    organizationSearch,
   );
   const availablePrograms = selectedOrganization?.programs ?? [];
   const [error, setError] = useState("");
@@ -1116,81 +1107,57 @@ function AddUserModal({
           value={form.mobile}
           onChange={(event) => setForm({ ...form, mobile: event.target.value })}
         />
-        <select
-          aria-label="Set role of User"
+        <SearchableSelect
+          ariaLabel="Set role of User"
           value={form.roleId}
-          onChange={(event) =>
+          onChange={(roleId) =>
             setForm({
               ...form,
-              roleId: event.target.value,
+              roleId,
               projects: [],
               organizationId: "",
               programs: [],
             })
           }
-          required
-        >
-          <option value="">Set role of User</option>
-          {(roles.data ?? []).map((role) => {
+          options={(roles.data ?? []).map((role) => {
             const roleKey = field(role, "role");
             const unavailableAdmin =
               roleKey === "super_admin" && Number(field(role, "userCount")) > 0;
-            return (
-              <option
-                key={field(role, "_id", "id")}
-                value={field(role, "_id", "id")}
-                disabled={unavailableAdmin}
-              >
-                {field(role, "name", "role")}
-                {unavailableAdmin ? " (already assigned)" : ""}
-              </option>
-            );
+            return {
+              value: field(role, "_id", "id"),
+              label: `${field(role, "name", "role")}${unavailableAdmin ? " (already assigned)" : ""}`,
+              disabled: unavailableAdmin,
+            };
           })}
-        </select>
+          placeholder="Set role of User"
+          searchPlaceholder="Search roles…"
+          required
+        />
         {roles.error ? <p className="form-error">{roles.error}</p> : null}
         {isClient ? (
           <>
             <div className="organization-picker">
-              <label htmlFor="organization-search">
-                Search and select an organization
-              </label>
-              <input
-                aria-label="Search organizations"
-                id="organization-search"
-                type="search"
-                placeholder="Type an organization name…"
-                value={organizationSearch}
-                onChange={(event) => setOrganizationSearch(event.target.value)}
-              />
-              <select
-                aria-describedby="organization-search-status"
-                aria-label="Organization"
+              <label>Search and select an organization</label>
+              <SearchableSelect
+                ariaLabel="Organization"
                 value={form.organizationId}
-                onChange={(event) =>
+                onChange={(organizationId) =>
                   setForm({
                     ...form,
-                    organizationId: event.target.value,
+                    organizationId,
                     programs: [],
                   })
                 }
+                options={mergedOrganizations.map((organization) => ({
+                  value: organization.id,
+                  label: organization.name,
+                }))}
+                placeholder="Choose an organization…"
+                searchPlaceholder="Search organizations…"
                 required
-              >
-                <option value="">Choose an organization…</option>
-                {organizationOptions.map((organization) => (
-                  <option key={organization.id} value={organization.id}>
-                    {organization.name}
-                  </option>
-                ))}
-              </select>
-              <small id="organization-search-status">
-                {organizationSearch
-                  ? `${organizationOptions.length} matching organization${organizationOptions.length === 1 ? "" : "s"}`
-                  : `${organizationOptions.length} organizations available`}
-              </small>
+              />
+              <small>{mergedOrganizations.length} organizations available</small>
             </div>
-            {organizationSearch && organizationOptions.length === 0 ? (
-              <p className="form-hint">No organizations match that search.</p>
-            ) : null}
             {organizations.error ? (
               <p className="form-error">{organizations.error}</p>
             ) : null}

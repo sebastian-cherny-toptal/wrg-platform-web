@@ -412,6 +412,14 @@ a {
   align-items: center;
   gap: 12px;
 }
+.toolbar-select {
+  width: 190px;
+  font-size: 14px;
+}
+.toolbar-select .wrg-searchable-select__trigger {
+  min-height: 40px;
+  border-radius: 6px;
+}
 .select-button,
 .date-control,
 .search-control {
@@ -825,6 +833,9 @@ a {
 }
 .organization-picker input,
 .organization-picker select {
+  margin-bottom: 8px;
+}
+.organization-picker .wrg-searchable-select {
   margin-bottom: 8px;
 }
 .organization-picker small {
