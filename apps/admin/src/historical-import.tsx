@@ -602,6 +602,9 @@ function MetadataStep({
             disabled={editing}
             required
             onChange={(projectId) => {
+              console.log("projectId", projectId);
+              console.log("projects", projects);
+              console.log("visibleProjects", visibleProjects);
               const project = projects.find(
                 ({ id }) => id === projectId,
               );

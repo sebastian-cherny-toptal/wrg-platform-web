@@ -46,6 +46,7 @@ export function SearchableSelect({
   const listboxId = `${controlId}-listbox`;
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -123,6 +124,11 @@ export function SearchableSelect({
         tabIndex={-1}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onInvalid={(event) => {
+          event.preventDefault();
+          setOpen(true);
+          requestAnimationFrame(() => triggerRef.current?.focus());
+        }}
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (
@@ -147,6 +153,7 @@ export function SearchableSelect({
             setOpen(true);
           }
         }}
+        ref={triggerRef}
         type="button"
       >
         <span className={selected ? "" : "is-placeholder"}>
@@ -165,6 +172,7 @@ export function SearchableSelect({
             </svg>
             <span className="wrg-searchable-select__sr-only">Search options</span>
             <input
+              aria-label={searchPlaceholder}
               autoComplete="off"
               placeholder={searchPlaceholder}
               ref={searchRef}
