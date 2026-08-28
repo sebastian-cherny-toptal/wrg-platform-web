@@ -37,11 +37,11 @@ type DraftState = {
 
 const currentYear = new Date().getFullYear();
 const defaultCategoryPricing: CategoryPricing[] = [
-  { tier: "Boutique", employeeSize: "15–24", priceCents: 108_000 },
-  { tier: "Small", employeeSize: "25–99", priceCents: 111_000 },
-  { tier: "Medium", employeeSize: "100–199", priceCents: 122_500 },
-  { tier: "Large", employeeSize: "200–499", priceCents: 128_500 },
-  { tier: "Mega", employeeSize: "500–999", priceCents: 136_500 },
+  { tier: "Boutique", employeeSize: "15-24", priceCents: 108_000 },
+  { tier: "Small", employeeSize: "25-99", priceCents: 111_000 },
+  { tier: "Medium", employeeSize: "100-199", priceCents: 122_500 },
+  { tier: "Large", employeeSize: "200-499", priceCents: 128_500 },
+  { tier: "Mega", employeeSize: "500-999", priceCents: 136_500 },
   { tier: "Major", employeeSize: "1,000+", priceCents: 141_500 },
 ];
 const organizationCategories = [
@@ -515,7 +515,7 @@ function MetadataStep({
     programId: draft.metadata?.programId,
     zohoProgramId: draft.metadata?.zohoProgramId,
     programName: draft.metadata?.programName ?? "",
-    programYear: draft.metadata?.programYear ?? currentYear - 1,
+    programYear: draft.metadata?.programYear ?? undefined,
     projectAbbreviation:
       draft.metadata?.projectAbbreviation ??
       abbreviationForProject(initialProject),
@@ -796,9 +796,9 @@ function MetadataStep({
               Program year
               <input
                 type="number"
-                min={1900}
-                max={currentYear}
-                value={form.programYear}
+                min={2010}
+                max={currentYear + 3}
+                value={form.programYear ?? ""}
                 onChange={(event) =>
                   setForm({ ...form, programYear: Number(event.target.value) })
                 }
@@ -842,7 +842,7 @@ function MetadataStep({
           <>
             <div className="wizard-fixed-field">
               <span>Program year</span>
-              <strong>{form.programYear ?? "—"}</strong>
+              <strong>{form.programYear ? `${form.programYear}` : "—"}</strong>
             </div>
             <div className="wizard-fixed-field">
               <span>Project abbreviation</span>
@@ -1674,7 +1674,9 @@ export function HistoricalImportPage() {
     let active = true;
     const load = async () => {
       try {
-        const availableProjects = await api.projects();
+        const availableProjects = editing
+          ? await api.projects()
+          : await api.zohoProjects();
         if (!active) return;
         setProjects(availableProjects);
         if (programId) {
@@ -1697,7 +1699,7 @@ export function HistoricalImportPage() {
               projectName: selectedProject?.name,
               programId: program.id,
               programName: program.name,
-              programYear: program.year ?? currentYear,
+              programYear: program.year ?? undefined,
               projectAbbreviation: "",
               efsLaunchDate: datePart(
                 details.StartDate ?? details.startsAt,

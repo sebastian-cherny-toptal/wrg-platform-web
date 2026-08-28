@@ -63,7 +63,7 @@ const permissionLabels: Record<string, string> = {
 const navigation = [
   {
     to: "/admin/projects",
-    label: "Projects & Programs",
+    label: "Imported Projects & Programs",
     icon: BriefcaseBusiness,
   },
   {
@@ -370,8 +370,8 @@ export function ProjectsPage() {
   return (
     <>
       <PageHeader
-        title="Projects"
-        breadcrumb="Projects & Programs"
+        title="Imported Projects"
+        breadcrumb="Imported Projects & Programs"
         actions={
           <Link className="primary-button compact" to="/admin/projects/import">
             Import Historical Project

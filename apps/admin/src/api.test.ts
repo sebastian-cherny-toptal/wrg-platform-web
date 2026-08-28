@@ -54,6 +54,57 @@ describe("admin API projections", () => {
     });
   });
 
+  it("loads imported projects and their programs from the database endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          data: [
+            {
+              _id: "database-project-id",
+              id: "zoho-project-id",
+              Name: "Imported project",
+              Programs: [
+                {
+                  databaseId: "database-program-id",
+                  Name: "Imported program",
+                },
+              ],
+            },
+          ],
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.projects()).resolves.toMatchObject([
+      {
+        id: "database-project-id",
+        name: "Imported project",
+        programs: [{ id: "database-program-id", name: "Imported program" }],
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/getprojects?expand=programs"),
+      expect.any(Object),
+    );
+  });
+
+  it("keeps the Zoho project source available to the import wizard", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.zohoProjects()).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/zoho/projects"),
+      expect.any(Object),
+    );
+  });
+
   it("refreshes an expired access token and retries the request", async () => {
     persistAuth({
       accessToken: "expired-access",

@@ -591,18 +591,23 @@ export const api = {
 
   async projects(): Promise<ProjectRecord[]> {
     const response = await request<unknown>(
-      "/zoho/projects",
+      "/admin/getprojects?expand=programs",
     );
     return array(object(response).data).map(project);
   },
 
   async project(id: string): Promise<ProjectRecord> {
     const response = await request<unknown>(
-      `/zoho/project/${encodeURIComponent(id)}`,
+      `/admin/getprojects/${encodeURIComponent(id)}?expand=programs`,
     );
     const rows = array(object(response).data).map(project);
     if (!rows[0]) throw new ApiError("Project not found", 404);
     return rows[0];
+  },
+
+  async zohoProjects(): Promise<ProjectRecord[]> {
+    const response = await request<unknown>("/zoho/projects");
+    return array(object(response).data).map(project);
   },
 
   async program(id: string): Promise<ProgramRecord> {
