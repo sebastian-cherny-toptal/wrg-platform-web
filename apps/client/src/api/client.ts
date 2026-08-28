@@ -96,7 +96,7 @@ function clearClientSession(): void {
   window.localStorage.removeItem(clientSessionStorageKey);
 }
 
-export function cachePurchasedReportAccess(products: { productId: string; name: string }[]): void {
+export function cachePurchasedReportAccess(products: { productId: string; name: string; keys?: Record<string, string> }[]): void {
   const state = useAppStore.getState();
   const session = state.session;
   const selectedProgramId = state.selectedProgramId;
@@ -122,9 +122,25 @@ export function cachePurchasedReportAccess(products: { productId: string; name: 
     }
     if (purchased.has("report-verbatims-sorted")) {
       entitlements.SEV_Access = "yes";
+      gainedEntitlements.add("SEV_Access");
       gainedEntitlements.add("EV_Access");
     }
-    return { ...program, entitlements };
+    const sortedVerbatims = products.find(
+      ({ productId }) => productId === "report-verbatims-sorted",
+    );
+    const selectedFilter = sortedVerbatims?.keys?.EV_Sorting_Filter;
+    return {
+      ...program,
+      entitlements,
+      ...(selectedFilter
+        ? {
+            reportSelections: {
+              ...program.reportSelections,
+              SEV_Filter: selectedFilter,
+            },
+          }
+        : {}),
+    };
   });
   const next = { ...session, user: { ...session.user, programs } };
   window.localStorage.setItem(clientSessionStorageKey, JSON.stringify(next));
@@ -225,6 +241,9 @@ async function backendClientLogin(input: {
         SEV_Access: entitlement(enrollment.reportAccess.SEV_Access),
         CR_Access: entitlement(enrollment.reportAccess.CR_Access),
       },
+      ...(typeof enrollment.metrics?.SEV_Filter === "string"
+        ? { reportSelections: { SEV_Filter: enrollment.metrics.SEV_Filter } }
+        : {}),
     };
   });
   const session = sessionSchema.parse({
@@ -579,8 +598,35 @@ export const api = {
     demographics: (programId: string, isDummy = false) =>
       responseCountByDemographic(programId, isDummy),
     surveyFilters,
-    catalog: (programId?: string) =>
-      request(`/reports/catalog${programId ? `?programId=${encodeURIComponent(programId)}` : ""}`, { schema: z.array(reportProductSchema) }),
+    catalog: async (programId?: string) => {
+      const products = await request(
+        `/reports/catalog${programId ? `?programId=${encodeURIComponent(programId)}` : ""}`,
+        { schema: z.array(reportProductSchema) },
+      );
+      const state = useAppStore.getState();
+      const program = state.session?.user.programs.find(
+        (entry) => entry.id === (programId ?? state.selectedProgramId),
+      );
+      if (!program) return products;
+      const ownsStandard = ["WFR_Access", "EV_Access", "WBC_Access", "BBP_Access"]
+        .every((key) => program.entitlements[key] === "yes");
+      return products.map((product) => {
+        const locallyOwned =
+          (product.id === "report-standard-package" && ownsStandard) ||
+          (product.id === "report-verbatims-sorted" && program.entitlements.SEV_Access === "yes") ||
+          (product.id === "report-response-detail" && program.entitlements.RD_Access === "yes") ||
+          (product.id === "report-kia" && program.entitlements.KIA_Access === "yes");
+        return {
+          ...product,
+          owned: product.owned || locallyOwned,
+          standardPackageOwned: product.standardPackageOwned || ownsStandard,
+          ...(product.id === "report-verbatims-sorted" &&
+          !product.selection && program.reportSelections?.SEV_Filter
+            ? { selection: program.reportSelections.SEV_Filter }
+            : {}),
+        };
+      });
+    },
     responseBreakdownBySection: (
       programId: string,
       queryFilter: ReportQueryFilter = {},

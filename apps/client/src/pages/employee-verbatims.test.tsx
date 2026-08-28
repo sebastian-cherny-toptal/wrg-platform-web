@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -96,5 +96,58 @@ describe("Employee Verbatims page", () => {
     await userEvent.click(question);
     expect(await screen.findByText("The people and the supportive culture.")).toBeVisible();
     expect(answers).toHaveBeenCalledWith("program-2026", "question-1");
+  });
+
+  it("requires a sorting category in the demo add-to-cart prompt", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "openResponseQuestions").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: [],
+    });
+    vi.spyOn(api.reports, "catalog").mockResolvedValue([{
+      id: "report-verbatims-sorted",
+      name: "Sorted Employee Verbatims",
+      description: "Sort responses",
+      priceCents: 42_500,
+      available: true,
+      purchaseMode: "checkout",
+      fulfillment: "instant",
+      requiresStandardPackage: true,
+      priceAvailable: true,
+      owned: false,
+      standardPackageOwned: true,
+      purchasable: true,
+      deliveryMessage: "Instant access",
+    }]);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([
+      { questionId: "department", label: "Department", options: [] },
+      { questionId: "location", label: "Location", options: [] },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const user = userEvent.setup();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/employee-verbatims?demo=report-verbatims-sorted"]}>
+          <EmployeeVerbatimsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const prompt = (await screen.findByText("Viewing demo")).closest<HTMLElement>('[role="status"]');
+    if (!prompt) throw new Error("Demo purchase prompt was not rendered");
+    const addButton = within(prompt).getByRole("button", { name: "Add to cart" });
+    expect(addButton).toBeDisabled();
+    await user.click(within(prompt).getByRole("button", { name: "Demo sorting category" }));
+    await user.click(screen.getByRole("option", { name: "Department" }));
+    expect(addButton).toBeEnabled();
+    await user.click(addButton);
+    expect(useAppStore.getState().cart[0]).toMatchObject({
+      keys: { EV_Sorting_Filter: "department" },
+      optionLabel: "Department",
+    });
   });
 });

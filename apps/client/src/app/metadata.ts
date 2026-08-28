@@ -14,6 +14,7 @@ export const clientEntitlements = [
   'BBP_Access',
   'RD_Access',
   'KIA_Access',
+  'SEV_Access',
   'CR_Access',
 ] as const
 

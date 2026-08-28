@@ -125,6 +125,11 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                 key={item.productId}
               >
                 <strong className="block">{item.name}</strong>
+                {item.optionLabel ? (
+                  <span className="block text-xs text-zinc-500">
+                    Sorted by {item.optionLabel}
+                  </span>
+                ) : null}
                 <span className="text-zinc-500">
                   ${(item.priceCents / 100).toLocaleString()}
                 </span>
@@ -1807,7 +1812,10 @@ export function EmployeeVerbatimsPage() {
     (product) => product.id === "report-verbatims-sorted",
   );
   const selectedPurchasedFilter = sortedVerbatims?.selection ?? "";
-  const effectiveSortingFilter = filter || (isDemo ? availableFilters.data?.[0]?.questionId ?? "" : "");
+  const effectiveSortingFilter = filter;
+  const selectedSortingLabel = availableFilters.data?.find(
+    (item) => item.questionId === effectiveSortingFilter,
+  )?.label;
   return (
     <>
       <ReportHeader
@@ -1815,9 +1823,10 @@ export function EmployeeVerbatimsPage() {
         title="Employee Verbatims"
       />
       {isDemo && sortedVerbatims ? (
-        <div className="fixed right-5 top-5 z-[65] flex max-w-md items-center gap-4 rounded-xl border border-violet-200 bg-white p-4 shadow-xl" role="status">
+        <div className="fixed right-5 top-5 z-[65] grid w-[min(92vw,34rem)] gap-3 rounded-xl border border-violet-200 bg-white p-4 shadow-xl sm:grid-cols-[1fr_220px_auto] sm:items-end" role="status">
           <div className="min-w-0 flex-1"><strong className="text-sm text-violet-700">Viewing demo</strong><p className="mt-1 text-xs text-zinc-500">You&apos;re viewing fake Employee Verbatims data.</p></div>
-          <Button disabled={inCart || sortedVerbatims.owned || !effectiveSortingFilter || sortedVerbatims.priceCents == null} onClick={() => addToCart({ productId: sortedVerbatims.id, name: sortedVerbatims.name, priceCents: sortedVerbatims.priceCents ?? 0, keys: { EV_Sorting_Filter: effectiveSortingFilter } })}>{inCart ? "Added" : "Add to cart"}</Button>
+          <SearchableSelect ariaLabel="Demo sorting category" onChange={setFilter} options={(availableFilters.data ?? []).map((item) => ({ value: item.questionId, label: item.label }))} placeholder="Select sorting category…" searchPlaceholder="Search categories…" value={effectiveSortingFilter} />
+          <Button disabled={inCart || sortedVerbatims.owned || !effectiveSortingFilter || sortedVerbatims.priceCents == null} onClick={() => addToCart({ productId: sortedVerbatims.id, name: sortedVerbatims.name, priceCents: sortedVerbatims.priceCents ?? 0, keys: { EV_Sorting_Filter: effectiveSortingFilter }, ...(selectedSortingLabel ? { optionLabel: selectedSortingLabel } : {}) })}>{inCart ? "Added" : "Add to cart"}</Button>
         </div>
       ) : null}
       <div className="p-6">
@@ -1872,6 +1881,7 @@ export function EmployeeVerbatimsPage() {
                   name: sortedVerbatims?.name ?? "Sorted Employee Verbatims",
                   priceCents: sortedVerbatims?.priceCents ?? 0,
                   keys: { EV_Sorting_Filter: filter },
+                  ...(selectedSortingLabel ? { optionLabel: selectedSortingLabel } : {}),
                 })
               }
             >

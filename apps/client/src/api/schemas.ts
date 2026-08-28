@@ -9,6 +9,7 @@ export const programSchema = z.object({
   year: z.number().int(),
   organizationName: z.string(),
   entitlements: entitlementSchema,
+  reportSelections: z.object({ SEV_Filter: z.string().optional() }).optional(),
 });
 
 export const sessionUserSchema = z.object({
@@ -69,6 +70,7 @@ export const legacyClientLoginSchema = z.object({
       organizationProgram: z.array(
         z.object({
           reportAccess: z.record(z.string(), z.unknown()),
+          metrics: z.record(z.string(), z.unknown()).optional(),
           programId: legacyProgramReferenceSchema,
         }),
       ),

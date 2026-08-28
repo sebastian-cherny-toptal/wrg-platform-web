@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "./schemas";
-import { api } from "./client";
+import { api, cachePurchasedReportAccess } from "./client";
 import { useAppStore } from "../store/app-store";
 
 const session: Session = {
@@ -59,5 +59,54 @@ describe("client session expiration", () => {
     expect(new Headers(requestOptions.headers).get("Authorization")).toBe(
       "Bearer expired-impersonation-token",
     );
+  });
+
+  it("keeps a paid sorted-verbatims purchase and its category visible before webhook reconciliation", async () => {
+    const purchaseSession: Session = {
+      ...session,
+      user: {
+        ...session.user,
+        programs: [{
+          id: "program-2026",
+          name: "2026 program",
+          year: 2026,
+          organizationName: "Example Client",
+          entitlements: { EV_Access: "yes" },
+        }],
+      },
+    };
+    useAppStore.getState().setSession(purchaseSession);
+    cachePurchasedReportAccess([{
+      productId: "report-verbatims-sorted",
+      name: "Sorted Employee Verbatims",
+      keys: { EV_Sorting_Filter: "department" },
+    }]);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([{
+        id: "report-verbatims-sorted",
+        name: "Sorted Employee Verbatims",
+        description: "Sort responses",
+        priceCents: 42_500,
+        available: true,
+        purchaseMode: "checkout",
+        fulfillment: "instant",
+        requiresStandardPackage: true,
+        priceAvailable: true,
+        owned: false,
+        standardPackageOwned: true,
+        purchasable: true,
+        deliveryMessage: "Instant access",
+      }]),
+    }));
+
+    const products = await api.reports.catalog("program-2026");
+
+    expect(products[0]).toMatchObject({ owned: true, selection: "department" });
+    expect(useAppStore.getState().session?.user.programs[0]).toMatchObject({
+      entitlements: { SEV_Access: "yes" },
+      reportSelections: { SEV_Filter: "department" },
+    });
   });
 });

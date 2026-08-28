@@ -527,13 +527,14 @@ export function CatalogPage() {
     ? true
     : (standardPackage?.standardPackageOwned ?? false)
   const inCart = (productId: string) => cart.some((item) => item.productId === productId)
-  const addProduct = (product: NonNullable<typeof standardPackage>, keys?: Record<string, string>) => {
+  const addProduct = (product: NonNullable<typeof standardPackage>, keys?: Record<string, string>, optionLabel?: string) => {
     if (product.priceCents === null) return
     addToCart({
       productId: product.id,
       name: product.name,
       priceCents: product.priceCents,
       ...(keys ? { keys } : {}),
+      ...(optionLabel ? { optionLabel } : {}),
     })
   }
   const advancedProducts = [sortedVerbatims, keyImpact, responseDetail].filter(
@@ -664,7 +665,11 @@ export function CatalogPage() {
                   <Button
                     className="w-full bg-red-500 hover:bg-red-600"
                     disabled={disabled}
-                    onClick={() => addProduct(product, isSorted ? { EV_Sorting_Filter: verbatimFilter } : undefined)}
+                    onClick={() => addProduct(
+                      product,
+                      isSorted ? { EV_Sorting_Filter: verbatimFilter } : undefined,
+                      isSorted ? surveyFilters.data?.find((filter) => filter.questionId === verbatimFilter)?.label : undefined,
+                    )}
                   >
                     {product.owned ? 'Purchased' : inCart(product.id) ? 'Added to cart' : 'Add to cart'}
                   </Button>
@@ -701,12 +706,12 @@ export function CartPage() {
         {cart.length === 0 ? <StatePanel kind="empty" title="Your cart is empty" message="Browse the reports store to add a report." action={<Link to={routeMap.catalog}><Button>Browse reports</Button></Link>} /> : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
             <Card className="overflow-hidden">
-              <ul className="divide-y divide-zinc-200">{cart.map((item) => <li className="flex items-center gap-4 p-5" key={item.productId}><span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700"><FileText className="size-5" /></span><div className="min-w-0 flex-1"><strong>{item.name}</strong><p className="text-sm text-zinc-500">Report for selected program</p></div><strong>{money.format(item.priceCents * item.quantity / 100)}</strong><button className="p-2 text-zinc-400 hover:text-red-600" onClick={() => remove(item.productId)} aria-label={`Remove ${item.name}`}><Trash2 className="size-4" /></button></li>)}</ul>
+              <ul className="divide-y divide-zinc-200">{cart.map((item) => <li className="flex items-center gap-4 p-5" key={item.productId}><span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700"><FileText className="size-5" /></span><div className="min-w-0 flex-1"><strong>{item.name}</strong><p className="text-sm text-zinc-500">{item.optionLabel ? `Sorting category: ${item.optionLabel}` : 'Report for selected program'}</p></div><strong>{money.format(item.priceCents * item.quantity / 100)}</strong><button className="p-2 text-zinc-400 hover:text-red-600" onClick={() => remove(item.productId)} aria-label={`Remove ${item.name}`}><Trash2 className="size-4" /></button></li>)}</ul>
               <div className="flex justify-end gap-3 p-4"><Button onClick={clear} variant="ghost">Remove all</Button><Button variant="ghost">Save for later</Button></div>
             </Card>
             <aside className="h-fit rounded-2xl bg-slate-900 p-6 text-white">
               <h2 className="text-lg font-bold">Summary</h2>
-              <div className="mt-5 grid gap-3">{cart.map((item) => <div className="flex justify-between gap-3 text-sm text-slate-300" key={item.productId}><span>{item.name}</span><span>{money.format(item.priceCents / 100)}</span></div>)}</div>
+              <div className="mt-5 grid gap-3">{cart.map((item) => <div className="flex justify-between gap-3 text-sm text-slate-300" key={item.productId}><span>{item.name}{item.optionLabel ? <small className="block text-slate-400">Sorted by {item.optionLabel}</small> : null}</span><span>{money.format(item.priceCents / 100)}</span></div>)}</div>
               <div className="mt-6 flex justify-between border-t border-slate-700 pt-5 font-bold"><span>Total</span><span>{money.format(total / 100)}</span></div>
               <Link to={routeMap.checkout}><Button className="mt-6 w-full bg-red-600 hover:bg-red-700">Go To Checkout</Button></Link>
             </aside>
@@ -857,7 +862,11 @@ function StripeCheckoutForm() {
       return
     }
     if (result.paymentIntent.status === 'succeeded' || result.paymentIntent.status === 'processing') {
-      cachePurchasedReportAccess(cart.map(({ productId, name }) => ({ productId, name })))
+      cachePurchasedReportAccess(cart.map(({ productId, name, keys }) => ({
+        productId,
+        name,
+        ...(keys ? { keys } : {}),
+      })))
       clearCart()
       void navigate(routeMap.dashboard)
     }

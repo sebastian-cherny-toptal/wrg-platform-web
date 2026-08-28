@@ -3,12 +3,13 @@ import { persist } from 'zustand/middleware'
 import type { Session } from '../api/schemas'
 import type { ClientEntitlement } from '../app/metadata'
 
-type CartLine = {
+export type CartLine = {
   productId: string
   name: string
   priceCents: number
   quantity: number
   keys?: Record<string, string>
+  optionLabel?: string
 }
 
 type AppState = {
