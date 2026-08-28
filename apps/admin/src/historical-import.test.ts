@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
 import {
   applyZohoWinners,
+  filterAndSortProjects,
   filterWinnerOrganizations,
 } from "./historical-import";
 
@@ -59,6 +60,28 @@ describe("winner organization filtering", () => {
       { isWinner: true, currentYearCategory: "Large" },
       { isWinner: true },
     ]);
+  });
+});
+
+describe("project options", () => {
+  const project = (id: string, name: string) => ({
+    id,
+    name,
+    createdAt: null,
+    programs: [],
+  });
+
+  it("filters by a case-insensitive substring and sorts alphabetically", () => {
+    expect(
+      filterAndSortProjects(
+        [
+          project("3", "Zeta Health"),
+          project("2", "beta Health"),
+          project("1", "Alpha Group"),
+        ],
+        "HEALTH",
+      ).map(({ name }) => name),
+    ).toEqual(["beta Health", "Zeta Health"]);
   });
 });
 

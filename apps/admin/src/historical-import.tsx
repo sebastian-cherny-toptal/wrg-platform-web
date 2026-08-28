@@ -189,6 +189,18 @@ function normalizeOrganizationIdentity(
     .trim();
 }
 
+export function filterAndSortProjects(
+  projects: ProjectRecord[],
+  search: string,
+): ProjectRecord[] {
+  const term = search.trim().toLocaleLowerCase();
+  return projects
+    .filter((project) => project.name.toLocaleLowerCase().includes(term))
+    .sort((left, right) =>
+      left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+    );
+}
+
 export function applyZohoWinners(
   entries: OrganizationProgramDraft[],
   winners: ZohoWinnerOrganization[],
@@ -453,7 +465,10 @@ function MetadataStep({
       Boolean(projectAbbreviation),
     )?.projectAbbreviation ??
     "";
-  const initialProjectId = draft.metadata?.projectId ?? projects[0]?.id;
+  const initialProjectId =
+    draft.metadata?.zohoProjectId ??
+    draft.metadata?.projectId ??
+    projects[0]?.id;
   const initialProject = projects.find(({ id }) => id === initialProjectId);
   const [form, setForm] = useState<HistoricalImportMetadata>({
     projectId: initialProjectId,
@@ -475,12 +490,19 @@ function MetadataStep({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
   const [manualProgram, setManualProgram] = useState(
-    Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId) ||
-      zohoPrograms.length === 0,
+    !editing &&
+      (Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId) ||
+        zohoPrograms.length === 0),
   );
   const selectedProject = projects.find(({ id }) => id === form.projectId);
   const availableZohoPrograms = programsForProject(selectedProject);
+  const visibleProjects = filterAndSortProjects(projects, projectSearch);
+  const selectedProjectIsVisible = visibleProjects.some(
+    ({ id }) => id === form.projectId,
+  );
+  const metadataIsManual = manualProgram || !form.projectId;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -488,9 +510,14 @@ function MetadataStep({
     setError("");
     try {
       const payload = {
-        ...(form.projectId
-          ? { projectId: form.projectId }
-          : { projectName: form.projectName?.trim() }),
+        ...(editing && form.projectId ? { projectId: form.projectId } : {}),
+        ...(!editing && selectedProject
+          ? {
+              zohoProjectId: selectedProject.externalId ?? selectedProject.id,
+              projectName: selectedProject.name,
+            }
+          : {}),
+        ...(!form.projectId ? { projectName: form.projectName?.trim() } : {}),
         ...(form.programId ? { programId: form.programId } : {}),
         ...(form.zohoProgramId ? { zohoProgramId: form.zohoProgramId } : {}),
         programName: form.programName.trim(),
@@ -545,11 +572,27 @@ function MetadataStep({
         enter the program schedule.
       </p>
       <div className="wizard-grid">
+        {!editing ? (
+          <label>
+            Search projects
+            <input
+              type="search"
+              placeholder="Type part of a project name"
+              value={projectSearch}
+              onChange={(event) => setProjectSearch(event.target.value)}
+            />
+          </label>
+        ) : null}
         <label>
           Project
           <select
-            value={form.projectId ?? "new"}
+            value={
+              !editing && form.projectId && !selectedProjectIsVisible
+                ? ""
+                : (form.projectId ?? "new")
+            }
             disabled={editing}
+            required
             onChange={(event) => {
               const project = projects.find(
                 ({ id }) => id === event.target.value,
@@ -567,7 +610,15 @@ function MetadataStep({
               });
             }}
           >
-            {projects.map((project) => (
+            {!visibleProjects.length ||
+            (!editing && form.projectId && !selectedProjectIsVisible) ? (
+              <option value="" disabled>
+                {visibleProjects.length
+                  ? "Choose a filtered project"
+                  : "No projects match your search"}
+              </option>
+            ) : null}
+            {visibleProjects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
               </option>
@@ -675,57 +726,74 @@ function MetadataStep({
             ) : null}
           </>
         )}
-        <label>
-          Program year
-          <input
-            type="number"
-            min={1900}
-            max={currentYear}
-            value={form.programYear}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                programYear: Number(event.target.value),
-              })
-            }
-            required
-          />
-        </label>
-        <label>
-          Project abbreviation
-          <input
-            value={form.projectAbbreviation ?? ""}
-            readOnly={Boolean(form.projectId)}
-            onChange={(event) =>
-              setForm({ ...form, projectAbbreviation: event.target.value })
-            }
-          />
-        </label>
-        <label>
-          EFS launch date
-          <input
-            type="date"
-            value={form.efsLaunchDate}
-            readOnly={Boolean(form.programId || form.zohoProgramId)}
-            onChange={(event) =>
-              setForm({ ...form, efsLaunchDate: event.target.value })
-            }
-            required
-          />
-        </label>
-        <label>
-          EFS deadline
-          <input
-            type="date"
-            min={form.efsLaunchDate}
-            value={form.efsDeadline}
-            readOnly={Boolean(form.programId || form.zohoProgramId)}
-            onChange={(event) =>
-              setForm({ ...form, efsDeadline: event.target.value })
-            }
-            required
-          />
-        </label>
+        {metadataIsManual ? (
+          <>
+            <label>
+              Program year
+              <input
+                type="number"
+                min={1900}
+                max={currentYear}
+                value={form.programYear}
+                onChange={(event) =>
+                  setForm({ ...form, programYear: Number(event.target.value) })
+                }
+                required
+              />
+            </label>
+            <label>
+              Project abbreviation
+              <input
+                value={form.projectAbbreviation ?? ""}
+                onChange={(event) =>
+                  setForm({ ...form, projectAbbreviation: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              EFS launch date
+              <input
+                type="date"
+                value={form.efsLaunchDate}
+                onChange={(event) =>
+                  setForm({ ...form, efsLaunchDate: event.target.value })
+                }
+                required
+              />
+            </label>
+            <label>
+              EFS deadline
+              <input
+                type="date"
+                min={form.efsLaunchDate}
+                value={form.efsDeadline}
+                onChange={(event) =>
+                  setForm({ ...form, efsDeadline: event.target.value })
+                }
+                required
+              />
+            </label>
+          </>
+        ) : (
+          <>
+            <div className="wizard-fixed-field">
+              <span>Program year</span>
+              <strong>{form.programYear}</strong>
+            </div>
+            <div className="wizard-fixed-field">
+              <span>Project abbreviation</span>
+              <strong>{form.projectAbbreviation || "—"}</strong>
+            </div>
+            <div className="wizard-fixed-field">
+              <span>EFS launch date</span>
+              <strong>{form.efsLaunchDate}</strong>
+            </div>
+            <div className="wizard-fixed-field">
+              <span>EFS deadline</span>
+              <strong>{form.efsDeadline}</strong>
+            </div>
+          </>
+        )}
       </div>
       <CategoryPricingEditor
         onChange={(categoryPricing) => setForm({ ...form, categoryPricing })}

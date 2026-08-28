@@ -1036,11 +1036,20 @@ a {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .wizard-grid label,
+.wizard-fixed-field,
 .upload-card {
   display: grid;
   gap: 8px;
   font-size: 14px;
   color: #3f3f46;
+}
+.wizard-fixed-field strong {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  color: #18181b;
+  font-size: 15px;
 }
 .wizard-grid input,
 .wizard-grid select {
