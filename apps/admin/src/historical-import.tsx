@@ -154,6 +154,33 @@ function WizardActions({
   );
 }
 
+function RestartButton({
+  disabled,
+  onRestart,
+}: {
+  disabled: boolean;
+  onRestart: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="secondary-button compact restart-button"
+      disabled={disabled}
+      onClick={() => {
+        if (
+          window.confirm(
+            "Restart this wizard? All information entered in this draft will be cleared.",
+          )
+        ) {
+          onRestart();
+        }
+      }}
+    >
+      Restart
+    </button>
+  );
+}
+
 type OrganizationProgramDraft = NonNullable<
   HistoricalImportMetadata["organizationPrograms"]
 >[number];
@@ -209,37 +236,6 @@ export function filterAndSortProjects(
     .sort((left, right) =>
       left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
     );
-}
-
-export function applyZohoWinners(
-  entries: OrganizationProgramDraft[],
-  winners: ZohoWinnerOrganization[],
-): OrganizationProgramDraft[] {
-  const winnerIds = new Map(
-    winners.map((winner) => [winner.organizationId.trim(), winner]),
-  );
-  const winnerNames = new Map(
-    winners.flatMap((winner) => {
-      const name = normalizeOrganizationIdentity(winner.organizationName);
-      return name ? [[name, winner] as const] : [];
-    }),
-  );
-  return entries.map((entry) => {
-    const winner =
-      (entry.sourceOrganizationId
-        ? winnerIds.get(entry.sourceOrganizationId.trim())
-        : undefined) ??
-      winnerNames.get(normalizeOrganizationIdentity(entry.organizationName));
-    return winner
-      ? {
-          ...entry,
-          isWinner: true,
-          ...(winner.currentYearCategory
-            ? { currentYearCategory: winner.currentYearCategory }
-            : {}),
-        }
-      : entry;
-  });
 }
 
 function zohoOrganizationName(value: string | null | undefined): string {
@@ -506,8 +502,7 @@ function MetadataStep({
     project?.abbreviation ?? "";
   const initialProjectId =
     draft.metadata?.zohoProjectId ??
-    draft.metadata?.projectId ??
-    projects[0]?.id;
+    draft.metadata?.projectId;
   const initialProject = projects.find(({ id }) => id === initialProjectId);
   const [form, setForm] = useState<HistoricalImportMetadata>({
     projectId: initialProjectId,
@@ -653,7 +648,7 @@ function MetadataStep({
           Project
           <SearchableSelect
             ariaLabel="Project"
-            value={form.projectId ?? "new"}
+            value={form.projectId ?? ""}
             disabled={editing}
             required
             onChange={(projectId) => {
@@ -873,10 +868,12 @@ function UploadStep({
   draft,
   onComplete,
   onBack,
+  onRestart,
 }: {
   draft: DraftState;
   onComplete: (next: DraftState) => void;
   onBack: () => void;
+  onRestart: () => void;
 }) {
   const [eaFile, setEaFile] = useState<File | null>(null);
   const [efsFile, setEfsFile] = useState<File | null>(null);
@@ -1005,6 +1002,7 @@ function UploadStep({
       >
         <ChevronLeft size={16} /> Back
       </button>
+      <RestartButton disabled={working} onRestart={onRestart} />
       <button
         type="button"
         className="primary-button compact"
@@ -1112,10 +1110,12 @@ function WinnersStep({
   draft,
   onComplete,
   onBack,
+  onRestart,
 }: {
   draft: DraftState;
   onComplete: (next: DraftState) => void;
   onBack: () => void;
+  onRestart: () => void;
 }) {
   const [organizationPrograms, setOrganizationPrograms] = useState(
     draft.metadata.organizationPrograms ?? [],
@@ -1222,6 +1222,7 @@ function WinnersStep({
       >
         <ChevronLeft size={16} /> Back
       </button>
+      <RestartButton disabled={working} onRestart={onRestart} />
       <button
         type="button"
         className="primary-button compact"
@@ -1387,9 +1388,11 @@ function WinnersStep({
 function ReviewStep({
   draft,
   onBack,
+  onRestart,
 }: {
   draft: DraftState;
   onBack: () => void;
+  onRestart: () => void;
 }) {
   const navigate = useNavigate();
   const [status, setStatus] = useState<HistoricalImportStatus>();
@@ -1432,6 +1435,7 @@ function ReviewStep({
       >
         <ChevronLeft size={16} /> Back
       </button>
+      <RestartButton disabled={committing} onRestart={onRestart} />
       <button
         type="button"
         className="primary-button compact"
@@ -1531,10 +1535,12 @@ function CatalogStep({
   draft,
   onComplete,
   onBack,
+  onRestart,
 }: {
   draft: DraftState;
   onComplete: (next: DraftState) => void;
   onBack: () => void;
+  onRestart: () => void;
 }) {
   const [products, setProducts] = useState<import("./api").ReportProduct[]>(
     draft.metadata.reportCatalog ?? [],
@@ -1582,6 +1588,7 @@ function CatalogStep({
       >
         <ChevronLeft size={16} /> Back
       </button>
+      <RestartButton disabled={saving} onRestart={onRestart} />
       <button
         type="button"
         className="primary-button compact"
@@ -1612,6 +1619,7 @@ function CatalogStep({
 }
 
 export function HistoricalImportPage() {
+  const navigate = useNavigate();
   const { projectId: routeProjectId, programId } = useParams();
   const editing = Boolean(programId);
   const stored = editing ? null : readStoredDraft();
@@ -1620,6 +1628,12 @@ export function HistoricalImportPage() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [initialError, setInitialError] = useState("");
+  const restart = () => {
+    clearDraft();
+    setDraft({});
+    setStep(1);
+    if (editing) navigate("/admin/projects/import", { replace: true });
+  };
 
   useEffect(() => {
     let active = true;
@@ -1741,6 +1755,7 @@ export function HistoricalImportPage() {
           setStep(3);
         }}
         onBack={() => setStep(1)}
+        onRestart={restart}
       />
     );
   } else if (step === 3) {
@@ -1752,6 +1767,7 @@ export function HistoricalImportPage() {
           setStep(4);
         }}
         onBack={() => setStep(2)}
+        onRestart={restart}
       />
     );
   } else if (step === 4) {
@@ -1763,11 +1779,16 @@ export function HistoricalImportPage() {
           setStep(5);
         }}
         onBack={() => setStep(3)}
+        onRestart={restart}
       />
     );
   } else {
     content = (
-      <ReviewStep draft={draft as DraftState} onBack={() => setStep(4)} />
+      <ReviewStep
+        draft={draft as DraftState}
+        onBack={() => setStep(4)}
+        onRestart={restart}
+      />
     );
   }
 

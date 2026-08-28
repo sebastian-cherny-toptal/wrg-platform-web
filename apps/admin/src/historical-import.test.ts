@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
 import {
-  applyZohoWinners,
   applyZohoOrganizations,
   filterAndSortProjects,
   filterWinnerOrganizations,
@@ -37,29 +36,6 @@ describe("winner organization filtering", () => {
     expect(filterWinnerOrganizations(organizations, "org5, alpha")).toEqual([
       organizations[2],
       organizations[0],
-    ]);
-  });
-
-  it("automatically marks Zoho winners by organization ID or name", () => {
-    expect(
-      applyZohoWinners(
-        [{ ...organizations[0], sourceOrganizationId: "49" }, organizations[1]],
-        [
-          {
-            organizationId: "49",
-            organizationName: "Different display name",
-            currentYearCategory: "Large",
-          },
-          {
-            organizationId: "50",
-            organizationName: "Beta Company",
-            currentYearCategory: null,
-          },
-        ],
-      ),
-    ).toMatchObject([
-      { isWinner: true, currentYearCategory: "Large" },
-      { isWinner: true },
     ]);
   });
 
