@@ -883,8 +883,16 @@ function UploadStep({
   const [organizationPrograms, setOrganizationPrograms] = useState(
     draft.metadata.organizationPrograms ?? [],
   );
+  const [zohoOrganizations, setZohoOrganizations] = useState(
+    draft.metadata.zohoOrganizations ?? [],
+  );
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
+
+  const loadValidatedProgramOrganizations = async () =>
+    draft.metadata.zohoProgramId
+      ? api.zohoProgramOrganizations(draft.metadata.zohoProgramId)
+      : zohoOrganizations;
 
   const validate = async () => {
     if (!eaFile || !efsFile) {
@@ -903,9 +911,23 @@ function UploadStep({
           },
         );
         const summary = await api.validateHistoricalImport(draft.importId);
+        const freshZohoOrganizations =
+          await loadValidatedProgramOrganizations();
+        const nextOrganizations = applyZohoOrganizations(
+          organizationPrograms,
+          freshZohoOrganizations,
+        );
+        const updatedMetadata = await api.updateHistoricalImportMetadata(
+          draft.importId,
+          {
+            ...metadata.metadata,
+            zohoOrganizations: freshZohoOrganizations,
+            organizationPrograms: nextOrganizations,
+          },
+        );
         const nextDraft = {
           ...draft,
-          metadata: metadata.metadata,
+          metadata: updatedMetadata.metadata,
           validation: summary,
         };
         storeDraft(nextDraft);
@@ -928,7 +950,10 @@ function UploadStep({
         efsFile,
       );
       const summary = await api.validateHistoricalImport(draft.importId);
+      const freshZohoOrganizations =
+        await loadValidatedProgramOrganizations();
       setValidation(summary);
+      setZohoOrganizations(freshZohoOrganizations);
       const nextOrganizations = applyZohoOrganizations(
         summary.organizations.map((organization) => ({
           organizationKey: organization.key,
@@ -945,13 +970,17 @@ function UploadStep({
               ({ organizationKey }) => organizationKey === organization.key,
             )?.isWinner ?? false,
         })),
-        draft.metadata.zohoOrganizations ?? [],
+        freshZohoOrganizations,
       );
       setOrganizationPrograms(nextOrganizations);
       const nextDraft = {
         ...draft,
         eaFileName: eaFile.name,
         efsFileName: efsFile.name,
+        metadata: {
+          ...draft.metadata,
+          zohoOrganizations: freshZohoOrganizations,
+        },
         validation: summary,
       };
       storeDraft(nextDraft);
@@ -975,6 +1004,7 @@ function UploadStep({
         draft.importId,
         {
           ...draft.metadata,
+          zohoOrganizations,
           organizationPrograms,
         },
       );

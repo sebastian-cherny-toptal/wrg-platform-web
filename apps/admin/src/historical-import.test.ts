@@ -190,6 +190,45 @@ describe("historical import API client", () => {
     );
   });
 
+  it("loads organizations from the program-scoped Zoho endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: [
+            {
+              organizationId: "49",
+              organizationName: "Acme",
+              isWinner: true,
+              surveysSent: 125,
+              currentYearCategory: "Large",
+            },
+          ],
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      api.zohoProgramOrganizations("zoho-program-1"),
+    ).resolves.toEqual([
+      {
+        organizationId: "49",
+        organizationName: "Acme",
+        isWinner: true,
+        surveysSent: 125,
+        currentYearCategory: "Large",
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "/zoho/programs/zoho-program-1/organizations",
+      ),
+      expect.any(Object),
+    );
+  });
+
   it("uploads EA and EFS workbooks as multipart form data", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

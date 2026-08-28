@@ -838,6 +838,28 @@ export const api = {
     });
   },
 
+  async zohoProgramOrganizations(
+    programId: string,
+  ): Promise<ZohoOrganizationInfo[]> {
+    const response = await request<unknown>(
+      `/zoho/programs/${encodeURIComponent(programId)}/organizations`,
+    );
+    return array(object(response).data).map((entry) => {
+      const organization = object(entry);
+      const surveysSent = Number(organization.surveysSent);
+      return {
+        organizationId: stringValue(organization.organizationId),
+        organizationName:
+          stringValue(organization.organizationName) || null,
+        isWinner: organization.isWinner === true,
+        surveysSent:
+          Number.isInteger(surveysSent) && surveysSent >= 0 ? surveysSent : 0,
+        currentYearCategory:
+          stringValue(organization.currentYearCategory) || null,
+      };
+    });
+  },
+
   async startImpersonation(
     organizationId: string,
     programId: string,
