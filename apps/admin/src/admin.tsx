@@ -22,6 +22,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -353,6 +354,7 @@ export function ProjectsPage() {
   const [date, setDate] = useState("");
   const [sort, setSort] = useState("createdAt:desc");
   const [deleting, setDeleting] = useState("");
+  const deletingRef = useRef("");
   const [notice, setNotice] = useState("");
   const canDelete = Boolean(
     auth?.user.roles.some(
@@ -360,6 +362,7 @@ export function ProjectsPage() {
     ) || auth?.user.permissions.includes("ops.manage"),
   );
   const deleteProject = async (project: ProjectRecord) => {
+    if (deletingRef.current) return;
     if (
       !window.confirm(
         `Delete ${project.name}? This permanently deletes the project and all ${project.programs.length} associated program${project.programs.length === 1 ? "" : "s"}, including their organization enrollments and survey data. This cannot be undone.`,
@@ -367,6 +370,7 @@ export function ProjectsPage() {
     ) {
       return;
     }
+    deletingRef.current = project.id;
     setDeleting(project.id);
     setNotice("");
     try {
@@ -379,6 +383,7 @@ export function ProjectsPage() {
           : "Project could not be deleted.",
       );
     } finally {
+      deletingRef.current = "";
       setDeleting("");
     }
   };
@@ -480,6 +485,7 @@ export function ProjectDetailPage() {
   const [date, setDate] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [deleting, setDeleting] = useState("");
+  const deletingRef = useRef("");
   const [notice, setNotice] = useState("");
   const canDelete = Boolean(
     auth?.user.roles.some(
@@ -504,6 +510,7 @@ export function ProjectDetailPage() {
       (!date || item.createdAt?.slice(0, 10) === date),
   );
   const deleteProgram = async (program: ProgramRecord) => {
+    if (deletingRef.current) return;
     if (
       !window.confirm(
         `Delete ${program.name}? This permanently deletes the program, all ${program.organizationCount} associated organization enrollment${program.organizationCount === 1 ? "" : "s"}, and its survey data. This cannot be undone.`,
@@ -511,6 +518,7 @@ export function ProjectDetailPage() {
     ) {
       return;
     }
+    deletingRef.current = program.id;
     setDeleting(program.id);
     setNotice("");
     try {
@@ -523,6 +531,7 @@ export function ProjectDetailPage() {
           : "Program could not be deleted.",
       );
     } finally {
+      deletingRef.current = "";
       setDeleting("");
     }
   };
