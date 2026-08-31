@@ -190,6 +190,7 @@ export type HistoricalImportStatus = {
 
 export type OrganizationRecord = {
   id: string;
+  selectionId: string;
   sourceId: string;
   sourceName: string | null;
   name: string;
@@ -456,6 +457,7 @@ export function organization(raw: unknown): OrganizationRecord {
   const name = sourceName && sourceName !== sourceId ? sourceName : storedName;
   return {
     id,
+    selectionId: stringValue(value.selectionId) || id,
     sourceId,
     sourceName,
     name,

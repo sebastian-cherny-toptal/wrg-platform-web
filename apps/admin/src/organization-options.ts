@@ -1,11 +1,11 @@
 import type { OrganizationRecord } from "./api";
 
 function organizationIdentity(organization: OrganizationRecord): string {
-  const sourceId = organization.sourceId.trim().toLocaleLowerCase();
-  if (sourceId && sourceId !== organization.id.toLocaleLowerCase()) {
-    return `source:${sourceId}`;
-  }
-  return `name:${organization.name.trim().toLocaleLowerCase()}`;
+  return `name:${organization.name
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/gu, " ")
+    .trim()}`;
 }
 
 export function mergeOrganizations(
@@ -33,7 +33,10 @@ export function mergeOrganizations(
     ];
     current.users = [
       ...new Map(
-        [...current.users, ...organization.users].map((user) => [user.id, user]),
+        [...current.users, ...organization.users].map((user) => [
+          user.id,
+          user,
+        ]),
       ).values(),
     ];
   }

@@ -1248,7 +1248,7 @@ function AddUserModal({
     "",
   );
   const selectedOrganization = mergedOrganizations.find(
-    (organization) => organization.id === form.organizationId,
+    (organization) => organization.selectionId === form.organizationId,
   );
   const availablePrograms = selectedOrganization?.programs ?? [];
   const [error, setError] = useState("");
@@ -1368,7 +1368,7 @@ function AddUserModal({
                   })
                 }
                 options={mergedOrganizations.map((organization) => ({
-                  value: organization.id,
+                  value: organization.selectionId,
                   label: organization.name,
                 }))}
                 placeholder="Choose an organization…"

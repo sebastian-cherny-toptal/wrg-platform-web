@@ -268,28 +268,29 @@ describe("admin API projections", () => {
   });
 
   it("projects the programs available to an organization", () => {
-    expect(
-      organization({
-        _id: "organization-id",
-        Account_Name: "Example Company",
-        orgPrograms: [
-          {
-            orgs: {
-              projectId: "project-id",
-              projectName: "Feedback Project",
-              programId: [
-                {
-                  _id: "program-id",
-                  Name: "Feedback 2026",
-                  Program_Year: 2026,
-                },
-              ],
-            },
+    const result = organization({
+      _id: "organization-id",
+      selectionId: "organization-program-id",
+      Account_Name: "Example Company",
+      orgPrograms: [
+        {
+          orgs: {
+            projectId: "project-id",
+            projectName: "Feedback Project",
+            programId: [
+              {
+                _id: "program-id",
+                Name: "Feedback 2026",
+                Program_Year: 2026,
+              },
+            ],
           },
-        ],
-        users: [],
-      }).programs,
-    ).toEqual([
+        },
+      ],
+      users: [],
+    });
+    expect(result.selectionId).toBe("organization-program-id");
+    expect(result.programs).toEqual([
       {
         id: "program-id",
         name: "Feedback 2026",
