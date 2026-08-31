@@ -2938,16 +2938,26 @@ export function ResponseDetailPage() {
   const inCart = useAppStore((state) => state.cart.some((item) => item.productId === "report-response-detail"));
   const catalog = useQuery({ queryKey: ["report-catalog", program?.id], queryFn: () => api.reports.catalog(program?.id), enabled: Boolean(program) });
   const responseDetailProduct = catalog.data?.find((product) => product.id === "report-response-detail");
+  const paymentReconciliation = useQuery({
+    queryKey: ["payment-reconciliation", program?.id],
+    queryFn: () =>
+      api.commerce.reconcilePayments(
+        program?.id ?? "",
+        "report-response-detail",
+      ),
+    enabled: Boolean(program) && !isDemo,
+  });
+  const accessReady = isDemo || paymentReconciliation.isSuccess;
   const [filterQuestion, setFilterQuestion] = useState("");
   const filters = useQuery({
     queryKey: ["survey-filters", program?.id, isDemo],
     queryFn: () => api.reports.surveyFilters(program?.id ?? "", isDemo),
-    enabled: Boolean(program),
+    enabled: Boolean(program) && accessReady,
   });
   const sections = useQuery({
     queryKey: ["response-detail-sections", program?.id, isDemo],
     queryFn: () => api.reports.responseDetailSections(program?.id ?? "", isDemo),
-    enabled: Boolean(program),
+    enabled: Boolean(program) && accessReady,
   });
   const effectiveFilterQuestion =
     filterQuestion !== ""
@@ -2992,16 +3002,22 @@ export function ResponseDetailPage() {
           </span>
         ) : null}
         <div className="mt-5 grid gap-3">
-          {filters.isError || sections.isError ? (
+          {paymentReconciliation.isError ||
+          filters.isError ||
+          sections.isError ? (
             <StatePanel
               kind="error"
               title="Response detail unavailable"
               message={
-                (filters.error ?? sections.error)?.message ??
+                (
+                  paymentReconciliation.error ??
+                  filters.error ??
+                  sections.error
+                )?.message ??
                 "The response detail could not be loaded."
               }
             />
-          ) : filters.isPending || sections.isPending ? (
+          ) : !accessReady || filters.isPending || sections.isPending ? (
             <StatePanel
               kind="loading"
               title="Loading response detail"

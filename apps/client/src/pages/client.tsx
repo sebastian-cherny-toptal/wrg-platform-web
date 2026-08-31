@@ -861,7 +861,14 @@ function StripeCheckoutForm() {
       setPaying(false)
       return
     }
-    if (result.paymentIntent.status === 'succeeded' || result.paymentIntent.status === 'processing') {
+    if (result.paymentIntent.status === 'succeeded') {
+      try {
+        await api.commerce.confirmPayment(result.paymentIntent.id)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'Unable to confirm report access')
+        setPaying(false)
+        return
+      }
       cachePurchasedReportAccess(cart.map(({ productId, name, keys }) => ({
         productId,
         name,
@@ -869,6 +876,9 @@ function StripeCheckoutForm() {
       })))
       clearCart()
       void navigate(routeMap.dashboard)
+    } else if (result.paymentIntent.status === 'processing') {
+      setError('Payment is still processing. Please try again shortly.')
+      setPaying(false)
     }
   }
 

@@ -59,6 +59,10 @@ describe("Response Detail page", () => {
       message: "success",
       data: [],
     });
+    vi.spyOn(api.commerce, "reconcilePayments").mockResolvedValue({
+      success: true,
+      reconciled: 0,
+    });
     const download = vi
       .spyOn(api.reports, "downloadResponseDetailWorkbook")
       .mockResolvedValue();

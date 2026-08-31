@@ -1800,10 +1800,10 @@ function GenericLogPage({
     kind === "orders"
       ? [
           formatDate(row.createdAt ?? row.createAt),
-          field(row, "product", "productName", "items"),
+          field(row, "productName", "product", "itemTitle"),
           field(row, "paymentMethod"),
           field(row, "client", "organizationName", "Account_Name"),
-          field(row, "program", "programName"),
+          field(row, "programName", "program"),
           <span className="status-pill">
             {field(row, "status", "stripeStatus")}
           </span>,

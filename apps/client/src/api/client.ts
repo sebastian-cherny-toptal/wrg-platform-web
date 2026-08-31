@@ -108,11 +108,9 @@ export function cachePurchasedReportAccess(products: { productId: string; name: 
     const entitlements = { ...program.entitlements };
     if (purchased.has("report-standard-package")) {
       entitlements.WFR_Access = "yes";
-      entitlements.EV_Access = "yes";
       entitlements.WBC_Access = "yes";
       entitlements.BBP_Access = "yes";
       gainedEntitlements.add("WFR_Access");
-      gainedEntitlements.add("EV_Access");
       gainedEntitlements.add("WBC_Access");
       gainedEntitlements.add("BBP_Access");
     }
@@ -828,6 +826,27 @@ export const api = {
       ),
   },
   commerce: {
+    reconcilePayments: (programId: string, productId: string) =>
+      request(
+        `/payment/reconcile?selectedProgramId=${encodeURIComponent(programId)}&productId=${encodeURIComponent(productId)}`,
+        {
+          method: "POST",
+          body: {},
+          schema: z.object({
+            success: z.literal(true),
+            reconciled: z.number().int().nonnegative(),
+          }),
+        },
+      ),
+    confirmPayment: (paymentIntentId: string) =>
+      request("/payment/confirm", {
+        method: "POST",
+        body: { paymentIntentId },
+        schema: z.object({
+          success: z.literal(true),
+          status: z.literal("paid"),
+        }),
+      }),
     createPaymentIntent: (input: {
       programId: string;
       amount: number;

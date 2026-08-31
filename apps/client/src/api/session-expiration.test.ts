@@ -25,6 +25,41 @@ afterEach(() => {
 });
 
 describe("client session expiration", () => {
+  it("does not grant Employee Verbatims with the standard package", () => {
+    const purchaseSession: Session = {
+      ...session,
+      user: {
+        ...session.user,
+        programs: [
+          {
+            id: "program-2026",
+            name: "2026 program",
+            year: 2026,
+            organizationName: "Example Client",
+            entitlements: {},
+          },
+        ],
+      },
+    };
+    useAppStore.getState().setSession(purchaseSession);
+    useAppStore.getState().selectProgram("program-2026");
+
+    cachePurchasedReportAccess([
+      {
+        productId: "report-standard-package",
+        name: "The Feedback Data Dashboard",
+      },
+    ]);
+
+    expect(
+      useAppStore.getState().session?.user.programs[0]?.entitlements,
+    ).toEqual({
+      WFR_Access: "yes",
+      WBC_Access: "yes",
+      BBP_Access: "yes",
+    });
+  });
+
   it("closes every frontend session when a token-authenticated request returns 401", async () => {
     window.localStorage.setItem("wrg-client-access-token", "client-token");
     window.localStorage.setItem("wrg-client-session", JSON.stringify(session));
