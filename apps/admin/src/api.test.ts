@@ -59,12 +59,11 @@ describe("admin API projections", () => {
 
     await expect(api.program("program-id")).resolves.toMatchObject({
       categorySummaries: [
-        { category: "Boutique", winners: 0, total: 0 },
         { category: "Small", winners: 1, total: 2 },
         { category: "Medium", winners: 0, total: 0 },
         { category: "Large", winners: 1, total: 1 },
-        { category: "Mega", winners: 0, total: 0 },
         { category: "Major", winners: 0, total: 0 },
+        { category: "Super", winners: 0, total: 0 },
       ],
       winnersCount: 2,
     });

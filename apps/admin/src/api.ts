@@ -46,12 +46,11 @@ export type ProgramRecord = {
 };
 
 const organizationCategories = [
-  "Boutique",
   "Small",
   "Medium",
   "Large",
-  "Mega",
   "Major",
+  "Super",
 ] as const;
 
 function categorySummaries(categoriesInfo: Record<string, unknown>) {
@@ -91,7 +90,7 @@ export type ZohoOrganizationInfo = {
   stage: string | null;
   companySize: number | null;
   employeesCount: number | null;
-  currentYearCategory: string | null;
+  currentZohoCategory: string | null;
   overallRank: string | null;
   categoryRank: string | null;
 };
@@ -99,11 +98,12 @@ export type ZohoOrganizationInfo = {
 export type ZohoWinnerOrganization = {
   organizationId: string;
   organizationName: string | null;
-  currentYearCategory: string | null;
+  currentZohoCategory: string | null;
 };
 
 export type CategoryPricing = {
   tier: "Boutique" | "Small" | "Medium" | "Large" | "Mega" | "Major";
+  zohoCategoryName: string;
   employeeSize: string;
   priceCents: number;
 };
@@ -164,7 +164,8 @@ export type HistoricalImportMetadata = {
     stage?: string;
     companySize?: number;
     employeesCount?: number;
-    currentYearCategory?: string;
+    currentZohoCategory?: string;
+    benchmarkCategory?: string;
     overallRank?: string;
     categoryRank?: string;
   }>;
@@ -244,6 +245,8 @@ export type OrganizationRecord = {
   employeesCount: number | null;
   overallRank: string | null;
   categoryRank: string | null;
+  currentZohoCategory: string | null;
+  benchmarkCategory: string | null;
   organizationProgramId: string;
   benefitsBestPracticesFileName: string | null;
   programs: Array<{
@@ -572,6 +575,8 @@ export function organization(raw: unknown): OrganizationRecord {
         : null,
     overallRank: stringValue(enrollment.overall_rank) || null,
     categoryRank: stringValue(enrollment.category_rank) || null,
+    currentZohoCategory: stringValue(enrollment.current_zoho_category) || null,
+    benchmarkCategory: stringValue(enrollment.benchmark_category) || null,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||
@@ -937,8 +942,8 @@ export const api = {
           return {
             organizationId: stringValue(winner.organizationId),
             organizationName: stringValue(winner.organizationName) || null,
-            currentYearCategory:
-              stringValue(winner.currentYearCategory) || null,
+            currentZohoCategory:
+              stringValue(winner.currentZohoCategory) || null,
           };
         }),
         organizations: array(value.organizations).map((entry) => {
@@ -966,8 +971,8 @@ export const api = {
               Number.isInteger(Number(organization.employeesCount))
                 ? Number(organization.employeesCount)
                 : null,
-            currentYearCategory:
-              stringValue(organization.currentYearCategory) || null,
+            currentZohoCategory:
+              stringValue(organization.currentZohoCategory) || null,
             overallRank: stringValue(organization.overallRank) || null,
             categoryRank: stringValue(organization.categoryRank) || null,
           };
@@ -1007,8 +1012,8 @@ export const api = {
           Number.isInteger(Number(organization.employeesCount))
             ? Number(organization.employeesCount)
             : null,
-        currentYearCategory:
-          stringValue(organization.currentYearCategory) || null,
+        currentZohoCategory:
+          stringValue(organization.currentZohoCategory) || null,
         overallRank: stringValue(organization.overallRank) || null,
         categoryRank: stringValue(organization.categoryRank) || null,
       };

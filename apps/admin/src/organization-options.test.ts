@@ -20,6 +20,8 @@ function organization(id: string, name: string): OrganizationRecord {
     employeesCount: null,
     overallRank: null,
     categoryRank: null,
+    currentZohoCategory: null,
+    benchmarkCategory: null,
     organizationProgramId: "",
     isWinner: false,
     isIncluded: true,

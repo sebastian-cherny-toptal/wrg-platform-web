@@ -20,6 +20,7 @@ describe("winner organization filtering", () => {
       surveysSent: 0,
       isWinner: false,
       isIncluded: true,
+      benchmarkCategory: "Super",
     },
     {
       organizationKey: "org2",
@@ -56,7 +57,7 @@ describe("winner organization filtering", () => {
           stage: "Qualified",
           companySize: 30,
           employeesCount: 125,
-          currentYearCategory: "Large",
+          currentZohoCategory: "Small/Medium",
           overallRank: "4",
           categoryRank: "2",
         },
@@ -69,7 +70,7 @@ describe("winner organization filtering", () => {
           stage: null,
           companySize: null,
           employeesCount: null,
-          currentYearCategory: "Small",
+          currentZohoCategory: "Small",
           overallRank: null,
           categoryRank: null,
         },
@@ -81,14 +82,15 @@ describe("winner organization filtering", () => {
         stage: "Qualified",
         companySize: 30,
         employeesCount: 125,
-        currentYearCategory: "Large",
+        currentZohoCategory: "Small/Medium",
+        benchmarkCategory: "Super",
         overallRank: "4",
         categoryRank: "2",
       },
       {
         isWinner: false,
         surveysSent: 80,
-        currentYearCategory: "Small",
+        currentZohoCategory: "Small",
       },
     ]);
   });
@@ -98,14 +100,14 @@ describe("organization participation status", () => {
   const organization = (
     isWinner: boolean,
     isIncluded: boolean,
-    currentYearCategory = "Small",
+    benchmarkCategory = "Small",
   ) => ({
-    organizationKey: `${isWinner}-${isIncluded}-${currentYearCategory}`,
+    organizationKey: `${isWinner}-${isIncluded}-${benchmarkCategory}`,
     organizationName: "Example",
     surveysSent: 10,
     isWinner,
     isIncluded,
-    currentYearCategory,
+    benchmarkCategory,
   });
 
   it("distinguishes winners, non-winners, and not-included organizations", () => {
@@ -276,7 +278,7 @@ describe("historical import API client", () => {
               stage: "Qualified",
               companySize: 30,
               employeesCount: 125,
-              currentYearCategory: "Large",
+              currentZohoCategory: "Small/Medium",
               overallRank: "4",
               categoryRank: "2",
             },
@@ -296,15 +298,13 @@ describe("historical import API client", () => {
         stage: "Qualified",
         companySize: 30,
         employeesCount: 125,
-        currentYearCategory: "Large",
+        currentZohoCategory: "Small/Medium",
         overallRank: "4",
         categoryRank: "2",
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "/zoho/programs/zoho-program-1/organizations",
-      ),
+      expect.stringContaining("/zoho/programs/zoho-program-1/organizations"),
       expect.any(Object),
     );
   });
