@@ -36,9 +36,38 @@ export type ProgramRecord = {
   createdAt: string | null;
   organizationCount: number;
   winnersCount: number;
+  categorySummaries: Array<{
+    category: string;
+    winners: number;
+    total: number;
+  }>;
   projectId?: string;
   details?: Record<string, unknown>;
 };
+
+const organizationCategories = [
+  "Boutique",
+  "Small",
+  "Medium",
+  "Large",
+  "Mega",
+  "Major",
+] as const;
+
+function categorySummaries(categoriesInfo: Record<string, unknown>) {
+  const counts = object(categoriesInfo.categoryCounts);
+  return organizationCategories.map((category) => {
+    const winners = Number(counts[`${category} Winners`] ?? 0);
+    const nonWinners = Number(counts[`${category} Non-Winners`] ?? 0);
+    return {
+      category,
+      winners: Number.isFinite(winners) ? winners : 0,
+      total:
+        (Number.isFinite(winners) ? winners : 0) +
+        (Number.isFinite(nonWinners) ? nonWinners : 0),
+    };
+  });
+}
 
 export type ZohoProgramOption = {
   id: string;
@@ -463,6 +492,7 @@ function program(raw: unknown): ProgramRecord {
     winnersCount: Number(
       value.winnersCount ?? categoriesInfo.winnersCount ?? 0,
     ),
+    categorySummaries: categorySummaries(categoriesInfo),
     projectId: stringValue(object(value.Project)._id) || undefined,
     details: value,
   };

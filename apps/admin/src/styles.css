@@ -609,6 +609,10 @@ a {
 .details-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+.details-category-summary {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(6, minmax(90px, 1fr));
+}
 .compact {
   min-height: 40px;
   padding: 0 18px;

@@ -43,13 +43,29 @@ describe("admin API projections", () => {
             data: {
               program: { _id: "program-id", Name: "Program 2026" },
               numberOfOrgs: 3,
-              categoriesInfo: { winnersCount: 2, nonWinnersCount: 1 },
+              categoriesInfo: {
+                winnersCount: 2,
+                nonWinnersCount: 1,
+                categoryCounts: {
+                  "Small Winners": 1,
+                  "Small Non-Winners": 1,
+                  "Large Winners": 1,
+                },
+              },
             },
           }),
       }),
     );
 
     await expect(api.program("program-id")).resolves.toMatchObject({
+      categorySummaries: [
+        { category: "Boutique", winners: 0, total: 0 },
+        { category: "Small", winners: 1, total: 2 },
+        { category: "Medium", winners: 0, total: 0 },
+        { category: "Large", winners: 1, total: 1 },
+        { category: "Mega", winners: 0, total: 0 },
+        { category: "Major", winners: 0, total: 0 },
+      ],
       winnersCount: 2,
     });
   });

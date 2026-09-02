@@ -742,10 +742,6 @@ export function ProgramDetailPage() {
             value={program.year ? String(program.year) : "—"}
           />
           <Detail
-            label="Number of Organizations"
-            value={String(program.organizationCount)}
-          />
-          <Detail
             label="EFS Launch Date"
             value={formatCalendarDate(details.StartDate ?? details.startsAt)}
           />
@@ -753,7 +749,26 @@ export function ProgramDetailPage() {
             label="EFS Deadline"
             value={formatCalendarDate(details.EndDate ?? details.endsAt)}
           />
-          <Detail label="Winners Count" value={String(program.winnersCount)} />
+          <section
+            className="organization-summary details-category-summary"
+            aria-label="Organizations by category"
+          >
+            {program.categorySummaries.map(({ category, winners, total }) => (
+              <div key={category}>
+                <span className="organization-summary-label">{category}</span>
+                <div className="organization-summary-counts">
+                  <span>
+                    <strong>{winners}</strong>
+                    <small>Winners</small>
+                  </span>
+                  <span>
+                    <strong>{total}</strong>
+                    <small>Total</small>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </section>
         </div>
       ) : null}
       <div className="section-row">
@@ -1822,9 +1837,12 @@ function GenericLogPage({
     kind === "orders"
       ? [
           "Order Date",
+          "Username",
+          "Organization",
           "Product",
+          "Amount Paid",
+          "Sorting Filter",
           "Payment Method",
-          "Client",
           "Program",
           "Stripe Status",
         ]
@@ -1833,9 +1851,19 @@ function GenericLogPage({
     kind === "orders"
       ? [
           formatDate(row.createdAt ?? row.createAt),
+          field(row, "purchaserUsername", "username"),
+          field(row, "organizationName", "client", "Account_Name"),
           field(row, "productName", "product", "itemTitle"),
+          formatMoney(
+            typeof row.amountMinor === "number"
+              ? row.amountMinor
+              : typeof row.amount === "number"
+                ? row.amount
+                : 0,
+            typeof row.currency === "string" ? row.currency : "USD",
+          ),
+          field(row, "sortingFilter"),
           field(row, "paymentMethod"),
-          field(row, "client", "organizationName", "Account_Name"),
           field(row, "programName", "program"),
           <span className="status-pill">
             {field(row, "status", "stripeStatus")}
