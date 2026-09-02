@@ -4,7 +4,9 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  Pencil,
   RotateCcw,
+  Save,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -533,13 +535,18 @@ function WinnerMultiSelect({
   );
 }
 
-function CategoryPricingEditor({
+export function CategoryPricingEditor({
   value,
   onChange,
+  editingTier,
+  onEditingTierChange,
 }: {
   value: CategoryPricing[];
   onChange: (value: CategoryPricing[]) => void;
+  editingTier: CategoryPricing["tier"] | null;
+  onEditingTierChange: (tier: CategoryPricing["tier"] | null) => void;
 }) {
+  const [draftName, setDraftName] = useState("");
   const update = (
     tier: CategoryPricing["tier"],
     patch: Partial<CategoryPricing>,
@@ -549,6 +556,18 @@ function CategoryPricingEditor({
         entry.tier === tier ? { ...entry, ...patch } : entry,
       ),
     );
+  const startEditing = (entry: CategoryPricing) => {
+    setDraftName(entry.zohoCategoryName?.trim() || entry.tier);
+    onEditingTierChange(entry.tier);
+  };
+  const saveName = (entry: CategoryPricing) => {
+    const zohoCategoryName = draftName.trim();
+    if (!zohoCategoryName) return;
+    update(entry.tier, { zohoCategoryName });
+    onEditingTierChange(null);
+    setDraftName("");
+  };
+
   return (
     <section className="category-pricing-editor">
       <div>
@@ -561,18 +580,50 @@ function CategoryPricingEditor({
       <div className="category-pricing-grid">
         {value.map((entry) => (
           <div className="category-pricing-row" key={entry.tier}>
-            <strong>{entry.tier}</strong>
-            <label>
-              Zoho category name
-              <input
-                aria-label={`${entry.tier} Zoho category name`}
-                onChange={(event) =>
-                  update(entry.tier, { zohoCategoryName: event.target.value })
-                }
-                required
-                value={entry.zohoCategoryName}
-              />
-            </label>
+            <div className="category-name-control">
+              {editingTier === entry.tier ? (
+                <>
+                  <input
+                    aria-invalid={!draftName.trim()}
+                    aria-label={`${entry.tier} Zoho category name`}
+                    autoFocus
+                    onChange={(event) => setDraftName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        saveName(entry);
+                      }
+                    }}
+                    required
+                    value={draftName}
+                  />
+                  <button
+                    aria-label={`Save ${entry.tier} category name`}
+                    className="icon-button category-name-action"
+                    disabled={!draftName.trim()}
+                    onClick={() => saveName(entry)}
+                    title="Save category name"
+                    type="button"
+                  >
+                    <Save size={15} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <strong>{entry.zohoCategoryName?.trim() || entry.tier}</strong>
+                  <button
+                    aria-label={`Edit ${entry.tier} category name`}
+                    className="icon-button category-name-action"
+                    disabled={editingTier !== null}
+                    onClick={() => startEditing(entry)}
+                    title="Edit category name"
+                    type="button"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                </>
+              )}
+            </div>
             <label>
               Category size
               <input
@@ -640,6 +691,9 @@ function MetadataStep({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingCategoryTier, setEditingCategoryTier] = useState<
+    CategoryPricing["tier"] | null
+  >(null);
   const [manualProgram, setManualProgram] = useState(
     !editing &&
       Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId),
@@ -690,6 +744,10 @@ function MetadataStep({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (editingCategoryTier !== null) {
+      setError("Save the category name before continuing.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -742,7 +800,7 @@ function MetadataStep({
     <WizardActions position={position}>
       <button
         className="primary-button compact"
-        disabled={saving}
+        disabled={saving || editingCategoryTier !== null}
         type="submit"
       >
         {saving ? "Saving…" : "Continue"} <ChevronRight size={16} />
@@ -976,7 +1034,9 @@ function MetadataStep({
         )}
       </div>
       <CategoryPricingEditor
+        editingTier={editingCategoryTier}
         onChange={(categoryPricing) => setForm({ ...form, categoryPricing })}
+        onEditingTierChange={setEditingCategoryTier}
         value={form.categoryPricing ?? defaultCategoryPricing}
       />
       {error ? <p className="form-error">{error}</p> : null}

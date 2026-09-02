@@ -1276,7 +1276,6 @@ a {
 .category-pricing-row {
   display: grid;
   grid-template-columns:
-    minmax(100px, 0.55fr)
     minmax(160px, 1fr)
     minmax(140px, 0.85fr)
     minmax(140px, 0.85fr);
@@ -1285,8 +1284,25 @@ a {
   padding-top: 10px;
   border-top: 1px solid #e4e4e7;
 }
-.category-pricing-row > strong {
+.category-name-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   align-self: center;
+}
+.category-name-control > strong {
+  overflow-wrap: anywhere;
+}
+.category-name-control > input {
+  min-width: 0;
+}
+.category-name-action {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+}
+.category-name-action:disabled {
+  cursor: not-allowed;
 }
 .category-pricing-row label {
   display: grid;
