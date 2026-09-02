@@ -61,7 +61,10 @@ export type ZohoOrganizationInfo = {
   surveysSent: number;
   stage: string | null;
   companySize: number | null;
+  employeesCount: number | null;
   currentYearCategory: string | null;
+  overallRank: string | null;
+  categoryRank: string | null;
 };
 
 export type ZohoWinnerOrganization = {
@@ -131,7 +134,10 @@ export type HistoricalImportMetadata = {
     isIncluded: boolean;
     stage?: string;
     companySize?: number;
+    employeesCount?: number;
     currentYearCategory?: string;
+    overallRank?: string;
+    categoryRank?: string;
   }>;
   reportCatalog?: ReportProduct[];
   categoryPricing?: CategoryPricing[];
@@ -206,6 +212,9 @@ export type OrganizationRecord = {
   isWinner: boolean;
   isIncluded: boolean;
   companySize: number | null;
+  employeesCount: number | null;
+  overallRank: string | null;
+  categoryRank: string | null;
   organizationProgramId: string;
   benefitsBestPracticesFileName: string | null;
   programs: Array<{
@@ -361,7 +370,8 @@ async function downloadRequest(
   const auth = readAuth();
   const response = await fetch(`${apiBaseUrl}${path}`, {
     headers: {
-      Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      Accept:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       ...authHeaders(auth?.accessToken),
     },
   });
@@ -372,7 +382,10 @@ async function downloadRequest(
       persistAuth(null);
     }
     const payload = object(await response.json().catch(() => null));
-    throw new ApiError(stringValue(payload.message) || "Download failed", response.status);
+    throw new ApiError(
+      stringValue(payload.message) || "Download failed",
+      response.status,
+    );
   }
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a");
@@ -521,6 +534,14 @@ export function organization(raw: unknown): OrganizationRecord {
             enrollment.Total_Number_of_Program_EEs,
         )
       : null,
+    employeesCount:
+      enrollment.employees_count !== null &&
+      enrollment.employees_count !== undefined &&
+      Number.isFinite(Number(enrollment.employees_count))
+        ? Number(enrollment.employees_count)
+        : null,
+    overallRank: stringValue(enrollment.overall_rank) || null,
+    categoryRank: stringValue(enrollment.category_rank) || null,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||
@@ -907,10 +928,18 @@ export const api = {
               organization.companySize !== null &&
               organization.companySize !== undefined &&
               Number.isInteger(Number(organization.companySize))
-              ? Number(organization.companySize)
-              : null,
+                ? Number(organization.companySize)
+                : null,
+            employeesCount:
+              organization.employeesCount !== null &&
+              organization.employeesCount !== undefined &&
+              Number.isInteger(Number(organization.employeesCount))
+                ? Number(organization.employeesCount)
+                : null,
             currentYearCategory:
               stringValue(organization.currentYearCategory) || null,
+            overallRank: stringValue(organization.overallRank) || null,
+            categoryRank: stringValue(organization.categoryRank) || null,
           };
         }),
         ...(Array.isArray(value.categoryPricing)
@@ -940,10 +969,18 @@ export const api = {
           organization.companySize !== null &&
           organization.companySize !== undefined &&
           Number.isInteger(Number(organization.companySize))
-          ? Number(organization.companySize)
-          : null,
+            ? Number(organization.companySize)
+            : null,
+        employeesCount:
+          organization.employeesCount !== null &&
+          organization.employeesCount !== undefined &&
+          Number.isInteger(Number(organization.employeesCount))
+            ? Number(organization.employeesCount)
+            : null,
         currentYearCategory:
           stringValue(organization.currentYearCategory) || null,
+        overallRank: stringValue(organization.overallRank) || null,
+        categoryRank: stringValue(organization.categoryRank) || null,
       };
     });
   },

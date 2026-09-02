@@ -55,7 +55,10 @@ describe("winner organization filtering", () => {
           surveysSent: 125,
           stage: "Qualified",
           companySize: 30,
+          employeesCount: 125,
           currentYearCategory: "Large",
+          overallRank: "4",
+          categoryRank: "2",
         },
         {
           organizationId: "952037468",
@@ -65,7 +68,10 @@ describe("winner organization filtering", () => {
           surveysSent: 80,
           stage: null,
           companySize: null,
+          employeesCount: null,
           currentYearCategory: "Small",
+          overallRank: null,
+          categoryRank: null,
         },
       ]),
     ).toMatchObject([

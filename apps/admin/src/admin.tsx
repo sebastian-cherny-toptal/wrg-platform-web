@@ -808,6 +808,9 @@ export function ProgramDetailPage() {
           "Current Stage",
           "Last Time Synced",
           "No. of Surveys Sent",
+          "Employees",
+          "Overall Rank",
+          "Category Rank",
           "Winner",
           "Actions",
         ]}
@@ -818,6 +821,9 @@ export function ProgramDetailPage() {
           item.stage ?? "—",
           formatDate(item.lastSyncedAt),
           item.surveysSent,
+          item.employeesCount ?? "—",
+          item.overallRank ?? "—",
+          item.categoryRank ?? "—",
           item.isIncluded ? (item.isWinner ? "Y" : "N") : "Not included",
           <div className="row-actions">
             <button

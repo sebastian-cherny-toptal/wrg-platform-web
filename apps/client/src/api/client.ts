@@ -119,6 +119,7 @@ export function cachePurchasedReportAccess(products: { productId: string; name: 
       gainedEntitlements.add("RD_Access");
     }
     if (purchased.has("report-verbatims-sorted")) {
+      entitlements.EV_Access = "yes";
       entitlements.SEV_Access = "yes";
       gainedEntitlements.add("SEV_Access");
       gainedEntitlements.add("EV_Access");

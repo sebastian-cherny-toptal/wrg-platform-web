@@ -191,9 +191,7 @@ type ZohoWinnerOrganization = NonNullable<
 >[number];
 
 export type OrganizationParticipationStatus =
-  | "winner"
-  | "non-winner"
-  | "not-included";
+  "winner" | "non-winner" | "not-included";
 
 export function organizationParticipationStatus(
   entry: OrganizationProgramDraft,
@@ -314,7 +312,9 @@ function findZohoOrganization(
     const splitName = normalizeOrganizationIdentity(
       zohoOrganizationName(organization),
     );
-    return Boolean(entryName && (entryName === fullName || entryName === splitName));
+    return Boolean(
+      entryName && (entryName === fullName || entryName === splitName),
+    );
   });
 }
 
@@ -334,7 +334,12 @@ export function applyZohoOrganizations(
       ...(organization.companySize !== null
         ? { companySize: organization.companySize }
         : {}),
+      ...(organization.employeesCount !== null
+        ? { employeesCount: organization.employeesCount }
+        : {}),
       currentYearCategory: organization.currentYearCategory ?? undefined,
+      overallRank: organization.overallRank ?? undefined,
+      categoryRank: organization.categoryRank ?? undefined,
     };
   });
 }
@@ -482,9 +487,12 @@ function WinnerMultiSelect({
         </label>
       </div>
       <small>
-        {organizationPrograms.filter(
-          (entry) => organizationParticipationStatus(entry) === "winner",
-        ).length} winner
+        {
+          organizationPrograms.filter(
+            (entry) => organizationParticipationStatus(entry) === "winner",
+          ).length
+        }{" "}
+        winner
         {organizationPrograms.filter(
           (entry) => organizationParticipationStatus(entry) === "winner",
         ).length === 1
@@ -567,8 +575,7 @@ function MetadataStep({
   const abbreviationForProject = (project: ProjectRecord | undefined) =>
     project?.abbreviation ?? "";
   const initialProjectId =
-    draft.metadata?.zohoProjectId ??
-    draft.metadata?.projectId;
+    draft.metadata?.zohoProjectId ?? draft.metadata?.projectId;
   const initialProject = projects.find(({ id }) => id === initialProjectId);
   const [form, setForm] = useState<HistoricalImportMetadata>({
     projectId: initialProjectId,
@@ -580,8 +587,8 @@ function MetadataStep({
     projectAbbreviation:
       draft.metadata?.projectAbbreviation ??
       abbreviationForProject(initialProject),
-    efsLaunchDate: draft.metadata?.efsLaunchDate ?? '-',
-    efsDeadline: draft.metadata?.efsDeadline ?? '-',
+    efsLaunchDate: draft.metadata?.efsLaunchDate ?? "-",
+    efsDeadline: draft.metadata?.efsDeadline ?? "-",
     organizationPrograms: draft.metadata?.organizationPrograms,
     zohoWinnerOrganizations: draft.metadata?.zohoWinnerOrganizations,
     zohoOrganizations: draft.metadata?.zohoOrganizations,
@@ -721,9 +728,7 @@ function MetadataStep({
               console.log("projectId", projectId);
               console.log("projects", projects);
               console.log("visibleProjects", visibleProjects);
-              const project = projects.find(
-                ({ id }) => id === projectId,
-              );
+              const project = projects.find(({ id }) => id === projectId);
               setZohoPrograms([]);
               setZohoError("");
               setManualProgram(!project);
@@ -740,7 +745,10 @@ function MetadataStep({
               });
             }}
             options={[
-              ...visibleProjects.map((project) => ({ value: project.id, label: project.name })),
+              ...visibleProjects.map((project) => ({
+                value: project.id,
+                label: project.name,
+              })),
               { value: "new", label: "Create a new project" },
             ]}
             placeholder="Choose a project"
@@ -827,10 +835,16 @@ function MetadataStep({
                   })),
                   {
                     value: "manual",
-                    label: form.projectId ? "Please select a project" : "Enter a program manually",
+                    label: form.projectId
+                      ? "Please select a project"
+                      : "Enter a program manually",
                   },
                 ]}
-                placeholder={loadingPrograms ? "Loading programs…" : "Choose a Zoho program"}
+                placeholder={
+                  loadingPrograms
+                    ? "Loading programs…"
+                    : "Choose a Zoho program"
+                }
                 searchPlaceholder="Search programs…"
               />
               {zohoError ? <small>{zohoError}</small> : null}
@@ -1016,8 +1030,7 @@ function UploadStep({
         efsFile,
       );
       const summary = await api.validateHistoricalImport(draft.importId);
-      const freshZohoOrganizations =
-        await loadValidatedProgramOrganizations();
+      const freshZohoOrganizations = await loadValidatedProgramOrganizations();
       setValidation(summary);
       setZohoOrganizations(freshZohoOrganizations);
       const nextOrganizations = applyZohoOrganizations(
@@ -1193,7 +1206,9 @@ function UploadStep({
                     key={`${organization.key}-${warning}`}
                   >
                     <AlertTriangle size={16} />
-                    <span>{organization.displayName}: {warning}</span>
+                    <span>
+                      {organization.displayName}: {warning}
+                    </span>
                   </div>
                 )),
             )}
@@ -1231,7 +1246,9 @@ function WinnersStep({
   const zohoOrganizations = draft.metadata.zohoOrganizations ?? [];
   const sortedOrganizationPrograms = [...organizationPrograms].sort(
     (left, right) => {
-      const leftMatched = Boolean(findZohoOrganization(left, zohoOrganizations));
+      const leftMatched = Boolean(
+        findZohoOrganization(left, zohoOrganizations),
+      );
       const rightMatched = Boolean(
         findZohoOrganization(right, zohoOrganizations),
       );
@@ -1243,7 +1260,8 @@ function WinnersStep({
       );
     },
   );
-  const organizationSummary = summarizeOrganizationPrograms(organizationPrograms);
+  const organizationSummary =
+    summarizeOrganizationPrograms(organizationPrograms);
 
   const updateOrganization = (
     key: string,
@@ -1271,7 +1289,8 @@ function WinnersStep({
             entry.isIncluded ??
             organizationPrograms.find(
               (current) =>
-                organizationProgramKey(current) === organizationProgramKey(entry),
+                organizationProgramKey(current) ===
+                organizationProgramKey(entry),
             )?.isIncluded ??
             true,
         })),
@@ -1345,27 +1364,32 @@ function WinnersStep({
       <p className="wizard-copy">
         Review the organization information loaded from Zoho, then adjust its
         status, Surveys Sent, or category when needed. Organizations marked as
-        not included remain visible but will not be imported. You can also upload
-        a ranking extract for bulk updates.
+        not included remain visible but will not be imported. You can also
+        upload a ranking extract for bulk updates.
       </p>
       {organizationPrograms.length ? (
         <>
-          <section className="organization-summary" aria-label="Organization summary">
-            {organizationSummary.categories.map(({ category, winners, total }) => (
-              <div key={category}>
-                <span className="organization-summary-label">{category}</span>
-                <div className="organization-summary-counts">
-                  <span>
-                    <strong>{winners}</strong>
-                    <small>Winners</small>
-                  </span>
-                  <span>
-                    <strong>{total}</strong>
-                    <small>Total</small>
-                  </span>
+          <section
+            className="organization-summary"
+            aria-label="Organization summary"
+          >
+            {organizationSummary.categories.map(
+              ({ category, winners, total }) => (
+                <div key={category}>
+                  <span className="organization-summary-label">{category}</span>
+                  <div className="organization-summary-counts">
+                    <span>
+                      <strong>{winners}</strong>
+                      <small>Winners</small>
+                    </span>
+                    <span>
+                      <strong>{total}</strong>
+                      <small>Total</small>
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ),
+            )}
             <div className="organization-summary-not-included">
               <strong>{organizationSummary.notIncluded}</strong>
               <span>Not included</span>
@@ -1424,21 +1448,26 @@ function WinnersStep({
                   const matched = Boolean(
                     findZohoOrganization(entry, zohoOrganizations),
                   );
-                  const validationOrganization = draft.validation?.organizations.find(
-                    ({ key: organizationKey }) => organizationKey === entry.organizationKey,
-                  );
+                  const validationOrganization =
+                    draft.validation?.organizations.find(
+                      ({ key: organizationKey }) =>
+                        organizationKey === entry.organizationKey,
+                    );
                   const status = organizationParticipationStatus(entry);
                   const isIncluded = status !== "not-included";
-                  const rowClassName = [
-                    matched ? "" : "zoho-unmatched-row",
-                    isIncluded ? "" : "organization-not-included-row",
-                  ]
-                    .filter(Boolean)
-                    .join(" ") || undefined;
+                  const rowClassName =
+                    [
+                      matched ? "" : "zoho-unmatched-row",
+                      isIncluded ? "" : "organization-not-included-row",
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined;
                   return (
                     <tr className={rowClassName} key={key}>
                       <td>
-                        <strong>{entry.organizationName ?? "Organization"}</strong>
+                        <strong>
+                          {entry.organizationName ?? "Organization"}
+                        </strong>
                         {!isIncluded ? (
                           <span className="organization-not-included-message">
                             Not included
@@ -1456,7 +1485,9 @@ function WinnersStep({
                           checked={entry.isWinner}
                           disabled={!isIncluded}
                           onChange={(event) =>
-                            updateOrganization(key, { isWinner: event.target.checked })
+                            updateOrganization(key, {
+                              isWinner: event.target.checked,
+                            })
                           }
                           type="checkbox"
                         />
@@ -1512,7 +1543,11 @@ function WinnersStep({
                           }
                           type="button"
                         >
-                          {isIncluded ? <Trash2 size={16} /> : <RotateCcw size={16} />}
+                          {isIncluded ? (
+                            <Trash2 size={16} />
+                          ) : (
+                            <RotateCcw size={16} />
+                          )}
                         </button>
                       </td>
                     </tr>
@@ -1817,12 +1852,9 @@ export function HistoricalImportPage() {
               projectAbbreviation: "",
               efsLaunchDate: datePart(
                 details.StartDate ?? details.startsAt,
-                '-',
+                "-",
               ),
-              efsDeadline: datePart(
-                details.EndDate ?? details.endsAt,
-                '-',
-              ),
+              efsDeadline: datePart(details.EndDate ?? details.endsAt, "-"),
               reportCatalog,
               categoryPricing: Array.isArray(details.categoryPricing)
                 ? (details.categoryPricing as CategoryPricing[])

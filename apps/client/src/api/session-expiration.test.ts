@@ -60,6 +60,56 @@ describe("client session expiration", () => {
     });
   });
 
+  it("grants Employee Verbatims when every store product is purchased", () => {
+    const purchaseSession: Session = {
+      ...session,
+      user: {
+        ...session.user,
+        programs: [
+          {
+            id: "program-2026",
+            name: "2026 program",
+            year: 2026,
+            organizationName: "Example Client",
+            entitlements: {},
+          },
+        ],
+      },
+    };
+    useAppStore.getState().setSession(purchaseSession);
+    useAppStore.getState().selectProgram("program-2026");
+
+    cachePurchasedReportAccess([
+      {
+        productId: "report-standard-package",
+        name: "The Feedback Data Dashboard",
+      },
+      {
+        productId: "report-verbatims-sorted",
+        name: "Sorted Employee Verbatims",
+      },
+      {
+        productId: "report-kia",
+        name: "Key Impact Analysis",
+      },
+      {
+        productId: "report-response-detail",
+        name: "Response Detail Report",
+      },
+    ]);
+
+    expect(
+      useAppStore.getState().session?.user.programs[0]?.entitlements,
+    ).toMatchObject({
+      WFR_Access: "yes",
+      WBC_Access: "yes",
+      BBP_Access: "yes",
+      EV_Access: "yes",
+      SEV_Access: "yes",
+      RD_Access: "yes",
+    });
+  });
+
   it("closes every frontend session when a token-authenticated request returns 401", async () => {
     window.localStorage.setItem("wrg-client-access-token", "client-token");
     window.localStorage.setItem("wrg-client-session", JSON.stringify(session));
