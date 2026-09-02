@@ -80,7 +80,10 @@ describe("winner organization filtering", () => {
         surveysSent: 125,
         stage: "Qualified",
         companySize: 30,
+        employeesCount: 125,
         currentYearCategory: "Large",
+        overallRank: "4",
+        categoryRank: "2",
       },
       {
         isWinner: false,
@@ -272,7 +275,10 @@ describe("historical import API client", () => {
               surveysSent: 125,
               stage: "Qualified",
               companySize: 30,
+              employeesCount: 125,
               currentYearCategory: "Large",
+              overallRank: "4",
+              categoryRank: "2",
             },
           ],
         }),
@@ -289,7 +295,10 @@ describe("historical import API client", () => {
         surveysSent: 125,
         stage: "Qualified",
         companySize: 30,
+        employeesCount: 125,
         currentYearCategory: "Large",
+        overallRank: "4",
+        categoryRank: "2",
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
