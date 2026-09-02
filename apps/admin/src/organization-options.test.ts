@@ -16,6 +16,7 @@ function organization(id: string, name: string): OrganizationRecord {
     stage: null,
     lastSyncedAt: null,
     surveysSent: 0,
+    companySize: null,
     organizationProgramId: "",
     isWinner: false,
     isIncluded: true,

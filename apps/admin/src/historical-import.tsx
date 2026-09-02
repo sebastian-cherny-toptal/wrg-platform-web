@@ -330,6 +330,10 @@ export function applyZohoOrganizations(
       isIncluded: entry.isIncluded !== false,
       isWinner: organization.isWinner,
       surveysSent: organization.surveysSent,
+      ...(organization.stage ? { stage: organization.stage } : {}),
+      ...(organization.companySize !== null
+        ? { companySize: organization.companySize }
+        : {}),
       currentYearCategory: organization.currentYearCategory ?? undefined,
     };
   });
@@ -1829,6 +1833,10 @@ export function HistoricalImportPage() {
                 surveysSent: organization.surveysSent,
                 isWinner: organization.isWinner,
                 isIncluded: organization.isIncluded,
+                ...(organization.stage ? { stage: organization.stage } : {}),
+                ...(organization.companySize !== null
+                  ? { companySize: organization.companySize }
+                  : {}),
               })),
             },
           });

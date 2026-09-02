@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardList,
   Copy,
+  Download,
   FileUp,
   KeyRound,
   LogOut,
@@ -636,6 +637,7 @@ export function ProgramDetailPage() {
   const [sort, setSort] = useState("id:asc");
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState("");
+  const [downloadingConnections, setDownloadingConnections] = useState(false);
   const [uploadOrganization, setUploadOrganization] =
     useState<OrganizationRecord | null>(null);
   const [previewOrganization, setPreviewOrganization] =
@@ -698,6 +700,21 @@ export function ProgramDetailPage() {
       );
     }
   };
+  const downloadConnections = async () => {
+    setDownloadingConnections(true);
+    setNotice("");
+    try {
+      await api.downloadOrganizationsConnectionFields(program.id);
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "The organizations connection fields could not be downloaded.",
+      );
+    } finally {
+      setDownloadingConnections(false);
+    }
+  };
   return (
     <>
       <PageHeader
@@ -726,7 +743,7 @@ export function ProgramDetailPage() {
           />
           <Detail
             label="Number of Organizations"
-            value={String(program.organizationCount || organizations.length)}
+            value={String(program.organizationCount)}
           />
           <Detail
             label="EFS Launch Date"
@@ -742,6 +759,16 @@ export function ProgramDetailPage() {
       <div className="section-row">
         <h2 className="section-title">Organization</h2>
         <div className="row-actions">
+          <button
+            className="secondary-button compact action-link"
+            disabled={downloadingConnections}
+            onClick={() => void downloadConnections()}
+          >
+            <Download size={16} />
+            {downloadingConnections
+              ? "Downloading…"
+              : "Download organizations connection fields"}
+          </button>
           <Link
             className="secondary-button compact action-link"
             to={`/admin/projects/${projectId}/programs/${program.id}/edit`}
@@ -791,7 +818,7 @@ export function ProgramDetailPage() {
           item.stage ?? "—",
           formatDate(item.lastSyncedAt),
           item.surveysSent,
-          item.isWinner ? "Y" : "N",
+          item.isIncluded ? (item.isWinner ? "Y" : "N") : "Not included",
           <div className="row-actions">
             <button
               className="action-link button-link"

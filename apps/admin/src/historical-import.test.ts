@@ -53,6 +53,8 @@ describe("winner organization filtering", () => {
             "Alpha Company-460737994-Best Places to Work in Baton Rouge 2026",
           isWinner: true,
           surveysSent: 125,
+          stage: "Qualified",
+          companySize: 30,
           currentYearCategory: "Large",
         },
         {
@@ -61,6 +63,8 @@ describe("winner organization filtering", () => {
             "Beta Company-952037468-Best Places to Work in Baton Rouge 2026",
           isWinner: false,
           surveysSent: 80,
+          stage: null,
+          companySize: null,
           currentYearCategory: "Small",
         },
       ]),
@@ -68,6 +72,8 @@ describe("winner organization filtering", () => {
       {
         isWinner: true,
         surveysSent: 125,
+        stage: "Qualified",
+        companySize: 30,
         currentYearCategory: "Large",
       },
       {
@@ -258,6 +264,8 @@ describe("historical import API client", () => {
               organizationName: "Acme",
               isWinner: true,
               surveysSent: 125,
+              stage: "Qualified",
+              companySize: 30,
               currentYearCategory: "Large",
             },
           ],
@@ -273,6 +281,8 @@ describe("historical import API client", () => {
         organizationName: "Acme",
         isWinner: true,
         surveysSent: 125,
+        stage: "Qualified",
+        companySize: 30,
         currentYearCategory: "Large",
       },
     ]);

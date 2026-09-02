@@ -59,6 +59,8 @@ export type ZohoOrganizationInfo = {
   organizationName: string | null;
   isWinner: boolean;
   surveysSent: number;
+  stage: string | null;
+  companySize: number | null;
   currentYearCategory: string | null;
 };
 
@@ -127,6 +129,8 @@ export type HistoricalImportMetadata = {
     surveysSent: number;
     isWinner: boolean;
     isIncluded: boolean;
+    stage?: string;
+    companySize?: number;
     currentYearCategory?: string;
   }>;
   reportCatalog?: ReportProduct[];
@@ -201,6 +205,7 @@ export type OrganizationRecord = {
   surveysSent: number;
   isWinner: boolean;
   isIncluded: boolean;
+  companySize: number | null;
   organizationProgramId: string;
   benefitsBestPracticesFileName: string | null;
   programs: Array<{
@@ -348,6 +353,37 @@ async function request<T>(
   return payload as T;
 }
 
+async function downloadRequest(
+  path: string,
+  filename: string,
+  allowRefresh = true,
+): Promise<void> {
+  const auth = readAuth();
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    headers: {
+      Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ...authHeaders(auth?.accessToken),
+    },
+  });
+  if (!response.ok) {
+    if (response.status === 401 && auth?.accessToken && allowRefresh) {
+      const refreshed = await refreshAdminAuth(auth);
+      if (refreshed) return downloadRequest(path, filename, false);
+      persistAuth(null);
+    }
+    const payload = object(await response.json().catch(() => null));
+    throw new ApiError(stringValue(payload.message) || "Download failed", response.status);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 function identity(raw: unknown, emailFallback: string): AdminIdentity {
   const value = object(raw);
   const role = object(value.roleId);
@@ -472,6 +508,19 @@ export function organization(raw: unknown): OrganizationRecord {
     surveysSent: Number(enrollment.Surveys_Sent ?? 0),
     isWinner: enrollment.isWinner === true,
     isIncluded: enrollment.isIncluded !== false,
+    companySize: Number.isFinite(
+      Number(
+        enrollment.Company_Size ??
+          enrollment.Program_EE_Count ??
+          enrollment.Total_Number_of_Program_EEs,
+      ),
+    )
+      ? Number(
+          enrollment.Company_Size ??
+            enrollment.Program_EE_Count ??
+            enrollment.Total_Number_of_Program_EEs,
+        )
+      : null,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||
@@ -633,6 +682,13 @@ export const api = {
     await request(`/admin/programs/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
+  },
+
+  async downloadOrganizationsConnectionFields(id: string): Promise<void> {
+    await downloadRequest(
+      `/admin/programs/${encodeURIComponent(id)}/organizations-connection-fields.xlsx`,
+      "Organizations_Connection_Fields.xlsx",
+    );
   },
 
   async organizations(programId?: string): Promise<OrganizationRecord[]> {
@@ -846,6 +902,13 @@ export const api = {
               Number.isInteger(surveysSent) && surveysSent >= 0
                 ? surveysSent
                 : 0,
+            stage: stringValue(organization.stage) || null,
+            companySize:
+              organization.companySize !== null &&
+              organization.companySize !== undefined &&
+              Number.isInteger(Number(organization.companySize))
+              ? Number(organization.companySize)
+              : null,
             currentYearCategory:
               stringValue(organization.currentYearCategory) || null,
           };
@@ -872,6 +935,13 @@ export const api = {
         isWinner: organization.isWinner === true,
         surveysSent:
           Number.isInteger(surveysSent) && surveysSent >= 0 ? surveysSent : 0,
+        stage: stringValue(organization.stage) || null,
+        companySize:
+          organization.companySize !== null &&
+          organization.companySize !== undefined &&
+          Number.isInteger(Number(organization.companySize))
+          ? Number(organization.companySize)
+          : null,
         currentYearCategory:
           stringValue(organization.currentYearCategory) || null,
       };
