@@ -4,6 +4,8 @@ import {
   applyZohoOrganizations,
   filterAndSortProjects,
   filterWinnerOrganizations,
+  organizationParticipationStatus,
+  summarizeOrganizationPrograms,
 } from "./historical-import";
 
 afterEach(() => {
@@ -17,18 +19,21 @@ describe("winner organization filtering", () => {
       organizationName: "Alpha Company",
       surveysSent: 0,
       isWinner: false,
+      isIncluded: true,
     },
     {
       organizationKey: "org2",
       organizationName: "Beta Company",
       surveysSent: 0,
       isWinner: false,
+      isIncluded: true,
     },
     {
       organizationKey: "org5",
       organizationName: "Fifth Group",
       surveysSent: 0,
       isWinner: false,
+      isIncluded: true,
     },
   ];
 
@@ -71,6 +76,54 @@ describe("winner organization filtering", () => {
         currentYearCategory: "Small",
       },
     ]);
+  });
+});
+
+describe("organization participation status", () => {
+  const organization = (
+    isWinner: boolean,
+    isIncluded: boolean,
+    currentYearCategory = "Small",
+  ) => ({
+    organizationKey: `${isWinner}-${isIncluded}-${currentYearCategory}`,
+    organizationName: "Example",
+    surveysSent: 10,
+    isWinner,
+    isIncluded,
+    currentYearCategory,
+  });
+
+  it("distinguishes winners, non-winners, and not-included organizations", () => {
+    expect(organizationParticipationStatus(organization(true, true))).toBe(
+      "winner",
+    );
+    expect(organizationParticipationStatus(organization(false, true))).toBe(
+      "non-winner",
+    );
+    expect(organizationParticipationStatus(organization(true, false))).toBe(
+      "not-included",
+    );
+  });
+
+  it("counts only included organizations in category totals", () => {
+    const summary = summarizeOrganizationPrograms([
+      organization(true, true),
+      organization(false, true),
+      organization(false, false),
+      organization(true, true, "Medium"),
+    ]);
+
+    expect(summary.notIncluded).toBe(1);
+    expect(summary.categories).toContainEqual({
+      category: "Small",
+      winners: 1,
+      total: 2,
+    });
+    expect(summary.categories).toContainEqual({
+      category: "Medium",
+      winners: 1,
+      total: 1,
+    });
   });
 });
 

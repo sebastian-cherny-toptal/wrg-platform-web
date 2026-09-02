@@ -18,6 +18,7 @@ function organization(id: string, name: string): OrganizationRecord {
     surveysSent: 0,
     organizationProgramId: "",
     isWinner: false,
+    isIncluded: true,
     benefitsBestPracticesFileName: null,
     programs: [],
     users: [],

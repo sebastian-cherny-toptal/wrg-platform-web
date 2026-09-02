@@ -201,9 +201,28 @@ describe("admin API projections", () => {
       name: "Baton Rouge Organization D6EA749C",
       surveysSent: 200,
       isWinner: true,
+      isIncluded: true,
       organizationProgramId: "organization-program-uuid",
       benefitsBestPracticesFileName: "benefits.xlsx",
     });
+  });
+
+  it("projects an explicitly excluded organization independently of winner status", () => {
+    expect(
+      organization({
+        _id: "organization-uuid",
+        orgPrograms: [
+          {
+            orgs: {
+              _id: "organization-program-uuid",
+              isWinner: true,
+              isIncluded: false,
+            },
+          },
+        ],
+        users: [],
+      }),
+    ).toMatchObject({ isWinner: true, isIncluded: false });
   });
 
   it("uses a genuine source organization name when one is available", () => {

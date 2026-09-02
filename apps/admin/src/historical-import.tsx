@@ -4,6 +4,8 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  RotateCcw,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -82,7 +84,7 @@ function StepIndicator({
   const steps = [
     { number: 1, label: "Project & Program" },
     { number: 2, label: "Upload EA/EFS" },
-    { number: 3, label: "Winners & Non-Winners" },
+    { number: 3, label: "Organization Status" },
     { number: 4, label: "Report Store" },
     { number: 5, label: "Review & Create" },
   ] as const;
@@ -188,8 +190,54 @@ type ZohoWinnerOrganization = NonNullable<
   HistoricalImportMetadata["zohoWinnerOrganizations"]
 >[number];
 
+export type OrganizationParticipationStatus =
+  | "winner"
+  | "non-winner"
+  | "not-included";
+
+export function organizationParticipationStatus(
+  entry: OrganizationProgramDraft,
+): OrganizationParticipationStatus {
+  if (entry.isIncluded === false) return "not-included";
+  if (entry.isWinner === true) return "winner";
+  return "non-winner";
+}
+
+export function summarizeOrganizationPrograms(
+  entries: OrganizationProgramDraft[],
+) {
+  return {
+    notIncluded: entries.filter(
+      (entry) => organizationParticipationStatus(entry) === "not-included",
+    ).length,
+    categories: organizationCategories.map((category) => {
+      const included = entries.filter(
+        (entry) =>
+          organizationParticipationStatus(entry) !== "not-included" &&
+          entry.currentYearCategory === category,
+      );
+      return {
+        category,
+        winners: included.filter(
+          (entry) => organizationParticipationStatus(entry) === "winner",
+        ).length,
+        total: included.length,
+      };
+    }),
+  };
+}
+
 function organizationProgramKey(entry: OrganizationProgramDraft): string {
   return entry.organizationProgramId ?? entry.organizationKey ?? "";
+}
+
+function normalizeOrganizationPrograms(
+  entries: OrganizationProgramDraft[],
+): OrganizationProgramDraft[] {
+  return entries.map((entry) => ({
+    ...entry,
+    isIncluded: entry.isIncluded !== false,
+  }));
 }
 
 export function filterWinnerOrganizations(
@@ -279,6 +327,7 @@ export function applyZohoOrganizations(
     if (!organization) return entry;
     return {
       ...entry,
+      isIncluded: entry.isIncluded !== false,
       isWinner: organization.isWinner,
       surveysSent: organization.surveysSent,
       currentYearCategory: organization.currentYearCategory ?? undefined,
@@ -297,11 +346,15 @@ function WinnerMultiSelect({
   const [selectedNonWinners, setSelectedNonWinners] = useState<string[]>([]);
   const [selectedWinners, setSelectedWinners] = useState<string[]>([]);
   const nonWinners = filterWinnerOrganizations(
-    organizationPrograms.filter(({ isWinner }) => !isWinner),
+    organizationPrograms.filter(
+      (entry) => organizationParticipationStatus(entry) === "non-winner",
+    ),
     filter,
   );
   const winners = filterWinnerOrganizations(
-    organizationPrograms.filter(({ isWinner }) => isWinner),
+    organizationPrograms.filter(
+      (entry) => organizationParticipationStatus(entry) === "winner",
+    ),
     filter,
   );
   const move = (keys: string[], isWinner: boolean) => {
@@ -309,7 +362,7 @@ function WinnerMultiSelect({
     onChange(
       organizationPrograms.map((entry) =>
         moved.has(organizationProgramKey(entry))
-          ? { ...entry, isWinner }
+          ? { ...entry, isIncluded: true, isWinner }
           : entry,
       ),
     );
@@ -425,8 +478,12 @@ function WinnerMultiSelect({
         </label>
       </div>
       <small>
-        {organizationPrograms.filter(({ isWinner }) => isWinner).length} winner
-        {organizationPrograms.filter(({ isWinner }) => isWinner).length === 1
+        {organizationPrograms.filter(
+          (entry) => organizationParticipationStatus(entry) === "winner",
+        ).length} winner
+        {organizationPrograms.filter(
+          (entry) => organizationParticipationStatus(entry) === "winner",
+        ).length === 1
           ? ""
           : "s"}{" "}
         selected
@@ -886,7 +943,7 @@ function UploadStep({
     HistoricalImportValidationSummary | undefined
   >(draft.validation);
   const [organizationPrograms, setOrganizationPrograms] = useState(
-    draft.metadata.organizationPrograms ?? [],
+    normalizeOrganizationPrograms(draft.metadata.organizationPrograms ?? []),
   );
   const [zohoOrganizations, setZohoOrganizations] = useState(
     draft.metadata.zohoOrganizations ?? [],
@@ -974,6 +1031,10 @@ function UploadStep({
             organizationPrograms.find(
               ({ organizationKey }) => organizationKey === organization.key,
             )?.isWinner ?? false,
+          isIncluded:
+            organizationPrograms.find(
+              ({ organizationKey }) => organizationKey === organization.key,
+            )?.isIncluded ?? true,
         })),
         freshZohoOrganizations,
       );
@@ -1153,7 +1214,7 @@ function WinnersStep({
   onRestart: () => void;
 }) {
   const [organizationPrograms, setOrganizationPrograms] = useState(
-    draft.metadata.organizationPrograms ?? [],
+    normalizeOrganizationPrograms(draft.metadata.organizationPrograms ?? []),
   );
   const [rankingSummary, setRankingSummary] = useState<{
     fileName: string;
@@ -1178,13 +1239,7 @@ function WinnersStep({
       );
     },
   );
-  const winnerCount = organizationPrograms.filter(({ isWinner }) => isWinner).length;
-  const categoryCounts = organizationCategories.map((category) => ({
-    category,
-    count: organizationPrograms.filter(
-      ({ currentYearCategory }) => currentYearCategory === category,
-    ).length,
-  }));
+  const organizationSummary = summarizeOrganizationPrograms(organizationPrograms);
 
   const updateOrganization = (
     key: string,
@@ -1205,7 +1260,18 @@ function WinnersStep({
         draft.importId,
         file,
       );
-      setOrganizationPrograms(result.organizationPrograms);
+      setOrganizationPrograms(
+        result.organizationPrograms.map((entry) => ({
+          ...entry,
+          isIncluded:
+            entry.isIncluded ??
+            organizationPrograms.find(
+              (current) =>
+                organizationProgramKey(current) === organizationProgramKey(entry),
+            )?.isIncluded ??
+            true,
+        })),
+      );
       setRankingSummary({ fileName: file.name, ...result });
     } catch (caught) {
       setError(
@@ -1273,23 +1339,33 @@ function WinnersStep({
     <div className="wizard-panel">
       {actions("top")}
       <p className="wizard-copy">
-        Review the organization information loaded from Zoho, then adjust the
-        winner, Surveys Sent, or category values when needed. You can also
-        upload a ranking extract for bulk updates.
+        Review the organization information loaded from Zoho, then adjust its
+        status, Surveys Sent, or category when needed. Organizations marked as
+        not included remain visible but will not be imported. You can also upload
+        a ranking extract for bulk updates.
       </p>
       {organizationPrograms.length ? (
         <>
           <section className="organization-summary" aria-label="Organization summary">
-            <div>
-              <strong>{winnerCount}</strong>
-              <span>Winners</span>
-            </div>
-            {categoryCounts.map(({ category, count }) => (
+            {organizationSummary.categories.map(({ category, winners, total }) => (
               <div key={category}>
-                <strong>{count}</strong>
-                <span>{category}</span>
+                <span className="organization-summary-label">{category}</span>
+                <div className="organization-summary-counts">
+                  <span>
+                    <strong>{winners}</strong>
+                    <small>Winners</small>
+                  </span>
+                  <span>
+                    <strong>{total}</strong>
+                    <small>Total</small>
+                  </span>
+                </div>
               </div>
             ))}
+            <div className="organization-summary-not-included">
+              <strong>{organizationSummary.notIncluded}</strong>
+              <span>Not included</span>
+            </div>
           </section>
           <section className="ranking-upload">
             <div>
@@ -1335,6 +1411,7 @@ function WinnersStep({
                   <th>EFS respondents</th>
                   <th>Surveys Sent</th>
                   <th>Category</th>
+                  <th aria-label="Inclusion actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1346,10 +1423,23 @@ function WinnersStep({
                   const validationOrganization = draft.validation?.organizations.find(
                     ({ key: organizationKey }) => organizationKey === entry.organizationKey,
                   );
+                  const status = organizationParticipationStatus(entry);
+                  const isIncluded = status !== "not-included";
+                  const rowClassName = [
+                    matched ? "" : "zoho-unmatched-row",
+                    isIncluded ? "" : "organization-not-included-row",
+                  ]
+                    .filter(Boolean)
+                    .join(" ") || undefined;
                   return (
-                    <tr className={matched ? undefined : "zoho-unmatched-row"} key={key}>
+                    <tr className={rowClassName} key={key}>
                       <td>
                         <strong>{entry.organizationName ?? "Organization"}</strong>
+                        {!isIncluded ? (
+                          <span className="organization-not-included-message">
+                            Not included
+                          </span>
+                        ) : null}
                         {!matched ? (
                           <span className="zoho-unmatched-message">
                             No information in Zoho for this organization
@@ -1360,6 +1450,7 @@ function WinnersStep({
                         <input
                           aria-label={`Winner for ${entry.organizationName ?? "organization"}`}
                           checked={entry.isWinner}
+                          disabled={!isIncluded}
                           onChange={(event) =>
                             updateOrganization(key, { isWinner: event.target.checked })
                           }
@@ -1371,6 +1462,7 @@ function WinnersStep({
                         <input
                           aria-label={`Surveys Sent for ${entry.organizationName ?? "organization"}`}
                           className="table-number-input"
+                          disabled={!isIncluded}
                           min={0}
                           onChange={(event) =>
                             updateOrganization(key, {
@@ -1388,6 +1480,7 @@ function WinnersStep({
                             <label key={category}>
                               <input
                                 checked={entry.currentYearCategory === category}
+                                disabled={!isIncluded}
                                 name={`category-${key}`}
                                 onChange={() =>
                                   updateOrganization(key, {
@@ -1400,6 +1493,23 @@ function WinnersStep({
                             </label>
                           ))}
                         </div>
+                      </td>
+                      <td>
+                        <button
+                          aria-label={`${isIncluded ? "Mark" : "Unmark"} ${entry.organizationName ?? "organization"} as not included`}
+                          className="icon-button organization-inclusion-button"
+                          onClick={() =>
+                            updateOrganization(key, { isIncluded: !isIncluded })
+                          }
+                          title={
+                            isIncluded
+                              ? "Mark organization as not included"
+                              : "Include organization again"
+                          }
+                          type="button"
+                        >
+                          {isIncluded ? <Trash2 size={16} /> : <RotateCcw size={16} />}
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1718,6 +1828,7 @@ export function HistoricalImportPage() {
                 organizationName: organization.name,
                 surveysSent: organization.surveysSent,
                 isWinner: organization.isWinner,
+                isIncluded: organization.isIncluded,
               })),
             },
           });

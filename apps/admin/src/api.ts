@@ -126,6 +126,7 @@ export type HistoricalImportMetadata = {
     organizationName?: string;
     surveysSent: number;
     isWinner: boolean;
+    isIncluded: boolean;
     currentYearCategory?: string;
   }>;
   reportCatalog?: ReportProduct[];
@@ -199,6 +200,7 @@ export type OrganizationRecord = {
   lastSyncedAt: string | null;
   surveysSent: number;
   isWinner: boolean;
+  isIncluded: boolean;
   organizationProgramId: string;
   benefitsBestPracticesFileName: string | null;
   programs: Array<{
@@ -469,6 +471,7 @@ export function organization(raw: unknown): OrganizationRecord {
     lastSyncedAt: stringValue(enrollment.Last_time_deal_synced) || null,
     surveysSent: Number(enrollment.Surveys_Sent ?? 0),
     isWinner: enrollment.isWinner === true,
+    isIncluded: enrollment.isIncluded !== false,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||

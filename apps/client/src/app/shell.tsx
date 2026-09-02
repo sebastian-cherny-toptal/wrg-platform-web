@@ -305,9 +305,6 @@ export function AppShell() {
         <div className="relative p-[10px]" ref={profileMenuRef}>
           {profileOpen ? (
             <div className="absolute bottom-[47px] right-[18px] w-[142px] overflow-hidden rounded-[3px] bg-white py-1 text-zinc-900 shadow-xl" role="menu">
-              <button className="flex w-full items-center whitespace-nowrap px-4 py-2 text-left text-sm hover:bg-zinc-100" role="menuitem" onClick={() => window.location.reload()}>
-                Use Clear Cache
-              </button>
               <button className="flex w-full items-center px-4 py-2 text-left text-sm hover:bg-zinc-100" role="menuitem" onClick={() => void logout()}>
                 Logout
               </button>

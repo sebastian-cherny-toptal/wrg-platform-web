@@ -1090,6 +1090,28 @@ a {
   border-radius: 8px;
   background: #fafafa;
 }
+.organization-summary-label {
+  color: #3f3f46;
+  font-size: 13px;
+  font-weight: 700;
+}
+.organization-summary-counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.organization-summary-counts > span {
+  display: grid;
+  gap: 2px;
+}
+.organization-summary-counts > span + span {
+  padding-left: 8px;
+  border-left: 1px solid #e4e4e7;
+}
+.organization-summary-counts small {
+  color: #71717a;
+  font-size: 11px;
+}
 .organization-summary strong {
   color: #18181b;
   font-size: 22px;
@@ -1104,6 +1126,34 @@ a {
 .table-card tbody tr.zoho-unmatched-row,
 .table-card tbody tr.zoho-unmatched-row:hover {
   background: #fef2f2;
+}
+.table-card tbody tr.organization-not-included-row,
+.table-card tbody tr.organization-not-included-row:hover {
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+.organization-not-included-row .organization-not-included-message {
+  display: block;
+  margin-top: 4px;
+  color: #d4d4d8;
+  font-size: 12px;
+  font-weight: 600;
+}
+.organization-not-included-row .zoho-unmatched-message {
+  color: #fecaca;
+}
+.organization-not-included-row input:disabled {
+  opacity: 0.55;
+}
+.organization-not-included-row .organization-inclusion-button {
+  border-color: #71717a;
+  background: #52525b;
+  color: #fafafa;
+}
+.organization-not-included-row .organization-inclusion-button:hover {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  color: #6d28d9;
 }
 .zoho-unmatched-message {
   display: block;
