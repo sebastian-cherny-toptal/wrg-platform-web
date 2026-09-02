@@ -319,6 +319,7 @@ export const openResponseAnswersSchema = z.object({
       z.object({
         _id: z.string().optional(),
         RespondentId: z.union([z.string(), z.number()]).optional(),
+        sortingValue: z.string().optional(),
         responses: z.object({
           QuestionId: z.union([z.string(), z.number()]).optional(),
           DataLabel: z.string().nullable().optional(),
@@ -328,6 +329,12 @@ export const openResponseAnswersSchema = z.object({
       }),
     ),
     dataLen: z.number().int().nonnegative().optional(),
+    sortingFilter: z
+      .object({
+        questionId: z.union([z.string(), z.number()]),
+        label: z.string(),
+      })
+      .optional(),
     queryQuestion: z.object({
       Caption: z.string(),
       Id: z.union([z.string(), z.number()]),

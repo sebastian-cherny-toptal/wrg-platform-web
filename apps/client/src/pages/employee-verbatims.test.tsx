@@ -150,4 +150,84 @@ describe("Employee Verbatims page", () => {
       optionLabel: "Department",
     });
   });
+
+  it("shows the purchased filter instead of the price panel and labels each response", async () => {
+    useAppStore.getState().setSession({
+      ...session,
+      user: {
+        ...session.user,
+        programs: session.user.programs.map((program) => ({
+          ...program,
+          entitlements: { ...program.entitlements, SEV_Access: "yes" },
+          reportSelections: { SEV_Filter: "department" },
+        })),
+      },
+    });
+    vi.spyOn(api.reports, "openResponseQuestions").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: [{ caption: "What should we improve?", id: "question-1" }],
+    });
+    const answers = vi.spyOn(api.reports, "openResponseAnswers").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: {
+        respondentData: [{
+          _id: "respondent-1",
+          RespondentId: "respondent-1",
+          sortingValue: "Human Resources",
+          responses: {
+            QuestionId: "question-1",
+            DataLabel: "q_OpenEnded_1",
+            Value: "Give managers more training.",
+          },
+        }],
+        dataLen: 1,
+        sortingFilter: { questionId: "department", label: "Department" },
+        queryQuestion: {
+          Caption: "What should we improve?",
+          Id: "question-1",
+          DataLabel: "q_OpenEnded_1",
+        },
+      },
+    });
+    vi.spyOn(api.reports, "catalog").mockResolvedValue([{
+      id: "report-verbatims-sorted",
+      name: "Sorted Employee Verbatims",
+      description: "Sort responses",
+      priceCents: 42_500,
+      available: true,
+      purchaseMode: "checkout",
+      fulfillment: "instant",
+      requiresStandardPackage: true,
+      priceAvailable: true,
+      owned: true,
+      standardPackageOwned: true,
+      purchasable: false,
+      deliveryMessage: "Instant access",
+      selection: "department",
+    }]);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([
+      { questionId: "department", label: "Department", options: [] },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <EmployeeVerbatimsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Sorted by Department")).toBeVisible();
+    expect(screen.queryByText("Sorting your report")).not.toBeInTheDocument();
+    expect(screen.queryByText("Price")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("What should we improve?"));
+    expect(await screen.findByText("Give managers more training.")).toBeVisible();
+    expect(screen.getByText("Employee response 1 · Human Resources")).toBeVisible();
+    expect(answers).toHaveBeenCalledWith("program-2026", "question-1");
+  });
 });

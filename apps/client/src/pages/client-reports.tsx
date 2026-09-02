@@ -1812,6 +1812,10 @@ export function EmployeeVerbatimsPage() {
     (product) => product.id === "report-verbatims-sorted",
   );
   const selectedPurchasedFilter = sortedVerbatims?.selection ?? "";
+  const selectedPurchasedLabel =
+    availableFilters.data?.find(
+      (item) => item.questionId === selectedPurchasedFilter,
+    )?.label ?? selectedPurchasedFilter;
   const effectiveSortingFilter = filter;
   const selectedSortingLabel = availableFilters.data?.find(
     (item) => item.questionId === effectiveSortingFilter,
@@ -1830,6 +1834,35 @@ export function EmployeeVerbatimsPage() {
         </div>
       ) : null}
       <div className="p-6">
+        {sortedVerbatims?.owned ? (
+          <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-violet-200 bg-violet-50 p-5 text-violet-950">
+            <div className="grid size-11 place-items-center rounded-full bg-violet-100">
+              <Filter className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-violet-600">
+                Purchased sorting filter
+              </p>
+              <strong className="mt-1 block text-lg">
+                Sorted by {selectedPurchasedLabel || "Purchased filter"}
+              </strong>
+            </div>
+            {sortedVerbatims.selection ? (
+              <Button
+                onClick={() =>
+                  api.reports.downloadVerbatimsWorkbook(
+                    program?.id ?? "",
+                    isDummy,
+                    sortedVerbatims.selection,
+                  )
+                }
+                variant="secondary"
+              >
+                Download sorted report
+              </Button>
+            ) : null}
+          </section>
+        ) : (
         <section className="grid min-h-[225px] gap-6 rounded-2xl bg-violet-600 p-7 text-white md:grid-cols-[160px_minmax(0,1fr)_230px] md:items-center">
           <div className="mx-auto grid size-32 place-items-center rounded-full bg-white/15">
             <Filter className="size-14" />
@@ -1849,21 +1882,9 @@ export function EmployeeVerbatimsPage() {
                 : "—"}
             </strong>
             <p className="mt-3 text-xs font-medium text-zinc-700">
-              {sortedVerbatims?.owned ? "Sorted by" : "Select one of these options"}
+              Select one of these options
             </p>
-            {sortedVerbatims?.owned ? (
-              <SearchableSelect
-                ariaLabel="Purchased sorting filter"
-                className="mt-3 text-sm"
-                disabled
-                onChange={() => undefined}
-                options={[{
-                  value: selectedPurchasedFilter,
-                  label: (availableFilters.data?.find((item) => item.questionId === selectedPurchasedFilter)?.label ?? selectedPurchasedFilter) || "Purchased filter",
-                }]}
-                value={selectedPurchasedFilter}
-              />
-            ) : <SearchableSelect
+            <SearchableSelect
               ariaLabel="Filtering report"
               className="mt-3 text-sm"
               onChange={setFilter}
@@ -1871,8 +1892,8 @@ export function EmployeeVerbatimsPage() {
               placeholder="Select filtering report"
               searchPlaceholder="Search reports…"
               value={effectiveSortingFilter}
-            />}
-            {!sortedVerbatims?.owned ? <Button
+            />
+            <Button
               className="mt-3 w-full"
               disabled={!filter || inCart || (sortedVerbatims?.owned ?? false) || sortedVerbatims?.priceCents == null}
               onClick={() =>
@@ -1885,29 +1906,13 @@ export function EmployeeVerbatimsPage() {
                 })
               }
             >
-              {sortedVerbatims?.owned
-                ? "Purchased"
-                : inCart
+              {inCart
                   ? "Added to Cart"
                   : "Add to Cart"}
-            </Button> : null}
-            {sortedVerbatims?.owned && sortedVerbatims.selection ? (
-              <Button
-                className="mt-2 w-full"
-                onClick={() =>
-                  api.reports.downloadVerbatimsWorkbook(
-                    program?.id ?? "",
-                    isDummy,
-                    sortedVerbatims.selection,
-                  )
-                }
-                variant="secondary"
-              >
-                Download sorted report
-              </Button>
-            ) : null}
+            </Button>
           </div>
         </section>
+        )}
         <Card className="mt-6 overflow-hidden shadow-none">
           <div className="flex items-center justify-between border-b border-zinc-200 p-5">
             <h2 className="font-semibold">Question Details</h2>
@@ -2020,6 +2025,7 @@ function EmployeeVerbatimQuestion({
               {respondent.responses.Value}
               <footer className="mt-3 text-xs font-medium text-zinc-400">
                 Employee response {index + 1}
+                {respondent.sortingValue ? ` · ${respondent.sortingValue}` : ""}
               </footer>
             </blockquote>
           ))
