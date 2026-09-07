@@ -278,12 +278,24 @@ export type OrganizationRecord = {
   users: PortalUserRecord[];
 };
 
+export type PendingKeyImpactAnalysis = {
+  organizationId: string;
+  organizationName: string;
+  organizationProgramId: string;
+  programId: string;
+  programName: string;
+  programYear: number | null;
+  projectId: string;
+  projectName: string;
+  purchasedAt: string;
+  status: string;
+};
+
 export type ProgramZohoResyncField =
   | "organizationName"
   | "stage"
   | "isWinner"
   | "surveysSent"
-  | "companySize"
   | "employeesCount"
   | "overallRank"
   | "categoryRank"
@@ -825,6 +837,66 @@ export const api = {
       : "";
     const response = await request<unknown>(`/admin/getOrganizations${query}`);
     return array(object(response).data).map(organization);
+  },
+
+  async pendingKeyImpactAnalyses(): Promise<PendingKeyImpactAnalysis[]> {
+    const response = await request<unknown>(
+      "/admin/key-impact-analysis/pending",
+    );
+    return array(object(response).data).map((entry) => {
+      const value = object(entry);
+      return {
+        organizationId: stringValue(value.organizationId),
+        organizationName: stringValue(value.organizationName),
+        organizationProgramId: stringValue(value.organizationProgramId),
+        programId: stringValue(value.programId),
+        programName: stringValue(value.programName),
+        programYear: Number.isInteger(value.programYear)
+          ? Number(value.programYear)
+          : null,
+        projectId: stringValue(value.projectId),
+        projectName: stringValue(value.projectName),
+        purchasedAt: stringValue(value.purchasedAt),
+        status: stringValue(value.status, "Processing"),
+      };
+    });
+  },
+
+  async uploadKeyImpactAnalysis(
+    item: PendingKeyImpactAnalysis,
+    file: File,
+  ): Promise<void> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("file", file);
+    const query = new URLSearchParams({
+      orgId: item.organizationId,
+      programId: item.programId,
+      projectId: item.projectId,
+      orgProgramId: item.organizationProgramId,
+    });
+    const response = await fetch(
+      `${apiBaseUrl}/admin/uploadKeyImpactAnalysis?${query.toString()}`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401 && auth?.accessToken) persistAuth(null);
+      const body = object(payload);
+      throw new ApiError(
+        stringValue(body.message) ||
+          stringValue(object(body.error).message) ||
+          "Upload failed",
+        response.status,
+      );
+    }
   },
 
   async eligibleImpersonationUsers(

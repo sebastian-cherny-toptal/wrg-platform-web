@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import {
   ActivityLogPage,
   AdminShell,
+  KeyImpactAnalysisUploadsPage,
   OrderLogPage,
   ProgramDetailPage,
   ProjectDetailPage,
@@ -51,6 +52,10 @@ export function App() {
           element={<HistoricalImportPage />}
         />
         <Route path="users" element={<UsersManagementPage />} />
+        <Route
+          path="key-impact-analysis"
+          element={<KeyImpactAnalysisUploadsPage />}
+        />
         <Route
           path="users-management"
           element={<Navigate replace to="../users" />}

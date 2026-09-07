@@ -68,7 +68,10 @@ describe("program Zoho resync changes", () => {
       createdAt: null,
       organizationCount: 1,
       winnersCount: 0,
-      categorySummaries: [{ category: "Community", winners: 0, total: 1 }],
+      categorySummaries: [
+        { category: "Small", winners: 0, total: 1 },
+        { category: "Community", winners: 0, total: 0 },
+      ],
       latestZohoSync: "2026-09-07T10:15:00.000Z",
     });
     vi.spyOn(api, "organizations").mockResolvedValue([
@@ -149,9 +152,13 @@ describe("program Zoho resync changes", () => {
     expect(screen.getByText(/Latest Zoho sync:/u).textContent).toContain(
       "Sep 7, 2026",
     );
+    fireEvent.click(screen.getByRole("button", { name: "Program Details" }));
     fireEvent.click(screen.getByRole("button", { name: "Re-Sync All Deals" }));
 
     expect(await screen.findByText("Closed")).toBeTruthy();
+    expect(
+      document.querySelectorAll(".zoho-resync-summary-change"),
+    ).toHaveLength(2);
     const changedRow = screen.getByRole("row", { name: /Acme/u });
     expect(changedRow.classList.contains("zoho-resync-changed-row")).toBe(true);
     expect(changedRow.querySelectorAll("del")).toHaveLength(3);
@@ -165,5 +172,78 @@ describe("program Zoho resync changes", () => {
     expect(
       await screen.findByText(/Applied Zoho changes to 1 organization/u),
     ).toBeTruthy();
+  });
+
+  it("paginates organizations in groups of ten", async () => {
+    persistAuth({
+      accessToken: "token",
+      refreshToken: "refresh",
+      user: {
+        id: "admin-id",
+        displayName: "Admin",
+        email: "admin@example.com",
+        roles: ["admin"],
+        permissions: [],
+      },
+    });
+    vi.spyOn(api, "program").mockResolvedValue({
+      id: "program-id",
+      name: "Program 2026",
+      year: 2026,
+      createdAt: null,
+      organizationCount: 21,
+      winnersCount: 0,
+      categorySummaries: [],
+      latestZohoSync: null,
+    });
+    vi.spyOn(api, "organizations").mockResolvedValue(
+      Array.from({ length: 21 }, (_, index) => ({
+        id: `organization-${index + 1}`,
+        selectionId: `enrollment-${index + 1}`,
+        sourceId: String(index + 1),
+        sourceName: `Company ${index + 1}`,
+        name: `Company ${index + 1}`,
+        createdAt: null,
+        stage: null,
+        lastSyncedAt: null,
+        surveysSent: 0,
+        isWinner: false,
+        isIncluded: true,
+        companySize: null,
+        employeesCount: null,
+        overallRank: null,
+        categoryRank: null,
+        currentZohoCategory: null,
+        reportCategory: null,
+        benchmarkCategory: null,
+        organizationProgramId: `enrollment-${index + 1}`,
+        benefitsBestPracticesFileName: null,
+        programs: [],
+        users: [],
+      })),
+    );
+
+    render(
+      <AuthProvider>
+        <MemoryRouter
+          initialEntries={["/admin/projects/project-id/programs/program-id"]}
+        >
+          <Routes>
+            <Route
+              path="/admin/projects/:projectId/programs/:programId"
+              element={<ProgramDetailPage />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByText("1 - 10 of 21")).toBeTruthy();
+    expect(screen.getByText("Company 10")).toBeTruthy();
+    expect(screen.queryByText("Company 11")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("11 - 20 of 21")).toBeTruthy();
+    expect(screen.getByText("Company 11")).toBeTruthy();
+    expect(screen.queryByText("Company 10")).toBeNull();
   });
 });

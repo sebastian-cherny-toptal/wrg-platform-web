@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Copy,
   Download,
+  FileChartColumn,
   FileUp,
   KeyRound,
   LogOut,
@@ -43,6 +44,7 @@ import {
   formatDate,
   formatDateTime,
   type OrganizationRecord,
+  type PendingKeyImpactAnalysis,
   type PortalUserRecord,
   type ProgramRecord,
   type ProgramZohoResyncChange,
@@ -79,6 +81,11 @@ const navigation = [
     icon: FileUp,
   },
   { to: "/admin/users", label: "Users Management", icon: Users },
+  {
+    to: "/admin/key-impact-analysis",
+    label: "KIA Uploads",
+    icon: FileChartColumn,
+  },
   { to: "/admin/order-log", label: "Order Log", icon: ClipboardList },
   { to: "/admin/system-log", label: "Activity Log", icon: Activity },
   { to: "/admin/role-permissions", label: "Roles", icon: ShieldCheck },
@@ -254,16 +261,48 @@ function DataTable({
   );
 }
 
-function Pager({ count, shown }: { count: number; shown: number }) {
+function Pager({
+  count,
+  shown,
+  page = 1,
+  pageSize = shown,
+  onPageChange,
+}: {
+  count: number;
+  shown: number;
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+}) {
+  const pageCount = Math.max(1, Math.ceil(count / pageSize));
+  const controlled = Boolean(onPageChange);
+  const start = count === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, count);
   return (
     <div className="pager">
       <span>
-        {Math.min(shown, count)} out of {count}
+        {controlled
+          ? `${start} - ${end} of ${count}`
+          : `${Math.min(shown, count)} out of ${count}`}
       </span>
       <div>
-        <button disabled>‹</button>
-        <button className="current">1</button>
-        <button disabled={count <= shown}>›</button>
+        <button
+          aria-label="Previous page"
+          disabled={!controlled || page <= 1}
+          onClick={() => onPageChange?.(page - 1)}
+        >
+          ‹
+        </button>
+        <button className="current" aria-label={`Page ${page}`}>
+          {page}
+        </button>
+        <button
+          aria-label="Next page"
+          disabled={!controlled ? count <= shown : page >= pageCount}
+          onClick={() => onPageChange?.(page + 1)}
+        >
+          ›
+        </button>
       </div>
     </div>
   );
@@ -660,6 +699,85 @@ export function ZohoResyncValue({
   );
 }
 
+type CategorySummary = {
+  category: string;
+  winners: number;
+  total: number;
+};
+
+function previewCategorySummaries(
+  summaries: CategorySummary[],
+  organizations: OrganizationRecord[],
+  preview: ProgramZohoResyncPreview | null,
+): Map<string, CategorySummary> {
+  const next = new Map(
+    summaries.map((summary) => [
+      summary.category.toLocaleLowerCase("en"),
+      { ...summary },
+    ]),
+  );
+  const organizationsByEnrollment = new Map(
+    organizations.map((organization) => [
+      organization.organizationProgramId,
+      organization,
+    ]),
+  );
+  for (const row of preview?.changedRows ?? []) {
+    const organization = organizationsByEnrollment.get(
+      row.organizationProgramId,
+    );
+    if (!organization?.isIncluded) continue;
+    const changes = new Map(
+      row.changes.map((change) => [change.field, change.next]),
+    );
+    const previousCategory =
+      organization.currentZohoCategory?.toLocaleLowerCase("en") ?? "";
+    const nextCategoryValue = changes.has("currentZohoCategory")
+      ? changes.get("currentZohoCategory")
+      : organization.currentZohoCategory;
+    const nextCategory =
+      typeof nextCategoryValue === "string"
+        ? nextCategoryValue.toLocaleLowerCase("en")
+        : "";
+    const nextWinner = changes.has("isWinner")
+      ? changes.get("isWinner") === true
+      : organization.isWinner;
+    if (
+      previousCategory === nextCategory &&
+      organization.isWinner === nextWinner
+    ) {
+      continue;
+    }
+    const previousSummary = next.get(previousCategory);
+    if (previousSummary) {
+      previousSummary.total -= 1;
+      if (organization.isWinner) previousSummary.winners -= 1;
+    }
+    const nextSummary = next.get(nextCategory);
+    if (nextSummary) {
+      nextSummary.total += 1;
+      if (nextWinner) nextSummary.winners += 1;
+    }
+  }
+  return next;
+}
+
+function SummaryPreviewValue({
+  previous,
+  next,
+}: {
+  previous: number;
+  next: number;
+}) {
+  if (previous === next) return <strong>{previous}</strong>;
+  return (
+    <strong className="zoho-resync-summary-change">
+      <del>{previous}</del>
+      <span>{next}</span>
+    </strong>
+  );
+}
+
 export function ProgramDetailPage() {
   const { projectId = "", programId = "" } = useParams();
   const { auth } = useAuth();
@@ -672,6 +790,7 @@ export function ProgramDetailPage() {
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [sort, setSort] = useState("id:asc");
+  const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState("");
   const [resyncPreview, setResyncPreview] =
@@ -711,6 +830,14 @@ export function ProgramDetailPage() {
         numeric: true,
       });
     });
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(organizations.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedOrganizations = organizations.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  useEffect(() => setPage(1), [search, date, sort]);
   if (programLoaded.loading)
     return (
       <State
@@ -727,6 +854,11 @@ export function ProgramDetailPage() {
       />
     );
   const details = program.details ?? {};
+  const previewSummaries = previewCategorySummaries(
+    program.categorySummaries,
+    organizationsLoaded.data ?? [],
+    resyncApplied ? null : resyncPreview,
+  );
   const resync = async () => {
     setResyncPreview(null);
     setResyncApplied(false);
@@ -848,21 +980,32 @@ export function ProgramDetailPage() {
             className="organization-summary details-category-summary"
             aria-label="Organizations by category"
           >
-            {program.categorySummaries.map(({ category, winners, total }) => (
-              <div key={category}>
-                <span className="organization-summary-label">{category}</span>
-                <div className="organization-summary-counts">
-                  <span>
-                    <strong>{winners}</strong>
-                    <small>Winners</small>
-                  </span>
-                  <span>
-                    <strong>{total}</strong>
-                    <small>Total</small>
-                  </span>
+            {program.categorySummaries.map(({ category, winners, total }) => {
+              const next = previewSummaries.get(
+                category.toLocaleLowerCase("en"),
+              );
+              return (
+                <div key={category}>
+                  <span className="organization-summary-label">{category}</span>
+                  <div className="organization-summary-counts">
+                    <span>
+                      <SummaryPreviewValue
+                        previous={winners}
+                        next={next?.winners ?? winners}
+                      />
+                      <small>Winners</small>
+                    </span>
+                    <span>
+                      <SummaryPreviewValue
+                        previous={total}
+                        next={next?.total ?? total}
+                      />
+                      <small>Total</small>
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </section>
         </div>
       ) : null}
@@ -952,12 +1095,12 @@ export function ProgramDetailPage() {
           "Benchmark Category",
           "Actions",
         ]}
-        rowClassNames={organizations.map((item) =>
+        rowClassNames={pagedOrganizations.map((item) =>
           changesByOrganization.has(item.organizationProgramId)
             ? "zoho-resync-changed-row"
             : undefined,
         )}
-        rows={organizations.map((item) => {
+        rows={pagedOrganizations.map((item) => {
           const changes = changesByOrganization.get(item.organizationProgramId);
           const change = (field: ProgramZohoResyncField) => changes?.get(field);
           return [
@@ -979,11 +1122,7 @@ export function ProgramDetailPage() {
                 change={change("employeesCount")}
               />
               <small>
-                Company size:{" "}
-                <ZohoResyncValue
-                  value={item.companySize}
-                  change={change("companySize")}
-                />
+                Company size: <ZohoResyncValue value={item.companySize} />
               </small>
             </div>,
             <ZohoResyncValue
@@ -1037,7 +1176,13 @@ export function ProgramDetailPage() {
           ];
         })}
       />
-      <Pager count={organizations.length} shown={10} />
+      <Pager
+        count={organizations.length}
+        shown={pageSize}
+        page={currentPage}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
       {previewOrganization ? (
         <ImpersonationUserModal
           organization={previewOrganization}
@@ -1191,6 +1336,83 @@ function CatalogModal({
   );
 }
 
+export function KeyImpactAnalysisUploadsPage() {
+  const pending = useLoad("pending-kia-uploads", api.pendingKeyImpactAnalyses);
+  const [selected, setSelected] = useState<PendingKeyImpactAnalysis | null>(
+    null,
+  );
+  const [notice, setNotice] = useState("");
+  if (pending.loading && !pending.data) {
+    return (
+      <State
+        loading
+        title="Loading KIA purchases"
+        message="Finding reports that still need an upload."
+      />
+    );
+  }
+  if (pending.error) {
+    return <State title="KIA purchases unavailable" message={pending.error} />;
+  }
+  const items = pending.data ?? [];
+  return (
+    <>
+      <PageHeader
+        title="Key Impact Analysis uploads"
+        breadcrumb="Programs | Key Impact Analysis uploads"
+      />
+      <p className="page-intro">
+        Programs shown here have purchased Key Impact Analysis but do not yet
+        have a report uploaded.
+      </p>
+      {notice ? <div className="notice">{notice}</div> : null}
+      {items.length ? (
+        <DataTable
+          headers={[
+            "Organization",
+            "Program",
+            "Project",
+            "Purchased",
+            "Status",
+            "Actions",
+          ]}
+          rows={items.map((item) => [
+            item.organizationName,
+            `${item.programName}${item.programYear ? ` (${item.programYear})` : ""}`,
+            item.projectName,
+            formatDate(item.purchasedAt),
+            item.status,
+            <button
+              className="primary-button compact"
+              onClick={() => setSelected(item)}
+            >
+              Upload KIA <FileUp size={16} />
+            </button>,
+          ])}
+        />
+      ) : (
+        <State
+          title="All KIA reports are uploaded"
+          message="There are no purchased Key Impact Analysis reports waiting for a file."
+        />
+      )}
+      {selected ? (
+        <KeyImpactAnalysisUploadModal
+          item={selected}
+          onClose={() => setSelected(null)}
+          onUploaded={(fileName) => {
+            setNotice(
+              `${fileName} was uploaded for ${selected.organizationName} — ${selected.programName}.`,
+            );
+            setSelected(null);
+            void pending.reload();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function Modal({
   title,
   children,
@@ -1216,6 +1438,84 @@ function Modal({
         {children}
       </section>
     </div>
+  );
+}
+
+function KeyImpactAnalysisUploadModal({
+  item,
+  onClose,
+  onUploaded,
+}: {
+  item: PendingKeyImpactAnalysis;
+  onClose: () => void;
+  onUploaded: (fileName: string) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!file || !/\.xlsx$/iu.test(file.name)) {
+      setError("Choose an .xlsx Key Impact Analysis workbook.");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setError("The selected workbook must be 25 MB or smaller.");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    try {
+      await api.uploadKeyImpactAnalysis(item, file);
+      onUploaded(file.name);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The workbook could not be uploaded.",
+      );
+      setUploading(false);
+    }
+  };
+  return (
+    <Modal title="Upload Key Impact Analysis" onClose={onClose}>
+      <form onSubmit={(event) => void submit(event)}>
+        <p className="modal-copy">
+          Upload the KIA workbook for <strong>{item.organizationName}</strong>{" "}
+          in <strong>{item.programName}</strong>.
+        </p>
+        <label className="upload-card benefits-upload-card">
+          <FileUp size={34} aria-hidden="true" />
+          <strong>
+            {file ? "Workbook selected" : "Choose an XLSX workbook"}
+          </strong>
+          <span>{file?.name ?? "Maximum file size: 25 MB"}</span>
+          <input
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            disabled={uploading}
+            onChange={(event) => {
+              setError("");
+              setFile(event.target.files?.[0] ?? null);
+            }}
+          />
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={uploading}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button className="primary-button" type="submit" disabled={uploading}>
+            {uploading ? "Uploading…" : "Upload workbook"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

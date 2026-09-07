@@ -507,6 +507,18 @@ a {
   color: #3f3f46;
   font-weight: 600;
 }
+.zoho-resync-summary-change {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fef08a;
+}
+.zoho-resync-summary-change del {
+  color: #854d0e;
+  font-weight: 400;
+}
 .zoho-resync-stacked-value {
   display: grid;
   gap: 4px;

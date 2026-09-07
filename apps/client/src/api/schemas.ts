@@ -9,7 +9,10 @@ export const programSchema = z.object({
   year: z.number().int(),
   organizationName: z.string(),
   entitlements: entitlementSchema,
-  reportSelections: z.object({ SEV_Filter: z.string().optional() }).optional(),
+  reportSelections: z.object({
+    SEV_Filter: z.string().optional(),
+    KIA_Order_Status: z.string().optional(),
+  }).optional(),
 });
 
 export const sessionUserSchema = z.object({

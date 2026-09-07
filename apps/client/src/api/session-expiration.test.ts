@@ -106,8 +106,12 @@ describe("client session expiration", () => {
       BBP_Access: "yes",
       EV_Access: "yes",
       SEV_Access: "yes",
+      KIA_Access: "yes",
       RD_Access: "yes",
     });
+    expect(
+      useAppStore.getState().session?.user.programs[0]?.reportSelections,
+    ).toMatchObject({ KIA_Order_Status: "Processing" });
   });
 
   it("closes every frontend session when a token-authenticated request returns 401", async () => {

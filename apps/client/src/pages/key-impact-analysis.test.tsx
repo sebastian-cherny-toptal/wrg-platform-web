@@ -114,4 +114,30 @@ describe("Key Impact Analysis page", () => {
     expect(screen.getByRole("button", { name: "Add to cart" })).toBeVisible();
     expect(analysis).toHaveBeenCalledWith("program-2026", true);
   });
+
+  it("shows the purchased report as awaiting upload when no KIA asset exists", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "catalog").mockResolvedValue([]);
+    vi.spyOn(api.reports, "keyImpactAnalysis").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: {
+        mapping: {},
+        report: [],
+        data: { signedUrl: null },
+      },
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <KeyImpactAnalysisPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Key Impact Analysis not yet uploaded")).toBeVisible();
+    expect(screen.getByText(/has been purchased and is being prepared/i)).toBeVisible();
+  });
 });

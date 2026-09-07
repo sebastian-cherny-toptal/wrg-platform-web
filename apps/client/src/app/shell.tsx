@@ -119,6 +119,10 @@ function ReportGroup({
 
 function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
   const location = useLocation()
+  const selectedProgramId = useAppStore((state) => state.selectedProgramId)
+  const selectedProgram = useAppStore((state) =>
+    state.session?.user.programs.find((program) => program.id === selectedProgramId),
+  )
   const purchaseCelebration = useAppStore((state) => state.purchaseCelebration)
   const highlightedEntitlements = purchaseCelebration?.entitlements ?? []
   const directBasicLinks: ClientLink[] = [
@@ -165,9 +169,16 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
           )}
 
           <p className="mb-1 mt-3 px-2 text-xs font-medium tracking-wide text-violet-400">ADDITIONAL REPORTS</p>
-          {additionalLinks.filter(isClientLinkVisible).map((link) => (
-            <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
-          ))}
+          {additionalLinks.filter(isClientLinkVisible).map((link) => {
+            const awaitingKiaUpload =
+              link.entitlement === 'KIA_Access' &&
+              selectedProgram?.reportSelections?.KIA_Order_Status !== 'Delivered'
+            return (
+              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
+                {awaitingKiaUpload ? 'Key Impact Analysis (not yet uploaded)' : link.title}
+              </SidebarLink>
+            )
+          })}
         </div>
       </details>
 

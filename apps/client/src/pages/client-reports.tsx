@@ -3388,7 +3388,7 @@ export function KeyImpactAnalysisPage() {
         </div>
       ) : null}
       <div className="p-6">
-        {analysis.data && !isDemo ? (
+        {analysis.data && !isDemo && bubbles.length > 0 ? (
           <DownloadReportButton
             onDownload={async () => {
               const signedUrl = analysis.data.data.data.signedUrl;
@@ -3429,8 +3429,8 @@ export function KeyImpactAnalysisPage() {
         ) : bubbles.length === 0 ? (
           <StatePanel
             kind="empty"
-            title="No key impact analysis"
-            message="The backend returned no key-impact results for this program."
+            title="Key Impact Analysis not yet uploaded"
+            message="Your report has been purchased and is being prepared. It will appear here after an administrator uploads it."
           />
         ) : (
           <Card className="mt-10 overflow-hidden p-4 shadow-none sm:p-8">

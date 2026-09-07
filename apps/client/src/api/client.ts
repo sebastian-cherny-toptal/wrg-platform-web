@@ -124,6 +124,10 @@ export function cachePurchasedReportAccess(products: { productId: string; name: 
       gainedEntitlements.add("SEV_Access");
       gainedEntitlements.add("EV_Access");
     }
+    if (purchased.has("report-kia")) {
+      entitlements.KIA_Access = "yes";
+      gainedEntitlements.add("KIA_Access");
+    }
     const sortedVerbatims = products.find(
       ({ productId }) => productId === "report-verbatims-sorted",
     );
@@ -131,11 +135,14 @@ export function cachePurchasedReportAccess(products: { productId: string; name: 
     return {
       ...program,
       entitlements,
-      ...(selectedFilter
+      ...(selectedFilter || purchased.has("report-kia")
         ? {
             reportSelections: {
               ...program.reportSelections,
-              SEV_Filter: selectedFilter,
+              ...(selectedFilter ? { SEV_Filter: selectedFilter } : {}),
+              ...(purchased.has("report-kia")
+                ? { KIA_Order_Status: "Processing" }
+                : {}),
             },
           }
         : {}),
@@ -236,12 +243,25 @@ async function backendClientLogin(input: {
         WBC_Access: entitlement(enrollment.reportAccess.WBC_Access),
         BBP_Access: entitlement(enrollment.reportAccess.BBP_Access),
         RD_Access: entitlement(enrollment.reportAccess.RD_Access),
-        KIA_Access: entitlement(enrollment.reportAccess.KIA_Access),
+        KIA_Access:
+          typeof enrollment.metrics?.KIA_Order_Status === "string"
+            ? "yes"
+            : entitlement(enrollment.reportAccess.KIA_Access),
         SEV_Access: entitlement(enrollment.reportAccess.SEV_Access),
         CR_Access: entitlement(enrollment.reportAccess.CR_Access),
       },
-      ...(typeof enrollment.metrics?.SEV_Filter === "string"
-        ? { reportSelections: { SEV_Filter: enrollment.metrics.SEV_Filter } }
+      ...(typeof enrollment.metrics?.SEV_Filter === "string" ||
+      typeof enrollment.metrics?.KIA_Order_Status === "string"
+        ? {
+            reportSelections: {
+              ...(typeof enrollment.metrics.SEV_Filter === "string"
+                ? { SEV_Filter: enrollment.metrics.SEV_Filter }
+                : {}),
+              ...(typeof enrollment.metrics.KIA_Order_Status === "string"
+                ? { KIA_Order_Status: enrollment.metrics.KIA_Order_Status }
+                : {}),
+            },
+          }
         : {}),
     };
   });
