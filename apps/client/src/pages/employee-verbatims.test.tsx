@@ -225,6 +225,14 @@ describe("Employee Verbatims page", () => {
     expect(await screen.findByText("Sorted by Department")).toBeVisible();
     expect(screen.queryByText("Sorting your report")).not.toBeInTheDocument();
     expect(screen.queryByText("Price")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Download Report" })).not.toBeInTheDocument();
+    const purchasedReport = screen.getByText("Sorted by Department").closest("section");
+    if (!purchasedReport) throw new Error("Purchased report panel was not rendered");
+    expect(
+      within(purchasedReport).getByRole("button", {
+        name: "Download sorted report",
+      }),
+    ).toHaveClass("bg-violet-600");
     await userEvent.click(screen.getByText("What should we improve?"));
     expect(await screen.findByText("Give managers more training.")).toBeVisible();
     expect(screen.getByText("Employee response 1 · Human Resources")).toBeVisible();

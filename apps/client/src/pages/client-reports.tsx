@@ -1898,18 +1898,16 @@ export function EmployeeVerbatimsPage() {
               </strong>
             </div>
             {sortedVerbatims.selection ? (
-              <Button
-                onClick={() =>
+              <DownloadReportButton
+                label="Download sorted report"
+                onDownload={() =>
                   api.reports.downloadVerbatimsWorkbook(
                     program?.id ?? "",
                     isDummy,
                     sortedVerbatims.selection,
                   )
                 }
-                variant="secondary"
-              >
-                Download sorted report
-              </Button>
+              />
             ) : null}
           </section>
         ) : (
@@ -1973,16 +1971,8 @@ export function EmployeeVerbatimsPage() {
           </section>
         )}
         <Card className="mt-6 overflow-hidden shadow-none">
-          <div className="flex items-center justify-between border-b border-zinc-200 p-5">
+          <div className="border-b border-zinc-200 p-5">
             <h2 className="font-semibold">Question Details</h2>
-            <DownloadReportButton
-              onDownload={() =>
-                api.reports.downloadVerbatimsWorkbook(
-                  program?.id ?? "",
-                  isDummy,
-                )
-              }
-            />
           </div>
           <div className="grid gap-3 p-5">
             {questions.isPending ? (
