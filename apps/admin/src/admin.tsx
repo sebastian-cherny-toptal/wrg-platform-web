@@ -809,6 +809,11 @@ export function ProgramDetailPage() {
     auth?.user.roles.some(
       (role) => role === "admin" || role === "super_admin",
     ) || auth?.user.permissions.includes("ops.manage");
+  const changedOrganizationIds = new Set(
+    (resyncPreview?.changedRows ?? []).map(
+      (row) => row.organizationProgramId,
+    ),
+  );
   const normalizedSearch = search.toLowerCase();
   const organizations = [...(organizationsLoaded.data ?? [])]
     .filter(
@@ -819,6 +824,12 @@ export function ProgramDetailPage() {
         (!date || item.createdAt?.slice(0, 10) === date),
     )
     .sort((left, right) => {
+      if (sort === "changes:first") {
+        const changeOrder =
+          Number(changedOrganizationIds.has(right.organizationProgramId)) -
+          Number(changedOrganizationIds.has(left.organizationProgramId));
+        if (changeOrder) return changeOrder;
+      }
       if (sort === "name:asc") return left.name.localeCompare(right.name);
       if (sort === "surveys:desc") return right.surveysSent - left.surveysSent;
       if (sort === "winners:first" || sort === "winners:last") {
@@ -867,6 +878,7 @@ export function ProgramDetailPage() {
     try {
       const preview = await api.previewProgramZohoResync(program.id);
       setResyncPreview(preview);
+      setSort("changes:first");
       const warnings = [
         preview.unmatchedZoho.length
           ? `${preview.unmatchedZoho.length} Zoho deal${preview.unmatchedZoho.length === 1 ? "" : "s"} did not match an existing organization`
@@ -1073,6 +1085,7 @@ export function ProgramDetailPage() {
         setSort={setSort}
         sortOptions={[
           { value: "id:asc", label: "Organization ID" },
+          { value: "changes:first", label: "Rows being edited first" },
           { value: "name:asc", label: "Organization name" },
           { value: "surveys:desc", label: "Most surveys sent" },
           { value: "winners:first", label: "Winners first" },

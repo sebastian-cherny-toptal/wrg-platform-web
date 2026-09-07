@@ -76,6 +76,30 @@ describe("program Zoho resync changes", () => {
     });
     vi.spyOn(api, "organizations").mockResolvedValue([
       {
+        id: "unchanged-organization-id",
+        selectionId: "unchanged-enrollment-id",
+        sourceId: "1",
+        sourceName: "Before Company",
+        name: "Before Company",
+        createdAt: null,
+        stage: "Invited",
+        lastSyncedAt: null,
+        surveysSent: 25,
+        isWinner: false,
+        isIncluded: true,
+        companySize: 25,
+        employeesCount: 20,
+        overallRank: "9",
+        categoryRank: "4",
+        currentZohoCategory: "Small",
+        reportCategory: "25-99",
+        benchmarkCategory: null,
+        organizationProgramId: "unchanged-enrollment-id",
+        benefitsBestPracticesFileName: null,
+        programs: [],
+        users: [],
+      },
+      {
         id: "organization-id",
         selectionId: "enrollment-id",
         sourceId: "49",
@@ -162,6 +186,12 @@ describe("program Zoho resync changes", () => {
     const changedRow = screen.getByRole("row", { name: /Acme/u });
     expect(changedRow.classList.contains("zoho-resync-changed-row")).toBe(true);
     expect(changedRow.querySelectorAll("del")).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "Sort records" }).textContent).toBe(
+      "Rows being edited first",
+    );
+    const organizationRows = screen.getAllByRole("row").slice(1);
+    expect(organizationRows[0]).toBe(changedRow);
+    expect(organizationRows[1].textContent).toContain("Before Company");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Apply all Zoho changes" }),
