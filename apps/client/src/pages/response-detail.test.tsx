@@ -53,6 +53,11 @@ describe("Response Detail page", () => {
           { label: "Male", values: ["Male"] },
         ],
       },
+      {
+        questionId: "filter-location",
+        label: "Location",
+        options: [{ label: "North", values: ["North"] }],
+      },
     ]);
     vi.spyOn(api.reports, "responseDetailSections").mockResolvedValue({
       success: true,
@@ -78,6 +83,23 @@ describe("Response Detail page", () => {
     );
 
     await screen.findByText("Filter: Gender");
+    expect(
+      screen.queryByRole("button", { name: "Apply Filter" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Compare by demographic" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Location" }));
+    await waitFor(() => {
+      expect(screen.getByText("Filter: Location")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Filters" })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
     fireEvent.click(screen.getByRole("button", { name: /Download Report/u }));
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Download full report" }),
@@ -89,7 +111,7 @@ describe("Response Detail page", () => {
       screen.getByRole("menuitem", { name: "Download filtered report" }),
     );
     await waitFor(() =>
-      expect(download).toHaveBeenCalledWith("program-2026", "filter-gender"),
+      expect(download).toHaveBeenCalledWith("program-2026", "filter-location"),
     );
   });
 });

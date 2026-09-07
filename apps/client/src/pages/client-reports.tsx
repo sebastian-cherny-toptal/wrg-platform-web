@@ -176,7 +176,9 @@ function ReportHeader({
 }) {
   const program = useSelectedProgram();
   const [cartOpen, setCartOpen] = useState(false);
-  const cartCount = useAppStore((state) => state.cart.reduce((total, item) => total + item.quantity, 0));
+  const cartCount = useAppStore((state) =>
+    state.cart.reduce((total, item) => total + item.quantity, 0),
+  );
   const yearTitle = customBreadcrumb
     ? title
     : `${title} ${program?.year ?? ""}`.trim();
@@ -190,7 +192,9 @@ function ReportHeader({
             variant="secondary"
           >
             <ShoppingCart className="size-4" /> Cart
-            <span className="absolute right-2 grid min-w-5 place-items-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{cartCount}</span>
+            <span className="absolute right-2 grid min-w-5 place-items-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+              {cartCount}
+            </span>
           </Button>
         }
         breadcrumbs={[
@@ -636,9 +640,14 @@ function FilterButton({
   loading: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const handleChange = (nextValue: string) => {
+    onChange(nextValue);
+    setOpen(false);
+  };
   return (
     <div className="relative">
       <Button
+        aria-expanded={open}
         className="gap-2"
         onClick={() => setOpen((value) => !value)}
         variant="secondary"
@@ -652,16 +661,16 @@ function FilterButton({
             <SearchableSelect
               ariaLabel="Compare by demographic"
               disabled={loading}
-              onChange={onChange}
-              options={filters.map((filter) => ({ value: filter.questionId, label: filter.label }))}
+              onChange={handleChange}
+              options={filters.map((filter) => ({
+                value: filter.questionId,
+                label: filter.label,
+              }))}
               placeholder="Select a demographic"
               searchPlaceholder="Search demographics…"
               value={value}
             />
           </label>
-          <Button className="mt-3 w-full" onClick={() => setOpen(false)}>
-            Apply Filter
-          </Button>
         </div>
       ) : null}
     </div>
@@ -910,7 +919,10 @@ export function DetailedResultsPage() {
           desktop: Math.floor(selectedIndex / 3) + 1,
         };
   const gridStyleForCard = (index: number) => {
-    const rowWithDetail = (columns: number, selectedRow: number | undefined) => {
+    const rowWithDetail = (
+      columns: number,
+      selectedRow: number | undefined,
+    ) => {
       const row = Math.floor(index / columns) + 1;
       return selectedRow !== undefined && row > selectedRow ? row + 1 : row;
     };
@@ -1785,9 +1797,9 @@ export function EmployeeVerbatimsPage() {
   const [searchParams] = useSearchParams();
   const isDemo = searchParams.get("demo") === "report-verbatims-sorted";
   const program = useSelectedProgram();
-  const isDummy = useAppStore(
-    (state) => state.session?.user.role === "promotional",
-  ) || isDemo;
+  const isDummy =
+    useAppStore((state) => state.session?.user.role === "promotional") ||
+    isDemo;
   const addToCart = useAppStore((state) => state.addToCart);
   const inCart = useAppStore((state) =>
     state.cart.some((item) => item.productId === "report-verbatims-sorted"),
@@ -1827,10 +1839,48 @@ export function EmployeeVerbatimsPage() {
         title="Employee Verbatims"
       />
       {isDemo && sortedVerbatims ? (
-        <div className="fixed right-5 top-5 z-[65] grid w-[min(92vw,34rem)] gap-3 rounded-xl border border-violet-200 bg-white p-4 shadow-xl sm:grid-cols-[1fr_220px_auto] sm:items-end" role="status">
-          <div className="min-w-0 flex-1"><strong className="text-sm text-violet-700">Viewing demo</strong><p className="mt-1 text-xs text-zinc-500">You&apos;re viewing fake Employee Verbatims data.</p></div>
-          <SearchableSelect ariaLabel="Demo sorting category" onChange={setFilter} options={(availableFilters.data ?? []).map((item) => ({ value: item.questionId, label: item.label }))} placeholder="Select sorting category…" searchPlaceholder="Search categories…" value={effectiveSortingFilter} />
-          <Button disabled={inCart || sortedVerbatims.owned || !effectiveSortingFilter || sortedVerbatims.priceCents == null} onClick={() => addToCart({ productId: sortedVerbatims.id, name: sortedVerbatims.name, priceCents: sortedVerbatims.priceCents ?? 0, keys: { EV_Sorting_Filter: effectiveSortingFilter }, ...(selectedSortingLabel ? { optionLabel: selectedSortingLabel } : {}) })}>{inCart ? "Added" : "Add to cart"}</Button>
+        <div
+          className="fixed right-5 top-5 z-[65] grid w-[min(92vw,34rem)] gap-3 rounded-xl border border-violet-200 bg-white p-4 shadow-xl sm:grid-cols-[1fr_220px_auto] sm:items-end"
+          role="status"
+        >
+          <div className="min-w-0 flex-1">
+            <strong className="text-sm text-violet-700">Viewing demo</strong>
+            <p className="mt-1 text-xs text-zinc-500">
+              You&apos;re viewing fake Employee Verbatims data.
+            </p>
+          </div>
+          <SearchableSelect
+            ariaLabel="Demo sorting category"
+            onChange={setFilter}
+            options={(availableFilters.data ?? []).map((item) => ({
+              value: item.questionId,
+              label: item.label,
+            }))}
+            placeholder="Select sorting category…"
+            searchPlaceholder="Search categories…"
+            value={effectiveSortingFilter}
+          />
+          <Button
+            disabled={
+              inCart ||
+              sortedVerbatims.owned ||
+              !effectiveSortingFilter ||
+              sortedVerbatims.priceCents == null
+            }
+            onClick={() =>
+              addToCart({
+                productId: sortedVerbatims.id,
+                name: sortedVerbatims.name,
+                priceCents: sortedVerbatims.priceCents ?? 0,
+                keys: { EV_Sorting_Filter: effectiveSortingFilter },
+                ...(selectedSortingLabel
+                  ? { optionLabel: selectedSortingLabel }
+                  : {}),
+              })
+            }
+          >
+            {inCart ? "Added" : "Add to cart"}
+          </Button>
         </div>
       ) : null}
       <div className="p-6">
@@ -1863,55 +1913,64 @@ export function EmployeeVerbatimsPage() {
             ) : null}
           </section>
         ) : (
-        <section className="grid min-h-[225px] gap-6 rounded-2xl bg-violet-600 p-7 text-white md:grid-cols-[160px_minmax(0,1fr)_230px] md:items-center">
-          <div className="mx-auto grid size-32 place-items-center rounded-full bg-white/15">
-            <Filter className="size-14" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-semibold">Sorting your report</h2>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-violet-100">
-              Sorting the employees&apos; open-ended responses by a demographic
-              will allow you to better identify where the comments originated.
-            </p>
-          </div>
-          <div className="rounded-xl bg-white p-4 text-zinc-900">
-            <p className="text-[13px] text-zinc-500">Price</p>
-            <strong className="text-2xl">
-              {sortedVerbatims?.priceCents != null
-                ? `$ ${(sortedVerbatims.priceCents / 100).toLocaleString()}`
-                : "—"}
-            </strong>
-            <p className="mt-3 text-xs font-medium text-zinc-700">
-              Select one of these options
-            </p>
-            <SearchableSelect
-              ariaLabel="Filtering report"
-              className="mt-3 text-sm"
-              onChange={setFilter}
-              options={(availableFilters.data ?? []).map((item) => ({ value: item.questionId, label: item.label }))}
-              placeholder="Select filtering report"
-              searchPlaceholder="Search reports…"
-              value={effectiveSortingFilter}
-            />
-            <Button
-              className="mt-3 w-full"
-              disabled={!filter || inCart || (sortedVerbatims?.owned ?? false) || sortedVerbatims?.priceCents == null}
-              onClick={() =>
-                addToCart({
-                  productId: "report-verbatims-sorted",
-                  name: sortedVerbatims?.name ?? "Sorted Employee Verbatims",
-                  priceCents: sortedVerbatims?.priceCents ?? 0,
-                  keys: { EV_Sorting_Filter: filter },
-                  ...(selectedSortingLabel ? { optionLabel: selectedSortingLabel } : {}),
-                })
-              }
-            >
-              {inCart
-                  ? "Added to Cart"
-                  : "Add to Cart"}
-            </Button>
-          </div>
-        </section>
+          <section className="grid min-h-[225px] gap-6 rounded-2xl bg-violet-600 p-7 text-white md:grid-cols-[160px_minmax(0,1fr)_230px] md:items-center">
+            <div className="mx-auto grid size-32 place-items-center rounded-full bg-white/15">
+              <Filter className="size-14" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-semibold">Sorting your report</h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-violet-100">
+                Sorting the employees&apos; open-ended responses by a
+                demographic will allow you to better identify where the comments
+                originated.
+              </p>
+            </div>
+            <div className="rounded-xl bg-white p-4 text-zinc-900">
+              <p className="text-[13px] text-zinc-500">Price</p>
+              <strong className="text-2xl">
+                {sortedVerbatims?.priceCents != null
+                  ? `$ ${(sortedVerbatims.priceCents / 100).toLocaleString()}`
+                  : "—"}
+              </strong>
+              <p className="mt-3 text-xs font-medium text-zinc-700">
+                Select one of these options
+              </p>
+              <SearchableSelect
+                ariaLabel="Filtering report"
+                className="mt-3 text-sm"
+                onChange={setFilter}
+                options={(availableFilters.data ?? []).map((item) => ({
+                  value: item.questionId,
+                  label: item.label,
+                }))}
+                placeholder="Select filtering report"
+                searchPlaceholder="Search reports…"
+                value={effectiveSortingFilter}
+              />
+              <Button
+                className="mt-3 w-full"
+                disabled={
+                  !filter ||
+                  inCart ||
+                  (sortedVerbatims?.owned ?? false) ||
+                  sortedVerbatims?.priceCents == null
+                }
+                onClick={() =>
+                  addToCart({
+                    productId: "report-verbatims-sorted",
+                    name: sortedVerbatims?.name ?? "Sorted Employee Verbatims",
+                    priceCents: sortedVerbatims?.priceCents ?? 0,
+                    keys: { EV_Sorting_Filter: filter },
+                    ...(selectedSortingLabel
+                      ? { optionLabel: selectedSortingLabel }
+                      : {}),
+                  })
+                }
+              >
+                {inCart ? "Added to Cart" : "Add to Cart"}
+              </Button>
+            </div>
+          </section>
         )}
         <Card className="mt-6 overflow-hidden shadow-none">
           <div className="flex items-center justify-between border-b border-zinc-200 p-5">
@@ -1990,9 +2049,13 @@ function EmployeeVerbatimQuestion({
     enabled: Boolean(programId) && open,
   });
   return (
-    <details className="group overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details
+      className="group overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       <summary className="flex cursor-pointer list-none items-center gap-3 bg-white p-4 text-sm font-semibold leading-6 text-zinc-800">
-        <span className="flex-1">{question.caption}</span><ChevronRight className="size-4 transition group-open:rotate-90" />
+        <span className="flex-1">{question.caption}</span>
+        <ChevronRight className="size-4 transition group-open:rotate-90" />
       </summary>
       <div className="grid gap-3 p-4">
         {answers.isPending ? (
@@ -2941,9 +3004,17 @@ export function ResponseDetailPage() {
   const [searchParams] = useSearchParams();
   const isDemo = searchParams.get("demo") === "report-response-detail";
   const addToCart = useAppStore((state) => state.addToCart);
-  const inCart = useAppStore((state) => state.cart.some((item) => item.productId === "report-response-detail"));
-  const catalog = useQuery({ queryKey: ["report-catalog", program?.id], queryFn: () => api.reports.catalog(program?.id), enabled: Boolean(program) });
-  const responseDetailProduct = catalog.data?.find((product) => product.id === "report-response-detail");
+  const inCart = useAppStore((state) =>
+    state.cart.some((item) => item.productId === "report-response-detail"),
+  );
+  const catalog = useQuery({
+    queryKey: ["report-catalog", program?.id],
+    queryFn: () => api.reports.catalog(program?.id),
+    enabled: Boolean(program),
+  });
+  const responseDetailProduct = catalog.data?.find(
+    (product) => product.id === "report-response-detail",
+  );
   const paymentReconciliation = useQuery({
     queryKey: ["payment-reconciliation", program?.id],
     queryFn: () =>
@@ -2962,7 +3033,8 @@ export function ResponseDetailPage() {
   });
   const sections = useQuery({
     queryKey: ["response-detail-sections", program?.id, isDemo],
-    queryFn: () => api.reports.responseDetailSections(program?.id ?? "", isDemo),
+    queryFn: () =>
+      api.reports.responseDetailSections(program?.id ?? "", isDemo),
     enabled: Boolean(program) && accessReady,
   });
   const effectiveFilterQuestion =
@@ -2979,7 +3051,33 @@ export function ResponseDetailPage() {
         title="Response Detail"
       />
       {isDemo && responseDetailProduct ? (
-        <div className="fixed right-5 top-5 z-[65] flex max-w-md items-center gap-4 rounded-xl border border-violet-200 bg-white p-4 shadow-xl" role="status"><div className="min-w-0 flex-1"><strong className="text-sm text-violet-700">Viewing demo</strong><p className="mt-1 text-xs text-zinc-500">You&apos;re viewing fake Response Detail data.</p></div><Button disabled={inCart || responseDetailProduct.owned || responseDetailProduct.priceCents == null} onClick={() => addToCart({ productId: responseDetailProduct.id, name: responseDetailProduct.name, priceCents: responseDetailProduct.priceCents ?? 0 })}>{inCart ? "Added" : "Add to cart"}</Button></div>
+        <div
+          className="fixed right-5 top-5 z-[65] flex max-w-md items-center gap-4 rounded-xl border border-violet-200 bg-white p-4 shadow-xl"
+          role="status"
+        >
+          <div className="min-w-0 flex-1">
+            <strong className="text-sm text-violet-700">Viewing demo</strong>
+            <p className="mt-1 text-xs text-zinc-500">
+              You&apos;re viewing fake Response Detail data.
+            </p>
+          </div>
+          <Button
+            disabled={
+              inCart ||
+              responseDetailProduct.owned ||
+              responseDetailProduct.priceCents == null
+            }
+            onClick={() =>
+              addToCart({
+                productId: responseDetailProduct.id,
+                name: responseDetailProduct.name,
+                priceCents: responseDetailProduct.priceCents ?? 0,
+              })
+            }
+          >
+            {inCart ? "Added" : "Add to cart"}
+          </Button>
+        </div>
       ) : null}
       <div className="p-6">
         <div className="flex items-center justify-between gap-3">
@@ -2989,18 +3087,20 @@ export function ResponseDetailPage() {
             onChange={setFilterQuestion}
             value={effectiveFilterQuestion}
           />
-          {!isDemo ? <ResponseDetailDownloadMenu
-            filteredDisabled={!effectiveFilterQuestion}
-            onDownloadFiltered={() =>
-              api.reports.downloadResponseDetailWorkbook(
-                program?.id ?? "",
-                effectiveFilterQuestion,
-              )
-            }
-            onDownloadFull={() =>
-              api.reports.downloadResponseDetailWorkbook(program?.id ?? "")
-            }
-          /> : null}
+          {!isDemo ? (
+            <ResponseDetailDownloadMenu
+              filteredDisabled={!effectiveFilterQuestion}
+              onDownloadFiltered={() =>
+                api.reports.downloadResponseDetailWorkbook(
+                  program?.id ?? "",
+                  effectiveFilterQuestion,
+                )
+              }
+              onDownloadFull={() =>
+                api.reports.downloadResponseDetailWorkbook(program?.id ?? "")
+              }
+            />
+          ) : null}
         </div>
         {selectedFilter ? (
           <span className="mt-4 inline-flex rounded-full bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700">
@@ -3015,12 +3115,8 @@ export function ResponseDetailPage() {
               kind="error"
               title="Response detail unavailable"
               message={
-                (
-                  paymentReconciliation.error ??
-                  filters.error ??
-                  sections.error
-                )?.message ??
-                "The response detail could not be loaded."
+                (paymentReconciliation.error ?? filters.error ?? sections.error)
+                  ?.message ?? "The response detail could not be loaded."
               }
             />
           ) : !accessReady || filters.isPending || sections.isPending ? (
@@ -3158,7 +3254,11 @@ function KeyImpactBubbleChart({
               >
                 {lines.map((line, lineIndex) => (
                   <tspan
-                    dy={lineIndex === 0 ? `${-(lines.length - 1) * 0.55}em` : "1.1em"}
+                    dy={
+                      lineIndex === 0
+                        ? `${-(lines.length - 1) * 0.55}em`
+                        : "1.1em"
+                    }
                     key={line}
                     x="0"
                   >
@@ -3209,7 +3309,10 @@ function KeyImpactDialog({
         >
           <X className="size-4" />
         </button>
-        <h2 className="text-xl font-semibold text-zinc-950" id="key-impact-dialog-title">
+        <h2
+          className="text-xl font-semibold text-zinc-950"
+          id="key-impact-dialog-title"
+        >
           {bubble.category}
         </h2>
         <p className="mt-4 text-base leading-6 text-zinc-500">
@@ -3230,13 +3333,17 @@ export function KeyImpactAnalysisPage() {
   const [searchParams] = useSearchParams();
   const isDemo = searchParams.get("demo") === "report-kia";
   const addToCart = useAppStore((state) => state.addToCart);
-  const inCart = useAppStore((state) => state.cart.some((item) => item.productId === "report-kia"));
+  const inCart = useAppStore((state) =>
+    state.cart.some((item) => item.productId === "report-kia"),
+  );
   const catalog = useQuery({
     queryKey: ["report-catalog", program?.id],
     queryFn: () => api.reports.catalog(program?.id),
     enabled: Boolean(program),
   });
-  const keyImpactProduct = catalog.data?.find((product) => product.id === "report-kia");
+  const keyImpactProduct = catalog.data?.find(
+    (product) => product.id === "report-kia",
+  );
   const chartRef = useRef<HTMLDivElement>(null);
   const [selectedBubble, setSelectedBubble] = useState<KeyImpactBubble | null>(
     null,
@@ -3262,9 +3369,32 @@ export function KeyImpactAnalysisPage() {
         title="Key Impact Analysis"
       />
       {isDemo && keyImpactProduct ? (
-        <div className="fixed right-5 top-5 z-[65] flex max-w-md items-center gap-4 rounded-xl border border-violet-200 bg-white p-4 shadow-xl" role="status">
-          <div className="min-w-0 flex-1"><strong className="text-sm text-violet-700">Viewing demo</strong><p className="mt-1 text-xs text-zinc-500">You&apos;re viewing fake Key Impact Analysis data.</p></div>
-          <Button disabled={inCart || keyImpactProduct.owned || keyImpactProduct.priceCents == null} onClick={() => addToCart({ productId: keyImpactProduct.id, name: keyImpactProduct.name, priceCents: keyImpactProduct.priceCents ?? 0 })}>{inCart ? "Added" : "Add to cart"}</Button>
+        <div
+          className="fixed right-5 top-5 z-[65] flex max-w-md items-center gap-4 rounded-xl border border-violet-200 bg-white p-4 shadow-xl"
+          role="status"
+        >
+          <div className="min-w-0 flex-1">
+            <strong className="text-sm text-violet-700">Viewing demo</strong>
+            <p className="mt-1 text-xs text-zinc-500">
+              You&apos;re viewing fake Key Impact Analysis data.
+            </p>
+          </div>
+          <Button
+            disabled={
+              inCart ||
+              keyImpactProduct.owned ||
+              keyImpactProduct.priceCents == null
+            }
+            onClick={() =>
+              addToCart({
+                productId: keyImpactProduct.id,
+                name: keyImpactProduct.name,
+                priceCents: keyImpactProduct.priceCents ?? 0,
+              })
+            }
+          >
+            {inCart ? "Added" : "Add to cart"}
+          </Button>
         </div>
       ) : null}
       <div className="p-6">
