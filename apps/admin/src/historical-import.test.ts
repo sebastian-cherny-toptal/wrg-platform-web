@@ -20,7 +20,7 @@ describe("winner organization filtering", () => {
       surveysSent: 0,
       isWinner: false,
       isIncluded: true,
-      benchmarkCategory: "Super",
+      currentZohoCategory: "Super",
     },
     {
       organizationKey: "org2",
@@ -58,6 +58,7 @@ describe("winner organization filtering", () => {
           companySize: 30,
           employeesCount: 125,
           currentZohoCategory: "Small/Medium",
+          reportCategory: "25-99",
           overallRank: "4",
           categoryRank: "2",
         },
@@ -71,6 +72,7 @@ describe("winner organization filtering", () => {
           companySize: null,
           employeesCount: null,
           currentZohoCategory: "Small",
+          reportCategory: "100-199",
           overallRank: null,
           categoryRank: null,
         },
@@ -83,7 +85,7 @@ describe("winner organization filtering", () => {
         companySize: 30,
         employeesCount: 125,
         currentZohoCategory: "Small/Medium",
-        benchmarkCategory: "Super",
+        reportCategory: "25-99",
         overallRank: "4",
         categoryRank: "2",
       },
@@ -91,6 +93,7 @@ describe("winner organization filtering", () => {
         isWinner: false,
         surveysSent: 80,
         currentZohoCategory: "Small",
+        reportCategory: "100-199",
       },
     ]);
   });
@@ -100,14 +103,14 @@ describe("organization participation status", () => {
   const organization = (
     isWinner: boolean,
     isIncluded: boolean,
-    benchmarkCategory = "Small",
+    currentZohoCategory = "Small",
   ) => ({
-    organizationKey: `${isWinner}-${isIncluded}-${benchmarkCategory}`,
+    organizationKey: `${isWinner}-${isIncluded}-${currentZohoCategory}`,
     organizationName: "Example",
     surveysSent: 10,
     isWinner,
     isIncluded,
-    benchmarkCategory,
+    currentZohoCategory,
   });
 
   it("distinguishes winners, non-winners, and not-included organizations", () => {
@@ -279,6 +282,7 @@ describe("historical import API client", () => {
               companySize: 30,
               employeesCount: 125,
               currentZohoCategory: "Small/Medium",
+              reportCategory: "25-99",
               overallRank: "4",
               categoryRank: "2",
             },
@@ -299,6 +303,7 @@ describe("historical import API client", () => {
         companySize: 30,
         employeesCount: 125,
         currentZohoCategory: "Small/Medium",
+        reportCategory: "25-99",
         overallRank: "4",
         categoryRank: "2",
       },

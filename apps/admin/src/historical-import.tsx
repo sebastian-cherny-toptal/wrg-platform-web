@@ -78,13 +78,18 @@ const defaultCategoryPricing: CategoryPricing[] = [
     priceCents: 141_500,
   },
 ];
-const benchmarkCategories = [
-  "Small",
-  "Medium",
-  "Large",
-  "Major",
-  "Super",
-] as const;
+export function zohoCategoryNames(
+  categoryPricing: CategoryPricing[] = defaultCategoryPricing,
+): string[] {
+  const seen = new Set<string>();
+  return categoryPricing.flatMap(({ zohoCategoryName }) => {
+    const name = zohoCategoryName.trim();
+    const normalized = name.toLocaleLowerCase("en");
+    if (!name || seen.has(normalized)) return [];
+    seen.add(normalized);
+    return [name];
+  });
+}
 
 function readStoredDraft(): Partial<DraftState> | null {
   try {
@@ -234,16 +239,17 @@ export function organizationParticipationStatus(
 
 export function summarizeOrganizationPrograms(
   entries: OrganizationProgramDraft[],
+  categories = zohoCategoryNames(),
 ) {
   return {
     notIncluded: entries.filter(
       (entry) => organizationParticipationStatus(entry) === "not-included",
     ).length,
-    categories: benchmarkCategories.map((category) => {
+    categories: categories.map((category) => {
       const included = entries.filter(
         (entry) =>
           organizationParticipationStatus(entry) !== "not-included" &&
-          entry.benchmarkCategory === category,
+          entry.currentZohoCategory === category,
       );
       return {
         category,
@@ -369,6 +375,7 @@ export function applyZohoOrganizations(
         ? { employeesCount: organization.employeesCount }
         : {}),
       currentZohoCategory: organization.currentZohoCategory ?? undefined,
+      reportCategory: organization.reportCategory ?? undefined,
       overallRank: organization.overallRank ?? undefined,
       categoryRank: organization.categoryRank ?? undefined,
     };
@@ -571,10 +578,10 @@ export function CategoryPricingEditor({
   return (
     <section className="category-pricing-editor">
       <div>
-        <strong>Zoho category configuration</strong>
+        <strong>Zoho and report category configuration</strong>
         <span>
-          Map each stable tier to the category name Zoho sends, its
-          employee-size definition, and its price.
+          Set each Zoho benchmark category's name and employee-size definition,
+          plus the independent report price for its stable pricing tier.
         </span>
       </div>
       <div className="category-pricing-grid">
@@ -610,7 +617,9 @@ export function CategoryPricingEditor({
                 </>
               ) : (
                 <>
-                  <strong>{entry.zohoCategoryName?.trim() || entry.tier}</strong>
+                  <strong>
+                    {entry.zohoCategoryName?.trim() || entry.tier}
+                  </strong>
                   <button
                     aria-label={`Edit ${entry.tier} category name`}
                     className="icon-button category-name-action"
@@ -625,7 +634,7 @@ export function CategoryPricingEditor({
               )}
             </div>
             <label>
-              Category size
+              Zoho category size
               <input
                 aria-label={`${entry.tier} category size`}
                 onChange={(event) =>
@@ -636,7 +645,7 @@ export function CategoryPricingEditor({
               />
             </label>
             <label>
-              Price (USD)
+              Report price (USD)
               <MoneyInput
                 ariaLabel={`${entry.tier} category price`}
                 onChange={(priceCents) => update(entry.tier, { priceCents })}
@@ -1322,7 +1331,7 @@ function UploadStep({
   );
 }
 
-function WinnersStep({
+export function WinnersStep({
   draft,
   onComplete,
   onBack,
@@ -1345,6 +1354,7 @@ function WinnersStep({
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const zohoOrganizations = draft.metadata.zohoOrganizations ?? [];
+  const zohoCategories = zohoCategoryNames(draft.metadata.categoryPricing);
   const sortedOrganizationPrograms = [...organizationPrograms].sort(
     (left, right) => {
       const leftMatched = Boolean(
@@ -1361,8 +1371,10 @@ function WinnersStep({
       );
     },
   );
-  const organizationSummary =
-    summarizeOrganizationPrograms(organizationPrograms);
+  const organizationSummary = summarizeOrganizationPrograms(
+    organizationPrograms,
+    zohoCategories,
+  );
 
   const updateOrganization = (
     key: string,
@@ -1464,9 +1476,10 @@ function WinnersStep({
       {actions("top")}
       <p className="wizard-copy">
         Review the organization information loaded from Zoho, then adjust its
-        status, Surveys Sent, or category when needed. Organizations marked as
-        not included remain visible but will not be imported. You can also
-        upload a ranking extract for bulk updates.
+        status, Surveys Sent, or Zoho category when needed. The Zoho category
+        determines the benchmark cohort. Organizations marked as not included
+        remain visible but will not be imported. You can also upload a ranking
+        extract for bulk updates.
       </p>
       {organizationPrograms.length ? (
         <>
@@ -1539,8 +1552,8 @@ function WinnersStep({
                   <th>Winner</th>
                   <th>EFS respondents</th>
                   <th>Surveys Sent</th>
-                  <th>Current Zoho category</th>
-                  <th>Benchmark category</th>
+                  <th>Report category</th>
+                  <th>Zoho category (benchmark)</th>
                   <th aria-label="Inclusion actions">Actions</th>
                 </tr>
               </thead>
@@ -1611,22 +1624,18 @@ function WinnersStep({
                           value={entry.surveysSent}
                         />
                       </td>
-                      <td>
-                        <span>
-                          {entry.currentZohoCategory ?? "Not provided"}
-                        </span>
-                      </td>
+                      <td>{entry.reportCategory ?? "Not provided"}</td>
                       <td>
                         <div className="category-radio-group">
-                          {benchmarkCategories.map((category) => (
+                          {zohoCategories.map((category) => (
                             <label key={category}>
                               <input
-                                checked={entry.benchmarkCategory === category}
+                                checked={entry.currentZohoCategory === category}
                                 disabled={!isIncluded}
                                 name={`category-${key}`}
                                 onChange={() =>
                                   updateOrganization(key, {
-                                    benchmarkCategory: category,
+                                    currentZohoCategory: category,
                                   })
                                 }
                                 type="radio"
@@ -1980,6 +1989,9 @@ export function HistoricalImportPage() {
                   ? {
                       currentZohoCategory: organization.currentZohoCategory,
                     }
+                  : {}),
+                ...(organization.reportCategory
+                  ? { reportCategory: organization.reportCategory }
                   : {}),
                 ...(organization.benchmarkCategory
                   ? { benchmarkCategory: organization.benchmarkCategory }

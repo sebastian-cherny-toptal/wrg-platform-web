@@ -91,6 +91,7 @@ export type ZohoOrganizationInfo = {
   companySize: number | null;
   employeesCount: number | null;
   currentZohoCategory: string | null;
+  reportCategory: string | null;
   overallRank: string | null;
   categoryRank: string | null;
 };
@@ -165,6 +166,7 @@ export type HistoricalImportMetadata = {
     companySize?: number;
     employeesCount?: number;
     currentZohoCategory?: string;
+    reportCategory?: string;
     benchmarkCategory?: string;
     overallRank?: string;
     categoryRank?: string;
@@ -246,6 +248,7 @@ export type OrganizationRecord = {
   overallRank: string | null;
   categoryRank: string | null;
   currentZohoCategory: string | null;
+  reportCategory: string | null;
   benchmarkCategory: string | null;
   organizationProgramId: string;
   benefitsBestPracticesFileName: string | null;
@@ -576,6 +579,10 @@ export function organization(raw: unknown): OrganizationRecord {
     overallRank: stringValue(enrollment.overall_rank) || null,
     categoryRank: stringValue(enrollment.category_rank) || null,
     currentZohoCategory: stringValue(enrollment.current_zoho_category) || null,
+    reportCategory:
+      stringValue(enrollment.Report_Category) ||
+      stringValue(enrollment.report_category) ||
+      null,
     benchmarkCategory: stringValue(enrollment.benchmark_category) || null,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
@@ -973,6 +980,7 @@ export const api = {
                 : null,
             currentZohoCategory:
               stringValue(organization.currentZohoCategory) || null,
+            reportCategory: stringValue(organization.reportCategory) || null,
             overallRank: stringValue(organization.overallRank) || null,
             categoryRank: stringValue(organization.categoryRank) || null,
           };
@@ -1014,6 +1022,7 @@ export const api = {
             : null,
         currentZohoCategory:
           stringValue(organization.currentZohoCategory) || null,
+        reportCategory: stringValue(organization.reportCategory) || null,
         overallRank: stringValue(organization.overallRank) || null,
         categoryRank: stringValue(organization.categoryRank) || null,
       };
