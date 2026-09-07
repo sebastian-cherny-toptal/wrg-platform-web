@@ -41,6 +41,7 @@ export type ProgramRecord = {
     winners: number;
     total: number;
   }>;
+  latestZohoSync: string | null;
   projectId?: string;
   details?: Record<string, unknown>;
 };
@@ -53,9 +54,24 @@ const organizationCategories = [
   "Super",
 ] as const;
 
-function categorySummaries(categoriesInfo: Record<string, unknown>) {
+function configuredOrganizationCategories(value: Record<string, unknown>) {
+  const seen = new Set<string>();
+  const configured = array(value.categoryPricing).flatMap((entry) => {
+    const name = stringValue(object(entry).zohoCategoryName).trim();
+    const normalized = name.toLocaleLowerCase("en");
+    if (!name || seen.has(normalized)) return [];
+    seen.add(normalized);
+    return [name];
+  });
+  return configured.length ? configured : [...organizationCategories];
+}
+
+function categorySummaries(
+  categoriesInfo: Record<string, unknown>,
+  categories: readonly string[],
+) {
   const counts = object(categoriesInfo.categoryCounts);
-  return organizationCategories.map((category) => {
+  return categories.map((category) => {
     const winners = Number(counts[`${category} Winners`] ?? 0);
     const nonWinners = Number(counts[`${category} Non-Winners`] ?? 0);
     return {
@@ -260,6 +276,51 @@ export type OrganizationRecord = {
     projectName: string;
   }>;
   users: PortalUserRecord[];
+};
+
+export type ProgramZohoResyncField =
+  | "organizationName"
+  | "stage"
+  | "isWinner"
+  | "surveysSent"
+  | "companySize"
+  | "employeesCount"
+  | "overallRank"
+  | "categoryRank"
+  | "reportCategory"
+  | "currentZohoCategory";
+
+export type ProgramZohoResyncValue = string | number | boolean | null;
+
+export type ProgramZohoResyncChange = {
+  field: ProgramZohoResyncField;
+  previous: ProgramZohoResyncValue;
+  next: ProgramZohoResyncValue;
+};
+
+export type ProgramZohoResyncRow = {
+  organizationProgramId: string;
+  organizationId: string;
+  organizationName: string;
+  changes: ProgramZohoResyncChange[];
+};
+
+export type ProgramZohoResyncPreview = {
+  programId: string;
+  revision: string;
+  changedRows: ProgramZohoResyncRow[];
+  unmatchedZoho: Array<{
+    organizationId: string;
+    organizationName: string | null;
+  }>;
+  missingLocal: Array<{
+    organizationProgramId: string;
+    organizationName: string;
+  }>;
+};
+
+export type ProgramZohoResyncResult = ProgramZohoResyncPreview & {
+  appliedCount: number;
 };
 
 export class ApiError extends Error {
@@ -498,7 +559,11 @@ function program(raw: unknown): ProgramRecord {
     winnersCount: Number(
       value.winnersCount ?? categoriesInfo.winnersCount ?? 0,
     ),
-    categorySummaries: categorySummaries(categoriesInfo),
+    categorySummaries: categorySummaries(
+      categoriesInfo,
+      configuredOrganizationCategories(value),
+    ),
+    latestZohoSync: stringValue(value.latestZohoSync) || null,
     projectId: stringValue(object(value.Project)._id) || undefined,
     details: value,
   };
@@ -926,6 +991,28 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ programId }),
     });
+  },
+
+  async previewProgramZohoResync(
+    programId: string,
+  ): Promise<ProgramZohoResyncPreview> {
+    return request<ProgramZohoResyncPreview>(
+      `/admin/programs/${encodeURIComponent(programId)}/zoho-resync/preview`,
+      { method: "POST" },
+    );
+  },
+
+  async applyProgramZohoResync(
+    programId: string,
+    revision: string,
+  ): Promise<ProgramZohoResyncResult> {
+    return request<ProgramZohoResyncResult>(
+      `/admin/programs/${encodeURIComponent(programId)}/zoho-resync/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ revision }),
+      },
+    );
   },
 
   async zohoPrograms(projectId: string): Promise<ZohoProgramOption[]> {

@@ -1055,14 +1055,16 @@ function MetadataStep({
   );
 }
 
-function UploadStep({
+export function UploadStep({
   draft,
   onComplete,
+  onDraftChange,
   onBack,
   onRestart,
 }: {
   draft: DraftState;
   onComplete: (next: DraftState) => void;
+  onDraftChange?: (next: DraftState) => void;
   onBack: () => void;
   onRestart: () => void;
 }) {
@@ -1079,6 +1081,20 @@ function UploadStep({
   );
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
+  const [filesChanged, setFilesChanged] = useState(false);
+
+  const workbookChanged = (
+    setFile: (file: File | null) => void,
+    file: File | null,
+  ) => {
+    setFile(file);
+    setFilesChanged(true);
+    setValidation(undefined);
+    setError("");
+    const nextDraft = { ...draft, validation: undefined };
+    storeDraft(nextDraft);
+    onDraftChange?.(nextDraft);
+  };
 
   const loadValidatedProgramOrganizations = async () =>
     draft.metadata.zohoProgramId
@@ -1143,6 +1159,7 @@ function UploadStep({
       const summary = await api.validateHistoricalImport(draft.importId);
       const freshZohoOrganizations = await loadValidatedProgramOrganizations();
       setValidation(summary);
+      setFilesChanged(false);
       setZohoOrganizations(freshZohoOrganizations);
       const nextOrganizations = applyZohoOrganizations(
         summary.organizations.map((organization) => ({
@@ -1178,6 +1195,7 @@ function UploadStep({
         validation: summary,
       };
       storeDraft(nextDraft);
+      onDraftChange?.(nextDraft);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -1230,7 +1248,7 @@ function UploadStep({
       <button
         type="button"
         className="primary-button compact"
-        disabled={working}
+        disabled={working || Boolean(validation && !filesChanged)}
         onClick={() => void validate()}
       >
         {working
@@ -1271,7 +1289,9 @@ function UploadStep({
           <input
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={(event) => setEaFile(event.target.files?.[0] ?? null)}
+            onChange={(event) =>
+              workbookChanged(setEaFile, event.target.files?.[0] ?? null)
+            }
           />
         </label>
         <label className="upload-card">
@@ -1283,7 +1303,9 @@ function UploadStep({
           <input
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={(event) => setEfsFile(event.target.files?.[0] ?? null)}
+            onChange={(event) =>
+              workbookChanged(setEfsFile, event.target.files?.[0] ?? null)
+            }
           />
         </label>
       </div>
@@ -2075,6 +2097,7 @@ export function HistoricalImportPage() {
     content = (
       <UploadStep
         draft={draft as DraftState}
+        onDraftChange={(next) => setDraft(next)}
         onComplete={(next) => {
           setDraft(next);
           setStep(3);

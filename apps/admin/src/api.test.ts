@@ -69,6 +69,53 @@ describe("admin API projections", () => {
     });
   });
 
+  it("builds program summaries from configured Zoho category names", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            data: {
+              program: {
+                _id: "program-id",
+                Name: "Program 2026",
+                latestZohoSync: "2026-09-07T10:15:00.000Z",
+                categoryPricing: [
+                  { tier: "Boutique", zohoCategoryName: "Community" },
+                  { tier: "Small", zohoCategoryName: "Growing" },
+                  { tier: "Medium", zohoCategoryName: "Growing" },
+                  { tier: "Large", zohoCategoryName: "Enterprise" },
+                  { tier: "Mega", zohoCategoryName: "Premier" },
+                  { tier: "Major", zohoCategoryName: "National" },
+                ],
+              },
+              categoriesInfo: {
+                winnersCount: 2,
+                categoryCounts: {
+                  "Community Winners": 1,
+                  "Community Non-Winners": 2,
+                  "Enterprise Winners": 1,
+                },
+              },
+            },
+          }),
+      }),
+    );
+
+    await expect(api.program("program-id")).resolves.toMatchObject({
+      latestZohoSync: "2026-09-07T10:15:00.000Z",
+      categorySummaries: [
+        { category: "Community", winners: 1, total: 3 },
+        { category: "Growing", winners: 0, total: 0 },
+        { category: "Enterprise", winners: 1, total: 1 },
+        { category: "Premier", winners: 0, total: 0 },
+        { category: "National", winners: 0, total: 0 },
+      ],
+    });
+  });
+
   it("loads imported projects and their programs from the database endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -125,6 +172,58 @@ describe("admin API projections", () => {
       2,
       expect.stringContaining("/admin/programs/program%2Fid"),
       expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("previews and applies program-scoped Zoho changes", async () => {
+    const payload = {
+      programId: "program-id",
+      revision: "a".repeat(64),
+      changedRows: [
+        {
+          organizationProgramId: "enrollment-id",
+          organizationId: "49",
+          organizationName: "Acme",
+          changes: [{ field: "stage", previous: "Invited", next: "Closed" }],
+        },
+      ],
+      unmatchedZoho: [],
+      missingLocal: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(payload),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ...payload, appliedCount: 1 }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.previewProgramZohoResync("program/id")).resolves.toEqual(
+      payload,
+    );
+    await expect(
+      api.applyProgramZohoResync("program/id", payload.revision),
+    ).resolves.toMatchObject({ appliedCount: 1 });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(
+        "/admin/programs/program%2Fid/zoho-resync/preview",
+      ),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/admin/programs/program%2Fid/zoho-resync/apply"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ revision: payload.revision }),
+      }),
     );
   });
 

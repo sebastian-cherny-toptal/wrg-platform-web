@@ -45,6 +45,10 @@ import {
   type OrganizationRecord,
   type PortalUserRecord,
   type ProgramRecord,
+  type ProgramZohoResyncChange,
+  type ProgramZohoResyncField,
+  type ProgramZohoResyncPreview,
+  type ProgramZohoResyncValue,
   type ProjectRecord,
   type UserRecord,
 } from "./api";
@@ -94,7 +98,7 @@ function useLoad<T>(key: string, loader: () => Promise<T>) {
   const reload = () => {
     setLoading(true);
     setError("");
-    loader()
+    return loader()
       .then(setData)
       .catch((caught: unknown) =>
         setError(
@@ -103,7 +107,9 @@ function useLoad<T>(key: string, loader: () => Promise<T>) {
       )
       .finally(() => setLoading(false));
   };
-  useEffect(reload, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    void reload();
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return { data, error, loading, reload };
 }
 
@@ -208,10 +214,12 @@ function Toolbar({
 function DataTable({
   headers,
   rows,
+  rowClassNames,
   empty = "No data found",
 }: {
   headers: string[];
   rows: ReactNode[][];
+  rowClassNames?: Array<string | undefined>;
   empty?: string;
 }) {
   return (
@@ -227,7 +235,7 @@ function DataTable({
         <tbody>
           {rows.length ? (
             rows.map((row, rowIndex) => (
-              <tr key={rowIndex}>
+              <tr className={rowClassNames?.[rowIndex]} key={rowIndex}>
                 {row.map((cell, cellIndex) => (
                   <td key={cellIndex}>{cell}</td>
                 ))}
@@ -407,9 +415,7 @@ export function ProjectsPage() {
   }, [loaded.data, search, date, sort]);
   return (
     <>
-      {deleting ? (
-        <LongRunningActionOverlay title="Deleting project…" />
-      ) : null}
+      {deleting ? <LongRunningActionOverlay title="Deleting project…" /> : null}
       <PageHeader
         title="Imported Projects"
         breadcrumb="Imported Projects & Programs"
@@ -542,9 +548,7 @@ export function ProjectDetailPage() {
   };
   return (
     <>
-      {deleting ? (
-        <LongRunningActionOverlay title="Deleting program…" />
-      ) : null}
+      {deleting ? <LongRunningActionOverlay title="Deleting program…" /> : null}
       <PageHeader
         title={project.name}
         breadcrumb={
@@ -630,6 +634,32 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+function resyncDisplayValue(
+  value: ProgramZohoResyncValue,
+  field?: ProgramZohoResyncField,
+): string {
+  if (field === "isWinner" && typeof value === "boolean") {
+    return value ? "Y" : "N";
+  }
+  return value === null || value === "" ? "Not provided" : String(value);
+}
+
+export function ZohoResyncValue({
+  value,
+  change,
+}: {
+  value: ProgramZohoResyncValue;
+  change?: ProgramZohoResyncChange;
+}) {
+  if (!change) return <>{resyncDisplayValue(value)}</>;
+  return (
+    <span className="zoho-resync-value">
+      <del>{resyncDisplayValue(change.previous, change.field)}</del>
+      <span>{resyncDisplayValue(change.next, change.field)}</span>
+    </span>
+  );
+}
+
 export function ProgramDetailPage() {
   const { projectId = "", programId = "" } = useParams();
   const { auth } = useAuth();
@@ -644,6 +674,10 @@ export function ProgramDetailPage() {
   const [sort, setSort] = useState("id:asc");
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState("");
+  const [resyncPreview, setResyncPreview] =
+    useState<ProgramZohoResyncPreview | null>(null);
+  const [resyncApplied, setResyncApplied] = useState(false);
+  const [resyncing, setResyncing] = useState<"preview" | "apply" | null>(null);
   const [downloadingConnections, setDownloadingConnections] = useState(false);
   const [uploadOrganization, setUploadOrganization] =
     useState<OrganizationRecord | null>(null);
@@ -694,19 +728,73 @@ export function ProgramDetailPage() {
     );
   const details = program.details ?? {};
   const resync = async () => {
-    if (!window.confirm(`Re-sync all deals for ${program.name}?`)) return;
-    setNotice("Starting synchronization…");
+    setResyncPreview(null);
+    setResyncApplied(false);
+    setResyncing("preview");
+    setNotice("Checking Zoho for changes…");
     try {
-      await api.resyncProgram(program.id);
-      setNotice("Synchronization was queued successfully.");
+      const preview = await api.previewProgramZohoResync(program.id);
+      setResyncPreview(preview);
+      const warnings = [
+        preview.unmatchedZoho.length
+          ? `${preview.unmatchedZoho.length} Zoho deal${preview.unmatchedZoho.length === 1 ? "" : "s"} did not match an existing organization`
+          : "",
+        preview.missingLocal.length
+          ? `${preview.missingLocal.length} local organization${preview.missingLocal.length === 1 ? " is" : "s are"} missing from Zoho`
+          : "",
+      ].filter(Boolean);
+      setNotice(
+        preview.changedRows.length
+          ? `${preview.changedRows.length} organization${preview.changedRows.length === 1 ? " has" : "s have"} changes to review.${warnings.length ? ` ${warnings.join("; ")}.` : ""}`
+          : `Zoho is already in sync.${warnings.length ? ` ${warnings.join("; ")}.` : ""}`,
+      );
     } catch (caught) {
       setNotice(
         caught instanceof Error
           ? caught.message
-          : "Synchronization could not be queued.",
+          : "Zoho changes could not be loaded.",
       );
+    } finally {
+      setResyncing(null);
     }
   };
+  const applyResync = async () => {
+    if (!resyncPreview?.changedRows.length) return;
+    if (
+      !window.confirm(
+        `Apply Zoho changes to ${resyncPreview.changedRows.length} organization${resyncPreview.changedRows.length === 1 ? "" : "s"}?`,
+      )
+    )
+      return;
+    setResyncing("apply");
+    setNotice("Applying Zoho changes…");
+    try {
+      const result = await api.applyProgramZohoResync(
+        program.id,
+        resyncPreview.revision,
+      );
+      setResyncPreview(result);
+      setResyncApplied(true);
+      setNotice(
+        `Applied Zoho changes to ${result.appliedCount} organization${result.appliedCount === 1 ? "" : "s"}.`,
+      );
+      await Promise.all([organizationsLoaded.reload(), programLoaded.reload()]);
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "Zoho changes could not be applied.",
+      );
+    } finally {
+      setResyncing(null);
+    }
+  };
+  const changesByOrganization = new Map(
+    (resyncPreview?.changedRows ?? []).map((row) => [
+      row.organizationProgramId,
+      new Map(row.changes.map((change) => [change.field, change])),
+    ]),
+  );
   const downloadConnections = async () => {
     setDownloadingConnections(true);
     setNotice("");
@@ -797,12 +885,38 @@ export function ProgramDetailPage() {
           >
             Edit program <ChevronRight size={16} />
           </Link>
+          <span className="latest-zoho-sync">
+            Latest Zoho sync: {formatDateTime(program.latestZohoSync)}
+          </span>
           <button
             className="primary-button compact"
+            disabled={resyncing !== null}
             onClick={() => void resync()}
           >
-            Re-Sync All Deals
+            {resyncing === "preview" ? "Checking Zoho…" : "Re-Sync All Deals"}
           </button>
+          {resyncPreview ? (
+            <button
+              className="secondary-button compact"
+              disabled={resyncing !== null}
+              onClick={() => {
+                setResyncPreview(null);
+                setResyncApplied(false);
+                setNotice("");
+              }}
+            >
+              Discard preview
+            </button>
+          ) : null}
+          {resyncPreview?.changedRows.length && !resyncApplied ? (
+            <button
+              className="primary-button compact"
+              disabled={resyncing !== null}
+              onClick={() => void applyResync()}
+            >
+              {resyncing === "apply" ? "Applying…" : "Apply all Zoho changes"}
+            </button>
+          ) : null}
         </div>
       </div>
       {notice ? <div className="notice">{notice}</div> : null}
@@ -834,44 +948,94 @@ export function ProgramDetailPage() {
           "Overall Rank",
           "Category Rank",
           "Winner",
+          "Report Category",
+          "Benchmark Category",
           "Actions",
         ]}
-        rows={organizations.map((item) => [
-          <strong>{item.sourceId}</strong>,
-          item.name,
-          formatDate(item.createdAt),
-          item.stage ?? "—",
-          formatDate(item.lastSyncedAt),
-          item.surveysSent,
-          item.employeesCount ?? "—",
-          item.overallRank ?? "—",
-          item.categoryRank ?? "—",
-          item.isIncluded ? (item.isWinner ? "Y" : "N") : "Not included",
-          <div className="row-actions">
-            <button
-              className="action-link button-link"
-              onClick={() => setPreviewOrganization(item)}
-            >
-              View Dashboard <ChevronRight size={18} />
-            </button>
-            {canUploadBenefits ? (
+        rowClassNames={organizations.map((item) =>
+          changesByOrganization.has(item.organizationProgramId)
+            ? "zoho-resync-changed-row"
+            : undefined,
+        )}
+        rows={organizations.map((item) => {
+          const changes = changesByOrganization.get(item.organizationProgramId);
+          const change = (field: ProgramZohoResyncField) => changes?.get(field);
+          return [
+            <strong>{item.sourceId}</strong>,
+            <ZohoResyncValue
+              value={item.name}
+              change={change("organizationName")}
+            />,
+            formatDate(item.createdAt),
+            <ZohoResyncValue value={item.stage} change={change("stage")} />,
+            formatDate(item.lastSyncedAt),
+            <ZohoResyncValue
+              value={item.surveysSent}
+              change={change("surveysSent")}
+            />,
+            <div className="zoho-resync-stacked-value">
+              <ZohoResyncValue
+                value={item.employeesCount}
+                change={change("employeesCount")}
+              />
+              <small>
+                Company size:{" "}
+                <ZohoResyncValue
+                  value={item.companySize}
+                  change={change("companySize")}
+                />
+              </small>
+            </div>,
+            <ZohoResyncValue
+              value={item.overallRank}
+              change={change("overallRank")}
+            />,
+            <ZohoResyncValue
+              value={item.categoryRank}
+              change={change("categoryRank")}
+            />,
+            item.isIncluded ? (
+              <ZohoResyncValue
+                value={item.isWinner}
+                change={change("isWinner")}
+              />
+            ) : (
+              "Not included"
+            ),
+            <ZohoResyncValue
+              value={item.reportCategory}
+              change={change("reportCategory")}
+            />,
+            <ZohoResyncValue
+              value={item.currentZohoCategory}
+              change={change("currentZohoCategory")}
+            />,
+            <div className="row-actions">
               <button
                 className="action-link button-link"
-                onClick={() => setCatalogOrganization(item)}
+                onClick={() => setPreviewOrganization(item)}
               >
-                Configure store <ShoppingBag size={17} />
+                View Dashboard <ChevronRight size={18} />
               </button>
-            ) : null}
-            {canUploadBenefits ? (
-              <button
-                className="action-link button-link"
-                onClick={() => setUploadOrganization(item)}
-              >
-                Upload B&amp;BP <FileUp size={17} />
-              </button>
-            ) : null}
-          </div>,
-        ])}
+              {canUploadBenefits ? (
+                <button
+                  className="action-link button-link"
+                  onClick={() => setCatalogOrganization(item)}
+                >
+                  Configure store <ShoppingBag size={17} />
+                </button>
+              ) : null}
+              {canUploadBenefits ? (
+                <button
+                  className="action-link button-link"
+                  onClick={() => setUploadOrganization(item)}
+                >
+                  Upload B&amp;BP <FileUp size={17} />
+                </button>
+              ) : null}
+            </div>,
+          ];
+        })}
       />
       <Pager count={organizations.length} shown={10} />
       {previewOrganization ? (

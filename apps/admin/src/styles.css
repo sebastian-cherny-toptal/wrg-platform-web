@@ -490,6 +490,31 @@ a {
 .table-card tbody tr:hover {
   background: #fafafa;
 }
+.table-card tbody tr.zoho-resync-changed-row,
+.table-card tbody tr.zoho-resync-changed-row:hover {
+  background: #fef9c3;
+}
+.zoho-resync-value {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.zoho-resync-value del {
+  color: #854d0e;
+}
+.zoho-resync-value > span {
+  color: #3f3f46;
+  font-weight: 600;
+}
+.zoho-resync-stacked-value {
+  display: grid;
+  gap: 4px;
+}
+.zoho-resync-stacked-value small {
+  color: #71717a;
+  white-space: nowrap;
+}
 .empty-cell {
   height: 110px;
   color: #71717a;
@@ -507,6 +532,12 @@ a {
 }
 .primary-button.action-link {
   color: white;
+}
+.latest-zoho-sync {
+  align-self: center;
+  color: #71717a;
+  font-size: 13px;
+  white-space: nowrap;
 }
 .row-actions {
   display: flex;
