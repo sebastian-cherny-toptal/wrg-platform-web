@@ -25,6 +25,7 @@ import {
 } from "./api";
 import { PageHeader, State } from "./admin";
 import { CatalogEditor, MoneyInput } from "./catalog-editor";
+import { LongRunningActionOverlay } from "./long-running-action-overlay";
 
 const storageKey = "wrg-historical-import-draft";
 
@@ -1685,7 +1686,7 @@ export function WinnersStep({
   );
 }
 
-function ReviewStep({
+export function ReviewStep({
   draft,
   onBack,
   onRestart,
@@ -1780,6 +1781,15 @@ function ReviewStep({
 
   return (
     <div className="wizard-panel">
+      {committing ? (
+        <LongRunningActionOverlay
+          title={
+            draft.metadata.programId
+              ? "Saving program…"
+              : "Creating project and program…"
+          }
+        />
+      ) : null}
       {actions("top")}
       <p className="wizard-copy">
         Review the program details, optional workbook data, organization survey

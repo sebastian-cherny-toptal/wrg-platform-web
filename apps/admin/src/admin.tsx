@@ -51,6 +51,7 @@ import {
 import { useAuth } from "./auth";
 import { CatalogEditor } from "./catalog-editor";
 import { filterAndSortOrganizations } from "./organization-options";
+import { LongRunningActionOverlay } from "./long-running-action-overlay";
 
 const permissionLabels: Record<string, string> = {
   clientsProjectsProgramsAccess: "Access Shared Projects, Programs & Clients",
@@ -406,6 +407,9 @@ export function ProjectsPage() {
   }, [loaded.data, search, date, sort]);
   return (
     <>
+      {deleting ? (
+        <LongRunningActionOverlay title="Deleting project…" />
+      ) : null}
       <PageHeader
         title="Imported Projects"
         breadcrumb="Imported Projects & Programs"
@@ -538,6 +542,9 @@ export function ProjectDetailPage() {
   };
   return (
     <>
+      {deleting ? (
+        <LongRunningActionOverlay title="Deleting program…" />
+      ) : null}
       <PageHeader
         title={project.name}
         breadcrumb={
