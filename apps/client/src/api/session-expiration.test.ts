@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe("client session expiration", () => {
-  it("does not grant Employee Verbatims with the standard package", () => {
+  it("grants Employee Verbatims with the standard package", () => {
     const purchaseSession: Session = {
       ...session,
       user: {
@@ -55,6 +55,7 @@ describe("client session expiration", () => {
       useAppStore.getState().session?.user.programs[0]?.entitlements,
     ).toEqual({
       WFR_Access: "yes",
+      EV_Access: "yes",
       WBC_Access: "yes",
       BBP_Access: "yes",
     });

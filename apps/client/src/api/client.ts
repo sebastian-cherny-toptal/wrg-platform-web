@@ -108,9 +108,11 @@ export function cachePurchasedReportAccess(products: { productId: string; name: 
     const entitlements = { ...program.entitlements };
     if (purchased.has("report-standard-package")) {
       entitlements.WFR_Access = "yes";
+      entitlements.EV_Access = "yes";
       entitlements.WBC_Access = "yes";
       entitlements.BBP_Access = "yes";
       gainedEntitlements.add("WFR_Access");
+      gainedEntitlements.add("EV_Access");
       gainedEntitlements.add("WBC_Access");
       gainedEntitlements.add("BBP_Access");
     }
