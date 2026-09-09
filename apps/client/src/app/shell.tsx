@@ -22,6 +22,7 @@ type ClientLink = {
   title: string
   path: string
   entitlement?: Parameters<typeof hasEntitlement>[0]
+  alwaysVisible?: boolean
 }
 
 const workforceFeedbackLinks: ClientLink[] = [
@@ -42,7 +43,8 @@ const additionalLinks: ClientLink[] = [
   { title: 'Custom Reports', path: routeMap.customReports, entitlement: 'CR_Access' },
 ]
 
-const isClientLinkVisible = (link: ClientLink) => !link.entitlement || hasEntitlement(link.entitlement)
+const isClientLinkVisible = (link: ClientLink) =>
+  link.alwaysVisible || !link.entitlement || hasEntitlement(link.entitlement)
 
 function SidebarLink({
   to,
@@ -126,7 +128,7 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
   const purchaseCelebration = useAppStore((state) => state.purchaseCelebration)
   const highlightedEntitlements = purchaseCelebration?.entitlements ?? []
   const directBasicLinks: ClientLink[] = [
-    { title: 'Employee Verbatims', path: routeMap.employeeVerbatims, entitlement: 'EV_Access' },
+    { title: 'Employee Verbatims', path: routeMap.employeeVerbatims, entitlement: 'EV_Access', alwaysVisible: true },
     { title: 'Benefits & Best Practices', path: routeMap.benefitsBestPractices, entitlement: 'BBP_Access' },
   ]
   return (

@@ -1971,8 +1971,18 @@ export function EmployeeVerbatimsPage() {
           </section>
         )}
         <Card className="mt-6 overflow-hidden shadow-none">
-          <div className="border-b border-zinc-200 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-5">
             <h2 className="font-semibold">Question Details</h2>
+            {sortedVerbatims?.owned ? null : (
+              <DownloadReportButton
+                onDownload={() =>
+                  api.reports.downloadVerbatimsWorkbook(
+                    program?.id ?? "",
+                    isDummy,
+                  )
+                }
+              />
+            )}
           </div>
           <div className="grid gap-3 p-5">
             {questions.isPending ? (

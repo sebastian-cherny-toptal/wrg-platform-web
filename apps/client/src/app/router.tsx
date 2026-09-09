@@ -36,7 +36,6 @@ function Guard({
   const promotionalAccess = allowPromotional && session?.user.role === 'promotional'
   const demoProduct = new URLSearchParams(location.search).get('demo')
   const demoAccess =
-    (entitlement === 'EV_Access' && demoProduct === 'report-verbatims-sorted') ||
     (entitlement === 'RD_Access' && demoProduct === 'report-response-detail') ||
     (entitlement === 'KIA_Access' && demoProduct === 'report-kia')
   if (entitlement && !promotionalAccess && !demoAccess && !hasEntitlement(entitlement)) return <Navigate replace to={routeMap.forbidden} />
@@ -106,10 +105,7 @@ export const router = createBrowserRouter([
               { path: routeMap.annualTrends, element: <AnnualTrendsPage /> },
             ],
           },
-          {
-            element: <Guard role="client" entitlement="EV_Access" allowPromotional />,
-            children: [{ path: routeMap.employeeVerbatims, element: <EmployeeVerbatimsPage /> }],
-          },
+          { path: routeMap.employeeVerbatims, element: <EmployeeVerbatimsPage /> },
           {
             element: <Guard role="client" entitlement="WBC_Access" allowPromotional />,
             children: [{ path: routeMap.benchmarkData, element: <BenchmarkDataPage /> }],

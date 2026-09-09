@@ -67,6 +67,7 @@ const reportCards = [
     description: 'Any responses to open-ended survey questions are contained in this report.',
     path: routeMap.employeeVerbatims,
     icon: BarChart3,
+    alwaysVisible: true,
   },
   {
     entitlement: 'WBC_Access',
@@ -163,7 +164,10 @@ export function DashboardPage() {
   const selectProgram = useAppStore((state) => state.selectProgram)
   const visibleReports = isPromotional
     ? []
-    : reportCards.filter((report) => program?.entitlements[report.entitlement] === 'yes')
+    : reportCards.filter(
+        (report) =>
+          'alwaysVisible' in report || program?.entitlements[report.entitlement] === 'yes',
+      )
   const dashboard = useQuery({
     queryKey: ['dashboard-overview', program?.id],
     queryFn: () => {

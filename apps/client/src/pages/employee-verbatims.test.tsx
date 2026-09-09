@@ -21,7 +21,7 @@ const session: Session = {
         name: "Baton Rouge 2026",
         year: 2026,
         organizationName: "Example Organization",
-        entitlements: { EV_Access: "yes" },
+        entitlements: {},
       },
     ],
   },
@@ -96,6 +96,65 @@ describe("Employee Verbatims page", () => {
     await userEvent.click(question);
     expect(await screen.findByText("The people and the supportive culture.")).toBeVisible();
     expect(answers).toHaveBeenCalledWith("program-2026", "question-1");
+  });
+
+  it("offers an unsorted download and keeps responses in API order", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "openResponseQuestions").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: [{ caption: "What should we improve?", id: "question-1" }],
+    });
+    vi.spyOn(api.reports, "openResponseAnswers").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: {
+        respondentData: [
+          {
+            _id: "respondent-1",
+            RespondentId: "respondent-1",
+            responses: { QuestionId: "question-1", Value: "A clear weekly plan" },
+          },
+          {
+            _id: "respondent-2",
+            RespondentId: "respondent-2",
+            responses: { QuestionId: "question-1", Value: "Shared project priorities" },
+          },
+        ],
+        dataLen: 2,
+        queryQuestion: {
+          Caption: "What should we improve?",
+          Id: "question-1",
+          DataLabel: "q_OpenEnded_1",
+        },
+      },
+    });
+    const download = vi
+      .spyOn(api.reports, "downloadVerbatimsWorkbook")
+      .mockResolvedValue(undefined);
+    vi.spyOn(api.reports, "catalog").mockResolvedValue([]);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <EmployeeVerbatimsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Download Report" }),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Download Report" }));
+    expect(download).toHaveBeenCalledWith("program-2026", false);
+    await userEvent.click(screen.getByText("What should we improve?"));
+    const first = await screen.findByText("A clear weekly plan");
+    const second = screen.getByText("Shared project priorities");
+    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("requires a sorting category in the demo add-to-cart prompt", async () => {

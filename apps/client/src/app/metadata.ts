@@ -106,7 +106,6 @@ export const routeMetadata: readonly RouteMetadata[] = [
     path: routeMap.employeeVerbatims,
     title: 'Employee Verbatims',
     access: 'client',
-    entitlement: 'EV_Access',
     icon: FileText,
   },
   {

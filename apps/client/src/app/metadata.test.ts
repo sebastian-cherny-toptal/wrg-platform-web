@@ -12,4 +12,10 @@ describe('platform metadata', () => {
     expect(routeMap.adminPreview).toBe('/admin-preview')
     expect(routeMap.wfr).toBe('/employee-response-breakdown')
   })
+
+  it('keeps Employee Verbatims available without a purchased entitlement', () => {
+    expect(
+      routeMetadata.find((route) => route.id === 'employee-verbatims')?.entitlement,
+    ).toBeUndefined()
+  })
 })
