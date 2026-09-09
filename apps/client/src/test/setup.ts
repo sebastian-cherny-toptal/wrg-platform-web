@@ -19,7 +19,7 @@ function memoryStorage(): Storage {
       memory.delete(key)
     },
     setItem(key, value) {
-      memory.set(key, String(value))
+      memory.set(key, value)
     },
   }
 }

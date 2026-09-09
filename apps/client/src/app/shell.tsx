@@ -44,7 +44,7 @@ const additionalLinks: ClientLink[] = [
 ]
 
 const isClientLinkVisible = (link: ClientLink) =>
-  link.alwaysVisible || !link.entitlement || hasEntitlement(link.entitlement)
+  (link.alwaysVisible ?? false) || !link.entitlement || hasEntitlement(link.entitlement)
 
 function SidebarLink({
   to,
