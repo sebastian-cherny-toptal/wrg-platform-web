@@ -798,8 +798,6 @@ export function ProgramDetailPage() {
   const [resyncApplied, setResyncApplied] = useState(false);
   const [resyncing, setResyncing] = useState<"preview" | "apply" | null>(null);
   const [downloadingConnections, setDownloadingConnections] = useState(false);
-  const [uploadOrganization, setUploadOrganization] =
-    useState<OrganizationRecord | null>(null);
   const [previewOrganization, setPreviewOrganization] =
     useState<OrganizationRecord | null>(null);
   const [catalogOrganization, setCatalogOrganization] =
@@ -1177,14 +1175,6 @@ export function ProgramDetailPage() {
                   Configure store <ShoppingBag size={17} />
                 </button>
               ) : null}
-              {canUploadBenefits ? (
-                <button
-                  className="action-link button-link"
-                  onClick={() => setUploadOrganization(item)}
-                >
-                  Upload B&amp;BP <FileUp size={17} />
-                </button>
-              ) : null}
             </div>,
           ];
         })}
@@ -1201,20 +1191,6 @@ export function ProgramDetailPage() {
           organization={previewOrganization}
           program={program}
           onClose={() => setPreviewOrganization(null)}
-        />
-      ) : null}
-      {uploadOrganization ? (
-        <BenefitsBestPracticesUploadModal
-          organization={uploadOrganization}
-          program={program}
-          onClose={() => setUploadOrganization(null)}
-          onUploaded={(fileName) => {
-            setNotice(
-              `${fileName} is now the Benefits & Best Practices workbook for ${uploadOrganization.name} in ${program.name}.`,
-            );
-            setUploadOrganization(null);
-            organizationsLoaded.reload();
-          }}
         />
       ) : null}
       {catalogOrganization ? (
@@ -1497,100 +1473,6 @@ function KeyImpactAnalysisUploadModal({
           Upload the KIA workbook for <strong>{item.organizationName}</strong>{" "}
           in <strong>{item.programName}</strong>.
         </p>
-        <label className="upload-card benefits-upload-card">
-          <FileUp size={34} aria-hidden="true" />
-          <strong>
-            {file ? "Workbook selected" : "Choose an XLSX workbook"}
-          </strong>
-          <span>{file?.name ?? "Maximum file size: 25 MB"}</span>
-          <input
-            type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            disabled={uploading}
-            onChange={(event) => {
-              setError("");
-              setFile(event.target.files?.[0] ?? null);
-            }}
-          />
-        </label>
-        {error ? <p className="form-error">{error}</p> : null}
-        <div className="modal-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={uploading}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button className="primary-button" type="submit" disabled={uploading}>
-            {uploading ? "Uploading…" : "Upload workbook"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function BenefitsBestPracticesUploadModal({
-  organization,
-  program,
-  onClose,
-  onUploaded,
-}: {
-  organization: OrganizationRecord;
-  program: ProgramRecord;
-  onClose: () => void;
-  onUploaded: (fileName: string) => void;
-}) {
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!file) {
-      setError("Choose an .xlsx workbook to upload.");
-      return;
-    }
-    if (!/\.xlsx$/iu.test(file.name)) {
-      setError("The selected file must be an .xlsx workbook.");
-      return;
-    }
-    if (file.size > 25 * 1024 * 1024) {
-      setError("The selected workbook must be 25 MB or smaller.");
-      return;
-    }
-    setUploading(true);
-    setError("");
-    try {
-      await api.uploadBenefitsBestPracticesWorkbook(
-        organization.organizationProgramId,
-        file,
-      );
-      onUploaded(file.name);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The workbook could not be uploaded.",
-      );
-      setUploading(false);
-    }
-  };
-  return (
-    <Modal title="Upload Benefits & Best Practices" onClose={onClose}>
-      <form onSubmit={(event) => void submit(event)}>
-        <p className="modal-copy">
-          Upload the report workbook for <strong>{organization.name}</strong> in{" "}
-          <strong>{program.name}</strong>. A new upload replaces this
-          organization&apos;s current Benefits &amp; Best Practices data.
-        </p>
-        {organization.benefitsBestPracticesFileName ? (
-          <p className="current-upload">
-            Current workbook:{" "}
-            <strong>{organization.benefitsBestPracticesFileName}</strong>
-          </p>
-        ) : null}
         <label className="upload-card benefits-upload-card">
           <FileUp size={34} aria-hidden="true" />
           <strong>

@@ -350,9 +350,6 @@ describe("admin API projections", () => {
               _id: "organization-program-uuid",
               Surveys_Sent: 200,
               isWinner: true,
-              publishedReports: {
-                benefitsBestPractices: { sourceFile: "benefits.xlsx" },
-              },
             },
           },
         ],
@@ -367,7 +364,6 @@ describe("admin API projections", () => {
       isWinner: true,
       isIncluded: true,
       organizationProgramId: "organization-program-uuid",
-      benefitsBestPracticesFileName: "benefits.xlsx",
     });
   });
 

@@ -267,7 +267,6 @@ export type OrganizationRecord = {
   reportCategory: string | null;
   benchmarkCategory: string | null;
   organizationProgramId: string;
-  benefitsBestPracticesFileName: string | null;
   programs: Array<{
     id: string;
     name: string;
@@ -602,9 +601,6 @@ export function organization(raw: unknown): OrganizationRecord {
   const value = object(raw);
   const organizationPrograms = array(value.orgPrograms);
   const enrollment = object(object(organizationPrograms[0]).orgs);
-  const benefitsBestPractices = object(
-    object(enrollment.publishedReports).benefitsBestPractices,
-  );
   const id = stringValue(value._id) || stringValue(value.id);
   const sourceId =
     stringValue(value.sourceOrganizationId) ||
@@ -665,8 +661,6 @@ export function organization(raw: unknown): OrganizationRecord {
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||
       stringValue(enrollment.id),
-    benefitsBestPracticesFileName:
-      stringValue(benefitsBestPractices.sourceFile) || null,
     programs: organizationPrograms
       .map((entry) => {
         const access = object(object(entry).orgs);
@@ -1367,56 +1361,6 @@ export const api = {
       matchedOrganizations: number;
       unmatchedOrganizations: string[];
       invalidRows: number;
-    };
-  },
-
-  async uploadBenefitsBestPracticesWorkbook(
-    organizationProgramId: string,
-    file: File,
-  ): Promise<{
-    organizationId: string;
-    organizationProgramId: string;
-    programId: string;
-    sourceFile: string;
-    headerCount: number;
-    sectionCount: number;
-    uploadedAt: string;
-  }> {
-    const auth = readAuth();
-    const formData = new FormData();
-    formData.append("workbook", file);
-    const response = await fetch(
-      `${apiBaseUrl}/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/benefits-best-practices`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          ...authHeaders(auth?.accessToken),
-        },
-        body: formData,
-      },
-    );
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      if (response.status === 401 && auth?.accessToken) persistAuth(null);
-      const body = object(payload);
-      const nested = object(body.error);
-      throw new ApiError(
-        stringValue(body.message) ||
-          stringValue(body.msg) ||
-          stringValue(nested.message) ||
-          "Request failed",
-        response.status,
-      );
-    }
-    return object(object(payload).data) as {
-      organizationId: string;
-      organizationProgramId: string;
-      programId: string;
-      sourceFile: string;
-      headerCount: number;
-      sectionCount: number;
-      uploadedAt: string;
     };
   },
 

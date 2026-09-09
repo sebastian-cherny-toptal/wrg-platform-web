@@ -26,7 +26,6 @@ function organization(id: string, name: string): OrganizationRecord {
     organizationProgramId: "",
     isWinner: false,
     isIncluded: true,
-    benefitsBestPracticesFileName: null,
     programs: [],
     users: [],
   };
