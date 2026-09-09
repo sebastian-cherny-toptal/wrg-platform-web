@@ -322,6 +322,21 @@ export function filterAndSortProjects(
     );
 }
 
+export function newProgramProjectPayload(
+  selectedProject: ProjectRecord | undefined,
+) {
+  return {
+    projectId: null,
+    ...(selectedProject
+      ? {
+          zohoProjectId: selectedProject.externalId ?? selectedProject.id,
+          projectName: selectedProject.name,
+          projectAbbreviation: selectedProject.abbreviation,
+        }
+      : {}),
+  };
+}
+
 function zohoOrganizationName(organization: ZohoOrganizationInfo): string {
   const value = organization.organizationName ?? "";
   const marker = `-${organization.organizationId.trim()}-`;
@@ -762,14 +777,11 @@ function MetadataStep({
     setError("");
     try {
       const payload = {
-        ...(editing && form.projectId ? { projectId: form.projectId } : {}),
-        ...(!editing && selectedProject
-          ? {
-              zohoProjectId: selectedProject.externalId ?? selectedProject.id,
-              projectName: selectedProject.name,
-              projectAbbreviation: selectedProject.abbreviation,
-            }
-          : {}),
+        ...(editing
+          ? form.projectId
+            ? { projectId: form.projectId }
+            : {}
+          : newProgramProjectPayload(selectedProject)),
         ...(!form.projectId ? { projectName: form.projectName?.trim() } : {}),
         ...(form.programId ? { programId: form.programId } : {}),
         ...(form.zohoProgramId ? { zohoProgramId: form.zohoProgramId } : {}),
@@ -834,9 +846,6 @@ function MetadataStep({
             disabled={editing}
             required
             onChange={(projectId) => {
-              console.log("projectId", projectId);
-              console.log("projects", projects);
-              console.log("visibleProjects", visibleProjects);
               const project = projects.find(({ id }) => id === projectId);
               setZohoPrograms([]);
               setZohoError("");

@@ -4,6 +4,7 @@ import {
   applyZohoOrganizations,
   filterAndSortProjects,
   filterWinnerOrganizations,
+  newProgramProjectPayload,
   organizationParticipationStatus,
   summarizeOrganizationPrograms,
 } from "./historical-import";
@@ -166,6 +167,24 @@ describe("project options", () => {
         "HEALTH",
       ).map(({ name }) => name),
     ).toEqual(["beta Health", "Zeta Health"]);
+  });
+
+  it("sends a Zoho selection as zohoProjectId instead of a local projectId", () => {
+    expect(
+      newProgramProjectPayload({
+        id: "4876876000000123456",
+        externalId: "4876876000000123456",
+        name: "Baton Rouge",
+        abbreviation: "BR",
+        createdAt: null,
+        programs: [],
+      }),
+    ).toEqual({
+      projectId: null,
+      zohoProjectId: "4876876000000123456",
+      projectName: "Baton Rouge",
+      projectAbbreviation: "BR",
+    });
   });
 });
 

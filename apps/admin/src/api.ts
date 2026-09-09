@@ -158,7 +158,7 @@ export type UserRecord = {
 };
 
 export type HistoricalImportMetadata = {
-  projectId?: string;
+  projectId?: string | null;
   zohoProjectId?: string;
   projectName?: string;
   programId?: string;
