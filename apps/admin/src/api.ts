@@ -101,10 +101,12 @@ export type ZohoProgramOption = {
   categoryPricing?: CategoryPricing[];
 };
 
+export type WinnerStatus = "Y" | "N";
+
 export type ZohoOrganizationInfo = {
   organizationId: string;
   organizationName: string | null;
-  isWinner: boolean | null;
+  isWinner: WinnerStatus | null;
   surveysSent: number;
   stage: string | null;
   companySize: number | null;
@@ -179,7 +181,7 @@ export type HistoricalImportMetadata = {
     sourceOrganizationId?: string;
     organizationName?: string;
     surveysSent: number;
-    isWinner: boolean | null;
+    isWinner: WinnerStatus | null;
     isIncluded: boolean;
     stage?: string;
     companySize?: number;
@@ -260,7 +262,7 @@ export type OrganizationRecord = {
   stage: string | null;
   lastSyncedAt: string | null;
   surveysSent: number;
-  isWinner: boolean | null;
+  isWinner: WinnerStatus | null;
   isIncluded: boolean;
   companySize: number | null;
   employeesCount: number | null;
@@ -304,7 +306,7 @@ export type ProgramZohoResyncField =
   | "reportCategory"
   | "currentZohoCategory";
 
-export type ProgramZohoResyncValue = string | number | boolean | null;
+export type ProgramZohoResyncValue = string | number | null;
 
 export type ProgramZohoResyncChange = {
   field: ProgramZohoResyncField;
@@ -388,6 +390,12 @@ function stringValue(value: unknown, fallback = ""): string {
     : typeof value === "number"
       ? String(value)
       : fallback;
+}
+
+function winnerStatus(value: unknown): WinnerStatus | null {
+  if (value === "Y" || value === true) return "Y";
+  if (value === "N" || value === false) return "N";
+  return null;
 }
 
 function array(value: unknown): unknown[] {
@@ -631,12 +639,7 @@ export function organization(raw: unknown): OrganizationRecord {
     stage: stringValue(enrollment.Stage) || null,
     lastSyncedAt: stringValue(enrollment.Last_time_deal_synced) || null,
     surveysSent: Number(enrollment.Surveys_Sent ?? 0),
-    isWinner:
-      enrollment.isWinner === true
-        ? true
-        : enrollment.isWinner === false
-          ? false
-          : null,
+    isWinner: winnerStatus(enrollment.isWinner),
     isIncluded: enrollment.isIncluded !== false,
     companySize: Number.isFinite(
       Number(
@@ -1121,12 +1124,7 @@ export const api = {
             organizationId: stringValue(organization.organizationId),
             organizationName:
               stringValue(organization.organizationName) || null,
-            isWinner:
-              organization.isWinner === true
-                ? true
-                : organization.isWinner === false
-                  ? false
-                  : null,
+            isWinner: winnerStatus(organization.isWinner),
             surveysSent:
               Number.isInteger(surveysSent) && surveysSent >= 0
                 ? surveysSent
@@ -1170,12 +1168,7 @@ export const api = {
       return {
         organizationId: stringValue(organization.organizationId),
         organizationName: stringValue(organization.organizationName) || null,
-        isWinner:
-          organization.isWinner === true
-            ? true
-            : organization.isWinner === false
-              ? false
-              : null,
+        isWinner: winnerStatus(organization.isWinner),
         surveysSent:
           Number.isInteger(surveysSent) && surveysSent >= 0 ? surveysSent : 0,
         stage: stringValue(organization.stage) || null,
@@ -1333,6 +1326,47 @@ export const api = {
       importId: string;
       eaFileName: string;
       efsFileName: string;
+    };
+  },
+
+  async uploadHistoricalImportWorkbook(
+    importId: string,
+    kind: "EA" | "EFS",
+    workbook: File,
+  ): Promise<{
+    importId: string;
+    workbook: HistoricalImportWorkbookSummary;
+  }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("workbook", workbook);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/historicalImports/${encodeURIComponent(importId)}/workbooks/${kind.toLowerCase()}`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401 && auth?.accessToken) persistAuth(null);
+      const body = object(payload);
+      const nested = object(body.error);
+      throw new ApiError(
+        stringValue(body.message) ||
+          stringValue(body.msg) ||
+          stringValue(nested.message) ||
+          "Unable to upload workbook",
+        response.status,
+      );
+    }
+    return object(object(payload).data) as {
+      importId: string;
+      workbook: HistoricalImportWorkbookSummary;
     };
   },
 

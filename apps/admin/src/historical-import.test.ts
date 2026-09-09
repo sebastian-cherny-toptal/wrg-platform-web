@@ -19,7 +19,7 @@ describe("winner organization filtering", () => {
       organizationKey: "org1",
       organizationName: "Alpha Company",
       surveysSent: 0,
-      isWinner: false,
+      isWinner: "N" as const,
       isIncluded: true,
       currentZohoCategory: "Super",
     },
@@ -27,14 +27,14 @@ describe("winner organization filtering", () => {
       organizationKey: "org2",
       organizationName: "Beta Company",
       surveysSent: 0,
-      isWinner: false,
+      isWinner: "N" as const,
       isIncluded: true,
     },
     {
       organizationKey: "org5",
       organizationName: "Fifth Group",
       surveysSent: 0,
-      isWinner: false,
+      isWinner: "N" as const,
       isIncluded: true,
     },
   ];
@@ -53,7 +53,7 @@ describe("winner organization filtering", () => {
           organizationId: "460737994",
           organizationName:
             "Alpha Company-460737994-Best Places to Work in Baton Rouge 2026",
-          isWinner: true,
+          isWinner: "Y",
           surveysSent: 125,
           stage: "Qualified",
           companySize: 30,
@@ -67,7 +67,7 @@ describe("winner organization filtering", () => {
           organizationId: "952037468",
           organizationName:
             "Beta Company-952037468-Best Places to Work in Baton Rouge 2026",
-          isWinner: false,
+          isWinner: "N",
           surveysSent: 80,
           stage: null,
           companySize: null,
@@ -80,7 +80,7 @@ describe("winner organization filtering", () => {
       ]),
     ).toMatchObject([
       {
-        isWinner: true,
+        isWinner: "Y",
         surveysSent: 125,
         stage: "Qualified",
         companySize: 30,
@@ -91,7 +91,7 @@ describe("winner organization filtering", () => {
         categoryRank: "2",
       },
       {
-        isWinner: false,
+        isWinner: "N",
         surveysSent: 80,
         currentZohoCategory: "Small",
         reportCategory: "100-199",
@@ -102,7 +102,7 @@ describe("winner organization filtering", () => {
 
 describe("organization participation status", () => {
   const organization = (
-    isWinner: boolean,
+    isWinner: "Y" | "N",
     isIncluded: boolean,
     currentZohoCategory = "Small",
   ) => ({
@@ -115,23 +115,23 @@ describe("organization participation status", () => {
   });
 
   it("distinguishes winners, non-winners, and not-included organizations", () => {
-    expect(organizationParticipationStatus(organization(true, true))).toBe(
+    expect(organizationParticipationStatus(organization("Y", true))).toBe(
       "winner",
     );
-    expect(organizationParticipationStatus(organization(false, true))).toBe(
+    expect(organizationParticipationStatus(organization("N", true))).toBe(
       "non-winner",
     );
-    expect(organizationParticipationStatus(organization(true, false))).toBe(
+    expect(organizationParticipationStatus(organization("Y", false))).toBe(
       "not-included",
     );
   });
 
   it("counts only included organizations in category totals", () => {
     const summary = summarizeOrganizationPrograms([
-      organization(true, true),
-      organization(false, true),
-      organization(false, false),
-      organization(true, true, "Medium"),
+      organization("Y", true),
+      organization("N", true),
+      organization("N", false),
+      organization("Y", true, "Medium"),
     ]);
 
     expect(summary.notIncluded).toBe(1);
@@ -295,7 +295,7 @@ describe("historical import API client", () => {
             {
               organizationId: "49",
               organizationName: "Acme",
-              isWinner: true,
+              isWinner: "Y",
               surveysSent: 125,
               stage: "Qualified",
               companySize: 30,
@@ -316,7 +316,7 @@ describe("historical import API client", () => {
       {
         organizationId: "49",
         organizationName: "Acme",
-        isWinner: true,
+        isWinner: "Y",
         surveysSent: 125,
         stage: "Qualified",
         companySize: 30,
@@ -361,6 +361,42 @@ describe("historical import API client", () => {
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(options.method).toBe("POST");
     expect(options.body).toBeInstanceOf(FormData);
+  });
+
+  it("uploads and summarizes one workbook as soon as it is selected", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            importId: "import-id",
+            workbook: {
+              kind: "EA",
+              fileName: "ea.xlsx",
+              sha256: "abc123",
+              questions: 12,
+              organizations: 4,
+              respondents: 20,
+              responses: 240,
+            },
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const workbook = new File(["ea"], "ea.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    await expect(
+      api.uploadHistoricalImportWorkbook("import-id", "EA", workbook),
+    ).resolves.toMatchObject({ workbook: { kind: "EA", questions: 12 } });
+
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/historicalImports/import-id/workbooks/ea");
+    expect(options.method).toBe("POST");
+    expect((options.body as FormData).get("workbook")).toBe(workbook);
   });
 
   it("uploads a ranking extract for bulk winner matching", async () => {

@@ -24,7 +24,7 @@ function organization(id: string, name: string): OrganizationRecord {
     reportCategory: null,
     benchmarkCategory: null,
     organizationProgramId: "",
-    isWinner: false,
+    isWinner: "N",
     isIncluded: true,
     programs: [],
     users: [],

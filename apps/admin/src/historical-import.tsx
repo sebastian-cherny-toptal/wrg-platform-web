@@ -17,7 +17,9 @@ import {
   type HistoricalImportMetadata,
   type HistoricalImportStatus,
   type HistoricalImportValidationSummary,
+  type HistoricalImportWorkbookSummary,
   type ProjectRecord,
+  type WinnerStatus,
   type ZohoOrganizationInfo,
   type ZohoProgramOption,
 } from "./api";
@@ -39,42 +41,42 @@ type DraftState = {
 };
 
 const currentYear = new Date().getFullYear();
-const defaultCategoryPricing: CategoryPricing[] = [
+export const defaultCategoryPricing: CategoryPricing[] = [
   {
     tier: "Boutique",
     zohoCategoryName: "Boutique",
     employeeSize: "15-24",
-    priceCents: 108_000,
+    priceCents: null,
   },
   {
     tier: "Small",
     zohoCategoryName: "Small",
     employeeSize: "25-99",
-    priceCents: 111_000,
+    priceCents: null,
   },
   {
     tier: "Medium",
     zohoCategoryName: "Medium",
     employeeSize: "100-199",
-    priceCents: 122_500,
+    priceCents: null,
   },
   {
     tier: "Large",
     zohoCategoryName: "Large",
     employeeSize: "200-499",
-    priceCents: 128_500,
+    priceCents: null,
   },
   {
     tier: "Mega",
     zohoCategoryName: "Mega",
     employeeSize: "500-999",
-    priceCents: 136_500,
+    priceCents: null,
   },
   {
     tier: "Major",
     zohoCategoryName: "Major",
     employeeSize: "1,000+",
-    priceCents: 141_500,
+    priceCents: null,
   },
 ];
 export function zohoCategoryNames(
@@ -232,8 +234,8 @@ export function organizationParticipationStatus(
   entry: OrganizationProgramDraft,
 ): OrganizationParticipationStatus {
   if (entry.isIncluded === false) return "not-included";
-  if (entry.isWinner === true) return "winner";
-  if (entry.isWinner === false) return "non-winner";
+  if (entry.isWinner === "Y") return "winner";
+  if (entry.isWinner === "N") return "non-winner";
   return "not-provided";
 }
 
@@ -266,11 +268,18 @@ function organizationProgramKey(entry: OrganizationProgramDraft): string {
   return entry.organizationProgramId ?? entry.organizationKey ?? "";
 }
 
+function normalizedWinnerStatus(value: unknown): WinnerStatus | null {
+  if (value === "Y" || value === true) return "Y";
+  if (value === "N" || value === false) return "N";
+  return null;
+}
+
 function normalizeOrganizationPrograms(
   entries: OrganizationProgramDraft[],
 ): OrganizationProgramDraft[] {
   return entries.map((entry) => ({
     ...entry,
+    isWinner: normalizedWinnerStatus(entry.isWinner),
     isIncluded: entry.isIncluded !== false,
   }));
 }
@@ -419,7 +428,7 @@ function WinnerMultiSelect({
     ),
     filter,
   );
-  const move = (keys: string[], isWinner: boolean) => {
+  const move = (keys: string[], isWinner: WinnerStatus) => {
     const moved = new Set(keys);
     onChange(
       organizationPrograms.map((entry) =>
@@ -488,7 +497,7 @@ function WinnerMultiSelect({
           <button
             type="button"
             className="primary-button compact"
-            onClick={() => move(selectedNonWinners, true)}
+            onClick={() => move(selectedNonWinners, "Y")}
             disabled={!selectedNonWinners.length}
           >
             Move to winners <ChevronRight size={16} />
@@ -496,7 +505,7 @@ function WinnerMultiSelect({
           <button
             type="button"
             className="secondary-button compact"
-            onClick={() => move(selectedWinners, false)}
+            onClick={() => move(selectedWinners, "N")}
             disabled={!selectedWinners.length}
           >
             <ChevronLeft size={16} /> Move to non-winners
@@ -1024,6 +1033,9 @@ export function UploadStep({
   const [validation, setValidation] = useState<
     HistoricalImportValidationSummary | undefined
   >(draft.validation);
+  const [workbookSummaries, setWorkbookSummaries] = useState<
+    HistoricalImportWorkbookSummary[]
+  >(draft.validation?.workbooks ?? []);
   const [organizationPrograms, setOrganizationPrograms] = useState(
     normalizeOrganizationPrograms(draft.metadata.organizationPrograms ?? []),
   );
@@ -1032,19 +1044,52 @@ export function UploadStep({
   );
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [filesChanged, setFilesChanged] = useState(false);
 
-  const workbookChanged = (
+  const workbookChanged = async (
+    kind: "EA" | "EFS",
     setFile: (file: File | null) => void,
     file: File | null,
   ) => {
     setFile(file);
     setFilesChanged(true);
     setValidation(undefined);
+    setWorkbookSummaries((current) =>
+      current.filter((workbook) => workbook.kind !== kind),
+    );
     setError("");
     const nextDraft = { ...draft, validation: undefined };
     storeDraft(nextDraft);
     onDraftChange?.(nextDraft);
+    if (!file) return;
+
+    setWorking(true);
+    try {
+      const result = await api.uploadHistoricalImportWorkbook(
+        draft.importId,
+        kind,
+        file,
+      );
+      setWorkbookSummaries((current) => [
+        ...current.filter((workbook) => workbook.kind !== kind),
+        result.workbook,
+      ]);
+      const uploadedDraft = {
+        ...nextDraft,
+        ...(kind === "EA"
+          ? { eaFileName: file.name }
+          : { efsFileName: file.name }),
+      };
+      storeDraft(uploadedDraft);
+      onDraftChange?.(uploadedDraft);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Unable to read workbook",
+      );
+    } finally {
+      setWorking(false);
+    }
   };
 
   const loadValidatedProgramOrganizations = async () =>
@@ -1053,7 +1098,9 @@ export function UploadStep({
       : zohoOrganizations;
 
   const validate = async () => {
-    if (!eaFile || !efsFile) {
+    const hasEaWorkbook = Boolean(eaFile || draft.eaFileName);
+    const hasEfsWorkbook = Boolean(efsFile || draft.efsFileName);
+    if (!hasEaWorkbook || !hasEfsWorkbook) {
       if (!draft.metadata.programId) {
         setError("Upload both the EA and EFS workbooks.");
         return;
@@ -1100,16 +1147,13 @@ export function UploadStep({
       return;
     }
     setWorking(true);
+    setValidating(true);
     setError("");
     try {
-      await api.uploadHistoricalImportWorkbooks(
-        draft.importId,
-        eaFile,
-        efsFile,
-      );
       const summary = await api.validateHistoricalImport(draft.importId);
-      const freshZohoOrganizations = await loadValidatedProgramOrganizations();
       setValidation(summary);
+      setWorkbookSummaries(summary.workbooks);
+      const freshZohoOrganizations = await loadValidatedProgramOrganizations();
       setFilesChanged(false);
       setZohoOrganizations(freshZohoOrganizations);
       const nextOrganizations = applyZohoOrganizations(
@@ -1137,8 +1181,8 @@ export function UploadStep({
       setOrganizationPrograms(nextOrganizations);
       const nextDraft = {
         ...draft,
-        eaFileName: eaFile.name,
-        efsFileName: efsFile.name,
+        eaFileName: eaFile?.name ?? draft.eaFileName,
+        efsFileName: efsFile?.name ?? draft.efsFileName,
         metadata: {
           ...draft.metadata,
           zohoOrganizations: freshZohoOrganizations,
@@ -1154,6 +1198,7 @@ export function UploadStep({
           : "Unable to validate workbooks",
       );
     } finally {
+      setValidating(false);
       setWorking(false);
     }
   };
@@ -1224,6 +1269,9 @@ export function UploadStep({
 
   return (
     <div className="wizard-panel">
+      {validating ? (
+        <LongRunningActionOverlay title="Validating workbooks…" />
+      ) : null}
       {actions("top")}
       <p className="wizard-copy">
         Upload one Employer Assessment workbook and one Employee Feedback Survey
@@ -1238,10 +1286,15 @@ export function UploadStep({
           <strong>Employer Assessment (EA)</strong>
           <span>{eaFile?.name ?? draft.eaFileName ?? "Choose .xlsx file"}</span>
           <input
+            disabled={working}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) =>
-              workbookChanged(setEaFile, event.target.files?.[0] ?? null)
+              void workbookChanged(
+                "EA",
+                setEaFile,
+                event.target.files?.[0] ?? null,
+              )
             }
           />
         </label>
@@ -1252,18 +1305,23 @@ export function UploadStep({
             {efsFile?.name ?? draft.efsFileName ?? "Choose .xlsx file"}
           </span>
           <input
+            disabled={working}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) =>
-              workbookChanged(setEfsFile, event.target.files?.[0] ?? null)
+              void workbookChanged(
+                "EFS",
+                setEfsFile,
+                event.target.files?.[0] ?? null,
+              )
             }
           />
         </label>
       </div>
-      {validation ? (
+      {workbookSummaries.length ? (
         <>
           <div className="summary-grid">
-            {validation.workbooks.map((workbook) => (
+            {workbookSummaries.map((workbook) => (
               <div className="summary-card" key={workbook.kind}>
                 <strong>{workbook.kind}</strong>
                 <span>{workbook.fileName}</span>
@@ -1276,27 +1334,29 @@ export function UploadStep({
               </div>
             ))}
           </div>
-          <div className="issue-list">
-            {validation.organizations.flatMap((organization) =>
-              organization.warnings
-                .filter(
-                  (warning) =>
-                    warning === "Present in EA only" ||
-                    warning === "Present in EFS only",
-                )
-                .map((warning) => (
-                  <div
-                    className="issue-item warning"
-                    key={`${organization.key}-${warning}`}
-                  >
-                    <AlertTriangle size={16} />
-                    <span>
-                      {organization.displayName}: {warning}
-                    </span>
-                  </div>
-                )),
-            )}
-          </div>
+          {validation ? (
+            <div className="issue-list">
+              {validation.organizations.flatMap((organization) =>
+                organization.warnings
+                  .filter(
+                    (warning) =>
+                      warning === "Present in EA only" ||
+                      warning === "Present in EFS only",
+                  )
+                  .map((warning) => (
+                    <div
+                      className="issue-item warning"
+                      key={`${organization.key}-${warning}`}
+                    >
+                      <AlertTriangle size={16} />
+                      <span>
+                        {organization.displayName}: {warning}
+                      </span>
+                    </div>
+                  )),
+              )}
+            </div>
+          ) : null}
         </>
       ) : null}
       {error ? <p className="form-error">{error}</p> : null}
@@ -1571,11 +1631,11 @@ export function WinnersStep({
                       <td>
                         <input
                           aria-label={`Winner for ${entry.organizationName ?? "organization"}`}
-                          checked={entry.isWinner === true}
+                          checked={entry.isWinner === "Y"}
                           disabled={!isIncluded}
                           onChange={(event) =>
                             updateOrganization(key, {
-                              isWinner: event.target.checked,
+                              isWinner: event.target.checked ? "Y" : "N",
                             })
                           }
                           type="checkbox"

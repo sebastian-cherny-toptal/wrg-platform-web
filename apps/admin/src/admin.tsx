@@ -673,30 +673,22 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function resyncDisplayValue(
-  value: ProgramZohoResyncValue,
-  field?: ProgramZohoResyncField,
-): string {
-  if (field === "isWinner" && typeof value === "boolean") {
-    return value ? "Y" : "N";
-  }
+function resyncDisplayValue(value: ProgramZohoResyncValue): string {
   return value === null || value === "" ? "Not provided" : String(value);
 }
 
 export function ZohoResyncValue({
   value,
   change,
-  field,
 }: {
   value: ProgramZohoResyncValue;
   change?: ProgramZohoResyncChange;
-  field?: ProgramZohoResyncField;
 }) {
-  if (!change) return <>{resyncDisplayValue(value, field)}</>;
+  if (!change) return <>{resyncDisplayValue(value)}</>;
   return (
     <span className="zoho-resync-value">
-      <del>{resyncDisplayValue(change.previous, change.field)}</del>
-      <span>{resyncDisplayValue(change.next, change.field)}</span>
+      <del>{resyncDisplayValue(change.previous)}</del>
+      <span>{resyncDisplayValue(change.next)}</span>
     </span>
   );
 }
@@ -746,7 +738,9 @@ function previewCategorySummaries(
       ? changes.get("isWinner")
       : organization.isWinner;
     const nextWinner =
-      typeof nextWinnerValue === "boolean" ? nextWinnerValue : null;
+      nextWinnerValue === "Y" || nextWinnerValue === "N"
+        ? nextWinnerValue
+        : null;
     if (
       previousCategory === nextCategory &&
       organization.isWinner === nextWinner
@@ -756,14 +750,14 @@ function previewCategorySummaries(
     const previousSummary = next.get(previousCategory);
     if (previousSummary) {
       previousSummary.total -= 1;
-      if (organization.isWinner === true) previousSummary.winners -= 1;
-      if (organization.isWinner === false) previousSummary.nonWinners -= 1;
+      if (organization.isWinner === "Y") previousSummary.winners -= 1;
+      if (organization.isWinner === "N") previousSummary.nonWinners -= 1;
     }
     const nextSummary = next.get(nextCategory);
     if (nextSummary) {
       nextSummary.total += 1;
-      if (nextWinner === true) nextSummary.winners += 1;
-      if (nextWinner === false) nextSummary.nonWinners += 1;
+      if (nextWinner === "Y") nextSummary.winners += 1;
+      if (nextWinner === "N") nextSummary.nonWinners += 1;
     }
   }
   return next;
@@ -838,7 +832,10 @@ export function ProgramDetailPage() {
       if (sort === "name:asc") return left.name.localeCompare(right.name);
       if (sort === "surveys:desc") return right.surveysSent - left.surveysSent;
       if (sort === "winners:first" || sort === "winners:last") {
-        const winnerOrder = Number(right.isWinner) - Number(left.isWinner);
+        const winnerRank = (value: OrganizationRecord["isWinner"]) =>
+          value === "Y" ? 2 : value === "N" ? 1 : 0;
+        const winnerOrder =
+          winnerRank(right.isWinner) - winnerRank(left.isWinner);
         const primary = sort === "winners:first" ? winnerOrder : -winnerOrder;
         return primary || left.name.localeCompare(right.name);
       }
@@ -1166,7 +1163,6 @@ export function ProgramDetailPage() {
               <ZohoResyncValue
                 value={item.isWinner}
                 change={change("isWinner")}
-                field="isWinner"
               />
             ) : (
               "Not included"

@@ -1,7 +1,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CategoryPricing } from "./api";
-import { CategoryPricingEditor } from "./historical-import";
+import {
+  CategoryPricingEditor,
+  defaultCategoryPricing,
+} from "./historical-import";
 
 const category: CategoryPricing = {
   tier: "Small",
@@ -13,6 +16,19 @@ const category: CategoryPricing = {
 afterEach(cleanup);
 
 describe("CategoryPricingEditor", () => {
+  it("leaves fallback prices blank when the backend provides no pricing", () => {
+    render(
+      <CategoryPricingEditor
+        onChange={vi.fn()}
+        value={defaultCategoryPricing}
+      />,
+    );
+
+    for (const input of screen.getAllByLabelText(/category price$/)) {
+      expect((input as HTMLInputElement).value).toBe("");
+    }
+  });
+
   it("shows the Zoho name and range as read-only values", () => {
     render(<CategoryPricingEditor onChange={vi.fn()} value={[category]} />);
 

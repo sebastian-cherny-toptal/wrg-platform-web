@@ -351,7 +351,7 @@ describe("admin API projections", () => {
             orgs: {
               _id: "organization-program-uuid",
               Surveys_Sent: 200,
-              isWinner: true,
+              isWinner: "Y",
             },
           },
         ],
@@ -363,7 +363,7 @@ describe("admin API projections", () => {
       sourceName: "19",
       name: "Baton Rouge Organization D6EA749C",
       surveysSent: 200,
-      isWinner: true,
+      isWinner: "Y",
       isIncluded: true,
       organizationProgramId: "organization-program-uuid",
     });
@@ -377,14 +377,14 @@ describe("admin API projections", () => {
           {
             orgs: {
               _id: "organization-program-uuid",
-              isWinner: true,
+              isWinner: "Y",
               isIncluded: false,
             },
           },
         ],
         users: [],
       }),
-    ).toMatchObject({ isWinner: true, isIncluded: false });
+    ).toMatchObject({ isWinner: "Y", isIncluded: false });
   });
 
   it("preserves a missing winner status in the organization table", () => {

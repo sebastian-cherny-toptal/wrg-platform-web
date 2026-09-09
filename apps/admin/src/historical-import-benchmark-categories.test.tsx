@@ -33,7 +33,7 @@ describe("WinnersStep benchmark category choices", () => {
                 organizationKey: "organization-1",
                 organizationName: "Acme",
                 surveysSent: 20,
-                isWinner: true,
+                isWinner: "Y",
                 isIncluded: true,
                 currentZohoCategory: "Small/Medium",
                 reportCategory: "25-99",

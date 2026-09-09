@@ -30,7 +30,7 @@ describe("program Zoho resync changes", () => {
     expect(screen.getByText("Closed")).toBeTruthy();
   });
 
-  it("renders cleared and boolean values readably", () => {
+  it("renders cleared and winner-status values readably", () => {
     const { rerender } = render(
       <ZohoResyncValue
         change={{ field: "reportCategory", previous: "25-99", next: null }}
@@ -41,14 +41,14 @@ describe("program Zoho resync changes", () => {
 
     rerender(
       <ZohoResyncValue
-        change={{ field: "isWinner", previous: false, next: true }}
-        value={false}
+        change={{ field: "isWinner", previous: "N", next: "Y" }}
+        value="N"
       />,
     );
     expect(screen.getByText("N")).toBeTruthy();
     expect(screen.getByText("Y")).toBeTruthy();
 
-    rerender(<ZohoResyncValue field="isWinner" value={null} />);
+    rerender(<ZohoResyncValue value={null} />);
     expect(screen.getByText("Not provided")).toBeTruthy();
   });
 
@@ -88,7 +88,7 @@ describe("program Zoho resync changes", () => {
         stage: "Invited",
         lastSyncedAt: null,
         surveysSent: 25,
-        isWinner: false,
+        isWinner: "N",
         isIncluded: true,
         companySize: 25,
         employeesCount: 20,
@@ -111,7 +111,7 @@ describe("program Zoho resync changes", () => {
         stage: "Invited",
         lastSyncedAt: null,
         surveysSent: 50,
-        isWinner: false,
+        isWinner: "N",
         isIncluded: true,
         companySize: 45,
         employeesCount: 40,
@@ -187,9 +187,9 @@ describe("program Zoho resync changes", () => {
     const changedRow = screen.getByRole("row", { name: /Acme/u });
     expect(changedRow.classList.contains("zoho-resync-changed-row")).toBe(true);
     expect(changedRow.querySelectorAll("del")).toHaveLength(3);
-    expect(screen.getByRole("button", { name: "Sort records" }).textContent).toBe(
-      "Rows being edited first",
-    );
+    expect(
+      screen.getByRole("button", { name: "Sort records" }).textContent,
+    ).toBe("Rows being edited first");
     const organizationRows = screen.getAllByRole("row").slice(1);
     expect(organizationRows[0]).toBe(changedRow);
     expect(organizationRows[1].textContent).toContain("Before Company");
@@ -238,7 +238,7 @@ describe("program Zoho resync changes", () => {
         stage: null,
         lastSyncedAt: null,
         surveysSent: 0,
-        isWinner: false,
+        isWinner: "N",
         isIncluded: true,
         companySize: null,
         employeesCount: null,
