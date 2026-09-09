@@ -39,6 +39,7 @@ export type ProgramRecord = {
   categorySummaries: Array<{
     category: string;
     winners: number;
+    nonWinners: number;
     total: number;
   }>;
   latestZohoSync: string | null;
@@ -77,9 +78,11 @@ function categorySummaries(
     return {
       category,
       winners: Number.isFinite(winners) ? winners : 0,
-      total:
-        (Number.isFinite(winners) ? winners : 0) +
-        (Number.isFinite(nonWinners) ? nonWinners : 0),
+      nonWinners: Number.isFinite(nonWinners) ? nonWinners : 0,
+      total: Number.isFinite(Number(counts[`${category} Total`]))
+        ? Number(counts[`${category} Total`])
+        : (Number.isFinite(winners) ? winners : 0) +
+          (Number.isFinite(nonWinners) ? nonWinners : 0),
     };
   });
 }
@@ -101,7 +104,7 @@ export type ZohoProgramOption = {
 export type ZohoOrganizationInfo = {
   organizationId: string;
   organizationName: string | null;
-  isWinner: boolean;
+  isWinner: boolean | null;
   surveysSent: number;
   stage: string | null;
   companySize: number | null;
@@ -176,7 +179,7 @@ export type HistoricalImportMetadata = {
     sourceOrganizationId?: string;
     organizationName?: string;
     surveysSent: number;
-    isWinner: boolean;
+    isWinner: boolean | null;
     isIncluded: boolean;
     stage?: string;
     companySize?: number;
@@ -257,7 +260,7 @@ export type OrganizationRecord = {
   stage: string | null;
   lastSyncedAt: string | null;
   surveysSent: number;
-  isWinner: boolean;
+  isWinner: boolean | null;
   isIncluded: boolean;
   companySize: number | null;
   employeesCount: number | null;
@@ -628,7 +631,12 @@ export function organization(raw: unknown): OrganizationRecord {
     stage: stringValue(enrollment.Stage) || null,
     lastSyncedAt: stringValue(enrollment.Last_time_deal_synced) || null,
     surveysSent: Number(enrollment.Surveys_Sent ?? 0),
-    isWinner: enrollment.isWinner === true,
+    isWinner:
+      enrollment.isWinner === true
+        ? true
+        : enrollment.isWinner === false
+          ? false
+          : null,
     isIncluded: enrollment.isIncluded !== false,
     companySize: Number.isFinite(
       Number(
@@ -1113,7 +1121,12 @@ export const api = {
             organizationId: stringValue(organization.organizationId),
             organizationName:
               stringValue(organization.organizationName) || null,
-            isWinner: organization.isWinner === true,
+            isWinner:
+              organization.isWinner === true
+                ? true
+                : organization.isWinner === false
+                  ? false
+                  : null,
             surveysSent:
               Number.isInteger(surveysSent) && surveysSent >= 0
                 ? surveysSent
@@ -1157,7 +1170,12 @@ export const api = {
       return {
         organizationId: stringValue(organization.organizationId),
         organizationName: stringValue(organization.organizationName) || null,
-        isWinner: organization.isWinner === true,
+        isWinner:
+          organization.isWinner === true
+            ? true
+            : organization.isWinner === false
+              ? false
+              : null,
         surveysSent:
           Number.isInteger(surveysSent) && surveysSent >= 0 ? surveysSent : 0,
         stage: stringValue(organization.stage) || null,

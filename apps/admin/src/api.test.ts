@@ -49,7 +49,9 @@ describe("admin API projections", () => {
                 categoryCounts: {
                   "Small Winners": 1,
                   "Small Non-Winners": 1,
+                  "Small Total": 3,
                   "Large Winners": 1,
+                  "Large Total": 1,
                 },
               },
             },
@@ -59,11 +61,11 @@ describe("admin API projections", () => {
 
     await expect(api.program("program-id")).resolves.toMatchObject({
       categorySummaries: [
-        { category: "Small", winners: 1, total: 2 },
-        { category: "Medium", winners: 0, total: 0 },
-        { category: "Large", winners: 1, total: 1 },
-        { category: "Major", winners: 0, total: 0 },
-        { category: "Super", winners: 0, total: 0 },
+        { category: "Small", winners: 1, nonWinners: 1, total: 3 },
+        { category: "Medium", winners: 0, nonWinners: 0, total: 0 },
+        { category: "Large", winners: 1, nonWinners: 0, total: 1 },
+        { category: "Major", winners: 0, nonWinners: 0, total: 0 },
+        { category: "Super", winners: 0, nonWinners: 0, total: 0 },
       ],
       winnersCount: 2,
     });
@@ -107,11 +109,11 @@ describe("admin API projections", () => {
     await expect(api.program("program-id")).resolves.toMatchObject({
       latestZohoSync: "2026-09-07T10:15:00.000Z",
       categorySummaries: [
-        { category: "Community", winners: 1, total: 3 },
-        { category: "Growing", winners: 0, total: 0 },
-        { category: "Enterprise", winners: 1, total: 1 },
-        { category: "Premier", winners: 0, total: 0 },
-        { category: "National", winners: 0, total: 0 },
+        { category: "Community", winners: 1, nonWinners: 2, total: 3 },
+        { category: "Growing", winners: 0, nonWinners: 0, total: 0 },
+        { category: "Enterprise", winners: 1, nonWinners: 0, total: 1 },
+        { category: "Premier", winners: 0, nonWinners: 0, total: 0 },
+        { category: "National", winners: 0, nonWinners: 0, total: 0 },
       ],
     });
   });
@@ -383,6 +385,24 @@ describe("admin API projections", () => {
         users: [],
       }),
     ).toMatchObject({ isWinner: true, isIncluded: false });
+  });
+
+  it("preserves a missing winner status in the organization table", () => {
+    expect(
+      organization({
+        _id: "organization-uuid",
+        orgPrograms: [
+          {
+            orgs: {
+              _id: "organization-program-uuid",
+              isWinner: null,
+              isIncluded: true,
+            },
+          },
+        ],
+        users: [],
+      }),
+    ).toMatchObject({ isWinner: null, isIncluded: true });
   });
 
   it("uses a genuine source organization name when one is available", () => {

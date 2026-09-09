@@ -686,11 +686,13 @@ function resyncDisplayValue(
 export function ZohoResyncValue({
   value,
   change,
+  field,
 }: {
   value: ProgramZohoResyncValue;
   change?: ProgramZohoResyncChange;
+  field?: ProgramZohoResyncField;
 }) {
-  if (!change) return <>{resyncDisplayValue(value)}</>;
+  if (!change) return <>{resyncDisplayValue(value, field)}</>;
   return (
     <span className="zoho-resync-value">
       <del>{resyncDisplayValue(change.previous, change.field)}</del>
@@ -702,6 +704,7 @@ export function ZohoResyncValue({
 type CategorySummary = {
   category: string;
   winners: number;
+  nonWinners: number;
   total: number;
 };
 
@@ -739,9 +742,11 @@ function previewCategorySummaries(
       typeof nextCategoryValue === "string"
         ? nextCategoryValue.toLocaleLowerCase("en")
         : "";
-    const nextWinner = changes.has("isWinner")
-      ? changes.get("isWinner") === true
+    const nextWinnerValue = changes.has("isWinner")
+      ? changes.get("isWinner")
       : organization.isWinner;
+    const nextWinner =
+      typeof nextWinnerValue === "boolean" ? nextWinnerValue : null;
     if (
       previousCategory === nextCategory &&
       organization.isWinner === nextWinner
@@ -751,12 +756,14 @@ function previewCategorySummaries(
     const previousSummary = next.get(previousCategory);
     if (previousSummary) {
       previousSummary.total -= 1;
-      if (organization.isWinner) previousSummary.winners -= 1;
+      if (organization.isWinner === true) previousSummary.winners -= 1;
+      if (organization.isWinner === false) previousSummary.nonWinners -= 1;
     }
     const nextSummary = next.get(nextCategory);
     if (nextSummary) {
       nextSummary.total += 1;
-      if (nextWinner) nextSummary.winners += 1;
+      if (nextWinner === true) nextSummary.winners += 1;
+      if (nextWinner === false) nextSummary.nonWinners += 1;
     }
   }
   return next;
@@ -990,32 +997,43 @@ export function ProgramDetailPage() {
             className="organization-summary details-category-summary"
             aria-label="Organizations by category"
           >
-            {program.categorySummaries.map(({ category, winners, total }) => {
-              const next = previewSummaries.get(
-                category.toLocaleLowerCase("en"),
-              );
-              return (
-                <div key={category}>
-                  <span className="organization-summary-label">{category}</span>
-                  <div className="organization-summary-counts">
-                    <span>
-                      <SummaryPreviewValue
-                        previous={winners}
-                        next={next?.winners ?? winners}
-                      />
-                      <small>Winners</small>
+            {program.categorySummaries.map(
+              ({ category, winners, nonWinners, total }) => {
+                const next = previewSummaries.get(
+                  category.toLocaleLowerCase("en"),
+                );
+                return (
+                  <div key={category}>
+                    <span className="organization-summary-label">
+                      {category}
                     </span>
-                    <span>
-                      <SummaryPreviewValue
-                        previous={total}
-                        next={next?.total ?? total}
-                      />
-                      <small>Total</small>
-                    </span>
+                    <div className="organization-summary-counts">
+                      <span>
+                        <SummaryPreviewValue
+                          previous={winners}
+                          next={next?.winners ?? winners}
+                        />
+                        <small>Winners</small>
+                      </span>
+                      <span>
+                        <SummaryPreviewValue
+                          previous={nonWinners}
+                          next={next?.nonWinners ?? nonWinners}
+                        />
+                        <small>Non-Winners</small>
+                      </span>
+                      <span>
+                        <SummaryPreviewValue
+                          previous={total}
+                          next={next?.total ?? total}
+                        />
+                        <small>Total</small>
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              },
+            )}
           </section>
         </div>
       ) : null}
@@ -1148,6 +1166,7 @@ export function ProgramDetailPage() {
               <ZohoResyncValue
                 value={item.isWinner}
                 change={change("isWinner")}
+                field="isWinner"
               />
             ) : (
               "Not included"

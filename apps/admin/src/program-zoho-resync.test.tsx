@@ -47,6 +47,9 @@ describe("program Zoho resync changes", () => {
     );
     expect(screen.getByText("N")).toBeTruthy();
     expect(screen.getByText("Y")).toBeTruthy();
+
+    rerender(<ZohoResyncValue field="isWinner" value={null} />);
+    expect(screen.getByText("Not provided")).toBeTruthy();
   });
 
   it("reviews and applies all program changes from the organization table", async () => {
@@ -69,8 +72,8 @@ describe("program Zoho resync changes", () => {
       organizationCount: 1,
       winnersCount: 0,
       categorySummaries: [
-        { category: "Small", winners: 0, total: 1 },
-        { category: "Community", winners: 0, total: 0 },
+        { category: "Small", winners: 0, nonWinners: 1, total: 1 },
+        { category: "Community", winners: 0, nonWinners: 0, total: 0 },
       ],
       latestZohoSync: "2026-09-07T10:15:00.000Z",
     });
@@ -180,7 +183,7 @@ describe("program Zoho resync changes", () => {
     expect(await screen.findByText("Closed")).toBeTruthy();
     expect(
       document.querySelectorAll(".zoho-resync-summary-change"),
-    ).toHaveLength(2);
+    ).toHaveLength(4);
     const changedRow = screen.getByRole("row", { name: /Acme/u });
     expect(changedRow.classList.contains("zoho-resync-changed-row")).toBe(true);
     expect(changedRow.querySelectorAll("del")).toHaveLength(3);

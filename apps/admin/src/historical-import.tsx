@@ -226,14 +226,15 @@ type ZohoWinnerOrganization = NonNullable<
 >[number];
 
 export type OrganizationParticipationStatus =
-  "winner" | "non-winner" | "not-included";
+  "winner" | "non-winner" | "not-provided" | "not-included";
 
 export function organizationParticipationStatus(
   entry: OrganizationProgramDraft,
 ): OrganizationParticipationStatus {
   if (entry.isIncluded === false) return "not-included";
   if (entry.isWinner === true) return "winner";
-  return "non-winner";
+  if (entry.isWinner === false) return "non-winner";
+  return "not-provided";
 }
 
 export function summarizeOrganizationPrograms(
@@ -1125,7 +1126,7 @@ export function UploadStep({
           isWinner:
             organizationPrograms.find(
               ({ organizationKey }) => organizationKey === organization.key,
-            )?.isWinner ?? false,
+            )?.isWinner ?? null,
           isIncluded:
             organizationPrograms.find(
               ({ organizationKey }) => organizationKey === organization.key,
@@ -1570,7 +1571,7 @@ export function WinnersStep({
                       <td>
                         <input
                           aria-label={`Winner for ${entry.organizationName ?? "organization"}`}
-                          checked={entry.isWinner}
+                          checked={entry.isWinner === true}
                           disabled={!isIncluded}
                           onChange={(event) =>
                             updateOrganization(key, {
