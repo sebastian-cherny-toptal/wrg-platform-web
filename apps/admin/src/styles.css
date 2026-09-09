@@ -1160,6 +1160,13 @@ a {
   border: 1px solid #d8d8dc;
   border-radius: 6px;
 }
+.winner-status-select {
+  min-width: 4rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #d8d8dc;
+  border-radius: 6px;
+  background: white;
+}
 .organization-summary {
   display: grid;
   grid-template-columns: repeat(7, minmax(90px, 1fr));

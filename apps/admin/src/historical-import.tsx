@@ -258,6 +258,9 @@ export function summarizeOrganizationPrograms(
         winners: included.filter(
           (entry) => organizationParticipationStatus(entry) === "winner",
         ).length,
+        nonWinners: included.filter(
+          (entry) => organizationParticipationStatus(entry) === "non-winner",
+        ).length,
         total: included.length,
       };
     }),
@@ -1522,13 +1525,17 @@ export function WinnersStep({
             aria-label="Organization summary"
           >
             {organizationSummary.categories.map(
-              ({ category, winners, total }) => (
+              ({ category, winners, nonWinners, total }) => (
                 <div key={category}>
                   <span className="organization-summary-label">{category}</span>
                   <div className="organization-summary-counts">
                     <span>
                       <strong>{winners}</strong>
                       <small>Winners</small>
+                    </span>
+                    <span>
+                      <strong>{nonWinners}</strong>
+                      <small>Non-winners</small>
                     </span>
                     <span>
                       <strong>{total}</strong>
@@ -1629,17 +1636,25 @@ export function WinnersStep({
                         ) : null}
                       </td>
                       <td>
-                        <input
+                        <select
                           aria-label={`Winner for ${entry.organizationName ?? "organization"}`}
-                          checked={entry.isWinner === "Y"}
+                          className="winner-status-select"
                           disabled={!isIncluded}
                           onChange={(event) =>
                             updateOrganization(key, {
-                              isWinner: event.target.checked ? "Y" : "N",
+                              isWinner:
+                                event.target.value === "Y" ||
+                                event.target.value === "N"
+                                  ? event.target.value
+                                  : null,
                             })
                           }
-                          type="checkbox"
-                        />
+                          value={entry.isWinner ?? ""}
+                        >
+                          <option value="">-</option>
+                          <option value="Y">Y</option>
+                          <option value="N">N</option>
+                        </select>
                       </td>
                       <td>{validationOrganization?.efsRespondents ?? "—"}</td>
                       <td>

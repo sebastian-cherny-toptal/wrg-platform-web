@@ -1,4 +1,10 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CategoryPricing } from "./api";
 import { WinnersStep } from "./historical-import";
@@ -57,5 +63,17 @@ describe("WinnersStep benchmark category choices", () => {
     expect(within(organizationRow).getAllByRole("cell")[4]?.textContent).toBe(
       "25-99",
     );
+    const winner = within(organizationRow).getByRole("combobox", {
+      name: "Winner for Acme",
+    }) as HTMLSelectElement;
+    expect(winner.value).toBe("Y");
+    expect(
+      within(winner).getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["-", "Y", "N"]);
+    fireEvent.change(winner, { target: { value: "" } });
+    expect(winner.value).toBe("");
+
+    const summary = screen.getByLabelText("Organization summary");
+    expect(within(summary).getAllByText("Non-winners")).toHaveLength(6);
   });
 });

@@ -138,11 +138,13 @@ describe("organization participation status", () => {
     expect(summary.categories).toContainEqual({
       category: "Small",
       winners: 1,
+      nonWinners: 1,
       total: 2,
     });
     expect(summary.categories).toContainEqual({
       category: "Medium",
       winners: 1,
+      nonWinners: 0,
       total: 1,
     });
   });
