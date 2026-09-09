@@ -20,7 +20,7 @@ const categoryPricing: CategoryPricing[] = [
 }));
 
 describe("WinnersStep benchmark category choices", () => {
-  it("uses the program's edited Zoho category names for the radio buttons", () => {
+  it("uses the program's Zoho category names for the radio buttons", () => {
     render(
       <WinnersStep
         draft={{

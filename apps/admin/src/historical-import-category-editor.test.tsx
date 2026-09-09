@@ -1,90 +1,58 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CategoryPricing } from "./api";
 import { CategoryPricingEditor } from "./historical-import";
 
 const category: CategoryPricing = {
   tier: "Small",
-  zohoCategoryName: "Small",
-  employeeSize: "25-99",
+  zohoCategoryName: "Small-Medium",
+  employeeSize: "35-74 US",
   priceCents: 111_000,
 };
 
 afterEach(cleanup);
 
-function EditorHarness({
-  onChange = vi.fn(),
-}: {
-  onChange?: (value: CategoryPricing[]) => void;
-}) {
-  const [editingTier, setEditingTier] = useState<
-    CategoryPricing["tier"] | null
-  >(null);
-  const [value, setValue] = useState([category]);
-
-  return (
-    <>
-      <CategoryPricingEditor
-        editingTier={editingTier}
-        onChange={(nextValue) => {
-          setValue(nextValue);
-          onChange(nextValue);
-        }}
-        onEditingTierChange={setEditingTier}
-        value={value}
-      />
-      <button disabled={editingTier !== null}>Continue</button>
-    </>
-  );
-}
-
 describe("CategoryPricingEditor", () => {
-  it("commits a category name only after the inline edit is saved", () => {
-    const onChange = vi.fn();
-    render(<EditorHarness onChange={onChange} />);
+  it("shows the Zoho name and range as read-only values", () => {
+    render(<CategoryPricingEditor onChange={vi.fn()} value={[category]} />);
 
+    expect(screen.getByText("Small-Medium")).toBeTruthy();
+    expect(screen.getByText("35-74 US")).toBeTruthy();
     expect(screen.queryByLabelText("Small Zoho category name")).toBeNull();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Edit Small category name" }),
-    );
-
-    const input = screen.getByLabelText("Small Zoho category name");
-    const continueButton = screen.getByRole("button", { name: "Continue" });
-    expect((continueButton as HTMLButtonElement).disabled).toBe(true);
-
-    fireEvent.change(input, { target: { value: "  Small/Medium  " } });
-    expect(onChange).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save Small category name" }),
-    );
-    expect(onChange).toHaveBeenCalledWith([
-      { ...category, zohoCategoryName: "Small/Medium" },
-    ]);
-    expect(screen.getByText("Small/Medium")).toBeTruthy();
-    expect((continueButton as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByLabelText("Small category size")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Edit Small category name" }),
+    ).toBeNull();
   });
 
-  it("does not allow an empty category name to be saved", () => {
-    render(<EditorHarness />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Edit Small category name" }),
+  it("allows the Zoho-backed report price to be changed", () => {
+    const onChange = vi.fn();
+    render(<CategoryPricingEditor onChange={onChange} value={[category]} />);
+
+    const input = screen.getByLabelText("Small category price");
+    expect((input as HTMLInputElement).value).toBe("1110.00");
+    fireEvent.change(input, { target: { value: "1234.56" } });
+    fireEvent.blur(input);
+
+    expect(onChange).toHaveBeenCalledWith([
+      { ...category, priceCents: 123_456 },
+    ]);
+  });
+
+  it("leaves a missing Zoho price blank until the admin enters one", () => {
+    render(
+      <CategoryPricingEditor
+        onChange={vi.fn()}
+        value={[{ ...category, priceCents: null }]}
+      />,
     );
-    fireEvent.change(screen.getByLabelText("Small Zoho category name"), {
-      target: { value: "   " },
-    });
 
     expect(
-      (
-        screen.getByRole("button", {
-          name: "Save Small category name",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
+      (screen.getByLabelText("Small category price") as HTMLInputElement).value,
+    ).toBe("");
     expect(
-      (screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByLabelText("Small category price") as HTMLInputElement)
+        .required,
     ).toBe(true);
   });
 });

@@ -122,7 +122,7 @@ export type CategoryPricing = {
   tier: "Boutique" | "Small" | "Medium" | "Large" | "Mega" | "Major";
   zohoCategoryName: string;
   employeeSize: string;
-  priceCents: number;
+  priceCents: number | null;
 };
 
 export type PortalUserRecord = {

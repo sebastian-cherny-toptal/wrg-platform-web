@@ -12,20 +12,29 @@ export function MoneyInput({
   priceCents,
   onChange,
   ariaLabel,
+  required = false,
 }: {
-  priceCents: number;
+  priceCents: number | null;
   onChange: (priceCents: number) => void;
   ariaLabel?: string;
+  required?: boolean;
 }) {
-  const [value, setValue] = useState((priceCents / 100).toFixed(2));
+  const formattedPrice = (cents: number | null) =>
+    cents === null ? "" : (cents / 100).toFixed(2);
+  const [value, setValue] = useState(formattedPrice(priceCents));
 
-  useEffect(() => setValue((priceCents / 100).toFixed(2)), [priceCents]);
+  useEffect(() => setValue(formattedPrice(priceCents)), [priceCents]);
 
   const commit = () => {
-    const amount = Number(value.replaceAll(",", "").trim());
+    const normalized = value.replaceAll(",", "").trim();
+    if (!normalized) {
+      setValue(formattedPrice(priceCents));
+      return;
+    }
+    const amount = Number(normalized);
     const nextPrice = Number.isFinite(amount)
       ? Math.max(0, Math.round(amount * 100))
-      : priceCents;
+      : (priceCents ?? 0);
     onChange(nextPrice);
     setValue((nextPrice / 100).toFixed(2));
   };
@@ -44,6 +53,7 @@ export function MoneyInput({
           if (event.key === "Enter") event.currentTarget.blur();
         }}
         type="text"
+        required={required}
         value={value}
       />
     </div>

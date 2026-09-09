@@ -1364,24 +1364,19 @@ a {
   border-top: 1px solid #e4e4e7;
 }
 .category-name-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  align-self: center;
+  display: grid;
+  gap: 6px;
+  align-self: end;
 }
-.category-name-control > strong {
+.category-name-control > strong,
+.category-source-field > strong {
   overflow-wrap: anywhere;
 }
-.category-name-control > input {
-  min-width: 0;
-}
-.category-name-action {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-}
-.category-name-action:disabled {
-  cursor: not-allowed;
+.category-source-field {
+  display: grid;
+  gap: 6px;
+  align-self: end;
+  min-height: 42px;
 }
 .category-pricing-row label {
   display: grid;
