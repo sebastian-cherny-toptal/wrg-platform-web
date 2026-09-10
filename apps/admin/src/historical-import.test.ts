@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
 import {
   applyZohoOrganizations,
+  combineWorkbookPreviews,
   filterAndSortProjects,
   filterWinnerOrganizations,
   newProgramProjectPayload,
@@ -9,6 +10,48 @@ import {
   organizationParticipationStatus,
   summarizeOrganizationPrograms,
 } from "./historical-import";
+
+describe("workbook preview comparison", () => {
+  it("combines summaries and creates client-side warnings for organizations in only one workbook", () => {
+    const preview = (kind: "EA" | "EFS", key: string, name: string) => ({
+      issues: [],
+      workbooks: [
+        {
+          kind,
+          fileName: `${kind}.xlsx`,
+          sha256: kind,
+          questions: 5,
+          organizations: 1,
+          respondents: 2,
+          responses: 10,
+        },
+      ],
+      organizations: [
+        {
+          key,
+          displayName: name,
+          eaRespondents: kind === "EA" ? 2 : 0,
+          efsRespondents: kind === "EFS" ? 2 : 0,
+          warnings: [],
+        },
+      ],
+      blockingErrorCount: 0,
+      warningCount: 0,
+    });
+
+    const combined = combineWorkbookPreviews({
+      EA: preview("EA", "acme", "Acme"),
+      EFS: preview("EFS", "beta", "Beta"),
+    });
+
+    expect(combined?.workbooks).toHaveLength(2);
+    expect(combined?.issues).toEqual([
+      { level: "warning", message: "Acme: Present in EA only" },
+      { level: "warning", message: "Beta: Present in EFS only" },
+    ]);
+    expect(combined?.warningCount).toBe(2);
+  });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();

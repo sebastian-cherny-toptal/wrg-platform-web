@@ -8,7 +8,13 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { SearchableSelect } from "@wrg/platform-ui";
 import {
@@ -56,6 +62,101 @@ function IssueList({
       ))}
     </div>
   );
+}
+
+type WorkbookKind = "EA" | "EFS";
+
+export function combineWorkbookPreviews(
+  previews: Partial<Record<WorkbookKind, HistoricalImportValidationSummary>>,
+): HistoricalImportValidationSummary | undefined {
+  const ea = previews.EA;
+  const efs = previews.EFS;
+  if (!ea && !efs) return undefined;
+
+  const organizations = new Map<
+    string,
+    HistoricalImportValidationSummary["organizations"][number]
+  >();
+  for (const organization of ea?.organizations ?? []) {
+    organizations.set(organization.key, {
+      ...organization,
+      efsRespondents: 0,
+      warnings: [],
+    });
+  }
+  for (const organization of efs?.organizations ?? []) {
+    const existing = organizations.get(organization.key);
+    organizations.set(organization.key, {
+      ...organization,
+      ...(existing?.workbookOrganizationId
+        ? { workbookOrganizationId: existing.workbookOrganizationId }
+        : {}),
+      displayName: existing?.displayName ?? organization.displayName,
+      eaRespondents: existing?.eaRespondents ?? 0,
+      warnings: [],
+    });
+  }
+
+  const mismatchIssues: HistoricalImportValidationSummary["issues"] = [];
+  if (ea && efs) {
+    const eaKeys = new Set(ea.organizations.map(({ key }) => key));
+    const efsKeys = new Set(efs.organizations.map(({ key }) => key));
+    for (const organization of organizations.values()) {
+      const warning = !efsKeys.has(organization.key)
+        ? "Present in EA only"
+        : !eaKeys.has(organization.key)
+          ? "Present in EFS only"
+          : undefined;
+      if (!warning) continue;
+      organization.warnings = [warning];
+      mismatchIssues.push({
+        level: "warning",
+        message: `${organization.displayName}: ${warning}`,
+      });
+    }
+  }
+
+  const issues = [
+    ...(ea?.issues ?? []),
+    ...(efs?.issues ?? []),
+    ...mismatchIssues,
+  ];
+  return {
+    issues,
+    workbooks: [...(ea?.workbooks ?? []), ...(efs?.workbooks ?? [])],
+    organizations: [...organizations.values()],
+    blockingErrorCount:
+      (ea?.blockingErrorCount ?? 0) + (efs?.blockingErrorCount ?? 0),
+    warningCount:
+      (ea?.warningCount ?? 0) +
+      (efs?.warningCount ?? 0) +
+      mismatchIssues.length,
+  };
+}
+
+function workbookPreviewFromCombined(
+  validation: HistoricalImportValidationSummary | undefined,
+  kind: WorkbookKind,
+): HistoricalImportValidationSummary | undefined {
+  const workbook = validation?.workbooks.find((entry) => entry.kind === kind);
+  if (!validation || !workbook) return undefined;
+  return {
+    issues: validation.issues.filter(
+      ({ message }) =>
+        !message.endsWith(": Present in EA only") &&
+        !message.endsWith(": Present in EFS only"),
+    ),
+    workbooks: [workbook],
+    organizations: validation.organizations
+      .filter(({ warnings }) =>
+        kind === "EA"
+          ? !warnings.includes("Present in EFS only")
+          : !warnings.includes("Present in EA only"),
+      )
+      .map((organization) => ({ ...organization, warnings: [] })),
+    blockingErrorCount: 0,
+    warningCount: 0,
+  };
 }
 
 const currentYear = new Date().getFullYear();
@@ -1040,54 +1141,115 @@ export function UploadStep({
 }) {
   const [eaFile, setEaFile] = useState<File | null>(draft.eaFile ?? null);
   const [efsFile, setEfsFile] = useState<File | null>(draft.efsFile ?? null);
+  const eaFileRef = useRef(eaFile);
+  const efsFileRef = useRef(efsFile);
+  const previewRef = useRef<
+    Partial<Record<WorkbookKind, HistoricalImportValidationSummary>>
+  >({
+    EA: workbookPreviewFromCombined(draft.validation, "EA"),
+    EFS: workbookPreviewFromCombined(draft.validation, "EFS"),
+  });
+  const analysisRequests = useRef<Record<WorkbookKind, number>>({
+    EA: 0,
+    EFS: 0,
+  });
+  const [pendingAnalyses, setPendingAnalyses] = useState(0);
   const [validation, setValidation] = useState(draft.validation);
   const [error, setError] = useState("");
-  const [working, setWorking] = useState(false);
+  const [continuing, setContinuing] = useState(false);
+  const working = pendingAnalyses > 0 || continuing;
 
-  const workbookChanged = (
+  const workbookChanged = async (
     kind: "EA" | "EFS",
     setFile: (file: File | null) => void,
     file: File | null,
   ) => {
     setFile(file);
-    setValidation(undefined);
+    if (kind === "EA") eaFileRef.current = file;
+    else efsFileRef.current = file;
     setError("");
+    previewRef.current = { ...previewRef.current, [kind]: undefined };
+    const previewWithoutChangedFile = combineWorkbookPreviews(
+      previewRef.current,
+    );
+    setValidation(previewWithoutChangedFile);
     const nextDraft = {
       ...draft,
-      ...(kind === "EA" ? { eaFile: file ?? undefined } : {}),
-      ...(kind === "EFS" ? { efsFile: file ?? undefined } : {}),
+      eaFile: eaFileRef.current ?? undefined,
+      efsFile: efsFileRef.current ?? undefined,
       uploadsConfigured: false,
-      validation: undefined,
+      validation: previewWithoutChangedFile,
     };
     onDraftChange?.(nextDraft);
+    const requestId = ++analysisRequests.current[kind];
+    if (!file) return;
+
+    setPendingAnalyses((count) => count + 1);
+    try {
+      const prepared = await api.prepareHistoricalImport(draft.metadata, {
+        ...(kind === "EA" ? { eaFile: file } : { efsFile: file }),
+      });
+      if (requestId !== analysisRequests.current[kind]) return;
+      previewRef.current = {
+        ...previewRef.current,
+        [kind]: prepared.validation,
+      };
+      const combinedValidation = combineWorkbookPreviews(previewRef.current);
+      setValidation(combinedValidation);
+      onDraftChange?.({
+        ...draft,
+        eaFile: eaFileRef.current ?? undefined,
+        efsFile: efsFileRef.current ?? undefined,
+        uploadsConfigured: false,
+        validation: combinedValidation,
+      });
+    } catch (caught) {
+      if (requestId !== analysisRequests.current[kind]) return;
+      setError(
+        caught instanceof Error ? caught.message : "Unable to analyze workbook",
+      );
+    } finally {
+      setPendingAnalyses((count) => Math.max(0, count - 1));
+    }
   };
 
   const continueToOrganizations = async () => {
-    if ((!eaFile || !efsFile) && !draft.metadata.programId) {
+    if (Boolean(eaFile) !== Boolean(efsFile)) {
+      setError("Upload both the EA and EFS workbooks, or leave both empty.");
+      return;
+    }
+    if (!eaFile && !efsFile && !draft.metadata.programId) {
       setError("Upload both the EA and EFS workbooks.");
       return;
     }
-    setWorking(true);
+    if (eaFile && efsFile && validation?.workbooks.length !== 2) {
+      setError(
+        "Both workbooks must be analyzed successfully before continuing.",
+      );
+      return;
+    }
+    if (validation && validation.blockingErrorCount > 0) {
+      setError("Resolve the workbook validation errors before continuing.");
+      return;
+    }
+    setContinuing(true);
     setError("");
     try {
-      const [prepared, zohoOrganizations] = await Promise.all([
-        api.prepareHistoricalImport(draft.metadata, {
-          eaFile: eaFile ?? undefined,
-          efsFile: efsFile ?? undefined,
-        }),
-        draft.metadata.zohoProgramId
-          ? api.zohoProgramOrganizations(draft.metadata.zohoProgramId)
-          : Promise.resolve(draft.metadata.zohoOrganizations ?? []),
-      ]);
-      setValidation(prepared.validation);
-      if (prepared.validation.blockingErrorCount > 0) {
-        onDraftChange?.({ ...draft, validation: prepared.validation });
-        return;
-      }
+      const preparedValidation = validation ??
+        combineWorkbookPreviews(previewRef.current) ?? {
+          issues: [],
+          workbooks: [],
+          organizations: [],
+          blockingErrorCount: 0,
+          warningCount: 0,
+        };
+      const zohoOrganizations = draft.metadata.zohoProgramId
+        ? await api.zohoProgramOrganizations(draft.metadata.zohoProgramId)
+        : (draft.metadata.zohoOrganizations ?? []);
       const currentOrganizations = normalizeOrganizationPrograms(
         draft.metadata.organizationPrograms ?? [],
       );
-      const workbookOrganizations = prepared.validation.organizations.map(
+      const workbookOrganizations = preparedValidation.organizations.map(
         (organization) => {
           const current = currentOrganizations.find(
             (entry) => entry.organizationKey === organization.key,
@@ -1116,9 +1278,9 @@ export function UploadStep({
         eaFile: eaFile ?? undefined,
         efsFile: efsFile ?? undefined,
         uploadsConfigured: true,
-        validation: prepared.validation,
+        validation: preparedValidation,
         metadata: {
-          ...prepared.metadata,
+          ...draft.metadata,
           zohoOrganizations,
           organizationPrograms,
         },
@@ -1130,7 +1292,7 @@ export function UploadStep({
           : "Unable to load organizations from Zoho",
       );
     } finally {
-      setWorking(false);
+      setContinuing(false);
     }
   };
 
@@ -1166,9 +1328,10 @@ export function UploadStep({
       {actions("top")}
       <p className="wizard-copy">
         Upload one Employer Assessment workbook and one Employee Feedback Survey
-        workbook. When you continue, the server validates both workbooks and
-        loads the latest program organizations from Zoho. You can review and
-        adjust the combined data in Step 3 before anything is saved.{" "}
+        workbook. Each file is analyzed as soon as you select it. The browser
+        compares their organization lists, and Continue loads the latest program
+        organizations from Zoho. You can review and adjust the combined data in
+        Step 3 before anything is saved.{" "}
         {draft.metadata.programId
           ? "Both files are optional when only editing program details or store prices."
           : "Both files are required for a new program."}
@@ -1179,11 +1342,14 @@ export function UploadStep({
           <strong>Employer Assessment (EA)</strong>
           <span>{eaFile?.name ?? "Choose .xlsx file"}</span>
           <input
-            disabled={working}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) =>
-              workbookChanged("EA", setEaFile, event.target.files?.[0] ?? null)
+              void workbookChanged(
+                "EA",
+                setEaFile,
+                event.target.files?.[0] ?? null,
+              )
             }
           />
         </label>
@@ -1192,11 +1358,10 @@ export function UploadStep({
           <strong>Employee Feedback Survey (EFS)</strong>
           <span>{efsFile?.name ?? "Choose .xlsx file"}</span>
           <input
-            disabled={working}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) =>
-              workbookChanged(
+              void workbookChanged(
                 "EFS",
                 setEfsFile,
                 event.target.files?.[0] ?? null,
@@ -1222,23 +1387,6 @@ export function UploadStep({
         </div>
       ) : null}
       {validation ? <IssueList issues={validation.issues} /> : null}
-      {validation ? (
-        <div className="issue-list">
-          {validation.organizations.flatMap((organization) =>
-            organization.warnings.map((warning) => (
-              <div
-                className="issue-item warning"
-                key={`${organization.key}-${warning}`}
-              >
-                <AlertTriangle size={16} />
-                <span>
-                  {organization.displayName}: {warning}
-                </span>
-              </div>
-            )),
-          )}
-        </div>
-      ) : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
     </div>
