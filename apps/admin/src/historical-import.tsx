@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -16,8 +15,6 @@ import {
   type CategoryPricing,
   type HistoricalImportMetadata,
   type HistoricalImportStatus,
-  type HistoricalImportValidationSummary,
-  type HistoricalImportWorkbookSummary,
   type ProjectRecord,
   type WinnerStatus,
   type ZohoOrganizationInfo,
@@ -27,16 +24,14 @@ import { PageHeader, State } from "./admin";
 import { CatalogEditor, MoneyInput } from "./catalog-editor";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 
-const storageKey = "wrg-historical-import-draft";
-
 type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 type DraftState = {
-  importId: string;
   metadata: HistoricalImportMetadata;
-  eaFileName?: string;
-  efsFileName?: string;
-  validation?: HistoricalImportValidationSummary;
+  eaFile?: File;
+  efsFile?: File;
+  rankingFile?: File;
+  uploadsConfigured?: boolean;
   winnersConfigured?: boolean;
 };
 
@@ -92,23 +87,6 @@ export function zohoCategoryNames(
   });
 }
 
-function readStoredDraft(): Partial<DraftState> | null {
-  try {
-    const raw = window.sessionStorage.getItem(storageKey);
-    return raw ? (JSON.parse(raw) as Partial<DraftState>) : null;
-  } catch {
-    return null;
-  }
-}
-
-function storeDraft(draft: Partial<DraftState>): void {
-  window.sessionStorage.setItem(storageKey, JSON.stringify(draft));
-}
-
-function clearDraft(): void {
-  window.sessionStorage.removeItem(storageKey);
-}
-
 function StepIndicator({
   step,
   maxStep,
@@ -149,33 +127,6 @@ function StepIndicator({
         </li>
       ))}
     </ol>
-  );
-}
-
-function IssueList({
-  issues,
-}: {
-  issues: HistoricalImportValidationSummary["issues"];
-}) {
-  if (!issues.length) return null;
-  return (
-    <div className="issue-list">
-      {issues.map((issue, index) => (
-        <div
-          key={`${issue.level}-${index}`}
-          className={
-            issue.level === "error" ? "issue-item error" : "issue-item warning"
-          }
-        >
-          {issue.level === "error" ? (
-            <AlertTriangle size={16} />
-          ) : (
-            <AlertTriangle size={16} />
-          )}
-          <span>{issue.message}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -405,6 +356,41 @@ export function applyZohoOrganizations(
       reportCategory: organization.reportCategory ?? undefined,
       overallRank: organization.overallRank ?? undefined,
       categoryRank: organization.categoryRank ?? undefined,
+    };
+  });
+}
+
+export function organizationProgramsFromZoho(
+  organizations: ZohoOrganizationInfo[],
+): OrganizationProgramDraft[] {
+  return organizations.map((organization) => {
+    const organizationName = zohoOrganizationName(organization);
+    return {
+      organizationKey: `name:${normalizeOrganizationIdentity(organizationName)}`,
+      sourceOrganizationId: organization.organizationId,
+      organizationName,
+      surveysSent: organization.surveysSent,
+      isWinner: organization.isWinner,
+      isIncluded: true,
+      ...(organization.stage ? { stage: organization.stage } : {}),
+      ...(organization.companySize !== null
+        ? { companySize: organization.companySize }
+        : {}),
+      ...(organization.employeesCount !== null
+        ? { employeesCount: organization.employeesCount }
+        : {}),
+      ...(organization.currentZohoCategory
+        ? { currentZohoCategory: organization.currentZohoCategory }
+        : {}),
+      ...(organization.reportCategory
+        ? { reportCategory: organization.reportCategory }
+        : {}),
+      ...(organization.overallRank
+        ? { overallRank: organization.overallRank }
+        : {}),
+      ...(organization.categoryRank
+        ? { categoryRank: organization.categoryRank }
+        : {}),
     };
   });
 }
@@ -666,7 +652,6 @@ function MetadataStep({
       defaultCategoryPricing.map((entry) => ({ ...entry })),
   });
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
   const [manualProgram, setManualProgram] = useState(
     !editing &&
       Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId),
@@ -715,61 +700,38 @@ function MetadataStep({
     };
   }, [editing, selectedZohoProjectId]);
 
-  const submit = async (event: FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault();
-    setSaving(true);
     setError("");
-    try {
-      const payload = {
-        ...(editing
-          ? form.projectId
-            ? { projectId: form.projectId }
-            : {}
-          : newProgramProjectPayload(selectedProject)),
-        ...(!form.projectId ? { projectName: form.projectName?.trim() } : {}),
-        ...(form.programId ? { programId: form.programId } : {}),
-        ...(form.zohoProgramId ? { zohoProgramId: form.zohoProgramId } : {}),
-        programName: form.programName.trim(),
-        programYear: form.programYear,
-        efsLaunchDate: form.efsLaunchDate,
-        efsDeadline: form.efsDeadline,
-        zohoWinnerOrganizations: form.zohoWinnerOrganizations,
-        zohoOrganizations: form.zohoOrganizations,
-        organizationPrograms: form.organizationPrograms,
-        reportCatalog: form.reportCatalog,
-        categoryPricing: form.categoryPricing,
-        ...(form.projectAbbreviation?.trim()
-          ? { projectAbbreviation: form.projectAbbreviation.trim() }
-          : {}),
-      };
-      const response = draft.importId
-        ? await api.updateHistoricalImportMetadata(draft.importId, payload)
-        : await api.createHistoricalImport(payload);
-      const nextDraft: DraftState = {
-        importId: response.importId,
-        metadata: response.metadata,
-      };
-      storeDraft(nextDraft);
-      onSaved(nextDraft);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to save project metadata",
-      );
-    } finally {
-      setSaving(false);
-    }
+    const payload: HistoricalImportMetadata = {
+      ...(editing
+        ? form.projectId
+          ? { projectId: form.projectId }
+          : {}
+        : newProgramProjectPayload(selectedProject)),
+      ...(!form.projectId ? { projectName: form.projectName?.trim() } : {}),
+      ...(form.programId ? { programId: form.programId } : {}),
+      ...(form.zohoProgramId ? { zohoProgramId: form.zohoProgramId } : {}),
+      programName: form.programName.trim(),
+      programYear: form.programYear,
+      efsLaunchDate: form.efsLaunchDate,
+      efsDeadline: form.efsDeadline,
+      zohoWinnerOrganizations: form.zohoWinnerOrganizations,
+      zohoOrganizations: form.zohoOrganizations,
+      organizationPrograms: form.organizationPrograms,
+      reportCatalog: form.reportCatalog,
+      categoryPricing: form.categoryPricing,
+      ...(form.projectAbbreviation?.trim()
+        ? { projectAbbreviation: form.projectAbbreviation.trim() }
+        : {}),
+    };
+    onSaved({ ...draft, metadata: payload } as DraftState);
   };
 
   const actions = (position: "top" | "bottom") => (
     <WizardActions position={position}>
-      <button
-        className="primary-button compact"
-        disabled={saving}
-        type="submit"
-      >
-        {saving ? "Saving…" : "Continue"} <ChevronRight size={16} />
+      <button className="primary-button compact" type="submit">
+        Continue <ChevronRight size={16} />
       </button>
     </WizardActions>
   );
@@ -804,6 +766,7 @@ function MetadataStep({
                 programName: "",
                 zohoWinnerOrganizations: [],
                 zohoOrganizations: [],
+                organizationPrograms: [],
                 categoryPricing: project
                   ? []
                   : defaultCategoryPricing.map((entry) => ({ ...entry })),
@@ -864,6 +827,7 @@ function MetadataStep({
                       programName: "",
                       zohoWinnerOrganizations: [],
                       zohoOrganizations: [],
+                      organizationPrograms: [],
                       categoryPricing: defaultCategoryPricing.map((entry) => ({
                         ...entry,
                       })),
@@ -891,6 +855,9 @@ function MetadataStep({
                       form.projectAbbreviation,
                     zohoWinnerOrganizations: selected.winnerOrganizations,
                     zohoOrganizations: selected.organizations,
+                    organizationPrograms: organizationProgramsFromZoho(
+                      selected.organizations,
+                    ),
                     categoryPricing: selected.categoryPricing ?? [],
                   });
                 }}
@@ -1031,254 +998,65 @@ export function UploadStep({
   onBack: () => void;
   onRestart: () => void;
 }) {
-  const [eaFile, setEaFile] = useState<File | null>(null);
-  const [efsFile, setEfsFile] = useState<File | null>(null);
-  const [validation, setValidation] = useState<
-    HistoricalImportValidationSummary | undefined
-  >(draft.validation);
-  const [workbookSummaries, setWorkbookSummaries] = useState<
-    HistoricalImportWorkbookSummary[]
-  >(draft.validation?.workbooks ?? []);
-  const [organizationPrograms, setOrganizationPrograms] = useState(
-    normalizeOrganizationPrograms(draft.metadata.organizationPrograms ?? []),
-  );
-  const [zohoOrganizations, setZohoOrganizations] = useState(
-    draft.metadata.zohoOrganizations ?? [],
-  );
+  const [eaFile, setEaFile] = useState<File | null>(draft.eaFile ?? null);
+  const [efsFile, setEfsFile] = useState<File | null>(draft.efsFile ?? null);
   const [error, setError] = useState("");
-  const [working, setWorking] = useState(false);
-  const [validating, setValidating] = useState(false);
-  const [filesChanged, setFilesChanged] = useState(false);
 
-  const workbookChanged = async (
+  const workbookChanged = (
     kind: "EA" | "EFS",
     setFile: (file: File | null) => void,
     file: File | null,
   ) => {
     setFile(file);
-    setFilesChanged(true);
-    setValidation(undefined);
-    setWorkbookSummaries((current) =>
-      current.filter((workbook) => workbook.kind !== kind),
-    );
     setError("");
-    const nextDraft = { ...draft, validation: undefined };
-    storeDraft(nextDraft);
+    const nextDraft = {
+      ...draft,
+      ...(kind === "EA" ? { eaFile: file ?? undefined } : {}),
+      ...(kind === "EFS" ? { efsFile: file ?? undefined } : {}),
+      uploadsConfigured: false,
+    };
     onDraftChange?.(nextDraft);
-    if (!file) return;
-
-    setWorking(true);
-    try {
-      const result = await api.uploadHistoricalImportWorkbook(
-        draft.importId,
-        kind,
-        file,
-      );
-      setWorkbookSummaries((current) => [
-        ...current.filter((workbook) => workbook.kind !== kind),
-        result.workbook,
-      ]);
-      const uploadedDraft = {
-        ...nextDraft,
-        ...(kind === "EA"
-          ? { eaFileName: file.name }
-          : { efsFileName: file.name }),
-      };
-      storeDraft(uploadedDraft);
-      onDraftChange?.(uploadedDraft);
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Unable to read workbook",
-      );
-    } finally {
-      setWorking(false);
-    }
   };
 
-  const loadValidatedProgramOrganizations = async () =>
-    draft.metadata.zohoProgramId
-      ? api.zohoProgramOrganizations(draft.metadata.zohoProgramId)
-      : zohoOrganizations;
-
-  const validate = async () => {
-    const hasEaWorkbook = Boolean(eaFile || draft.eaFileName);
-    const hasEfsWorkbook = Boolean(efsFile || draft.efsFileName);
-    if (!hasEaWorkbook || !hasEfsWorkbook) {
-      if (!draft.metadata.programId) {
-        setError("Upload both the EA and EFS workbooks.");
-        return;
-      }
-      setWorking(true);
-      setError("");
-      try {
-        const metadata = await api.updateHistoricalImportMetadata(
-          draft.importId,
-          {
-            ...draft.metadata,
-            organizationPrograms,
-          },
-        );
-        const summary = await api.validateHistoricalImport(draft.importId);
-        const freshZohoOrganizations =
-          await loadValidatedProgramOrganizations();
-        const nextOrganizations = applyZohoOrganizations(
-          organizationPrograms,
-          freshZohoOrganizations,
-        );
-        const updatedMetadata = await api.updateHistoricalImportMetadata(
-          draft.importId,
-          {
-            ...metadata.metadata,
-            zohoOrganizations: freshZohoOrganizations,
-            organizationPrograms: nextOrganizations,
-          },
-        );
-        const nextDraft = {
-          ...draft,
-          metadata: updatedMetadata.metadata,
-          validation: summary,
-        };
-        storeDraft(nextDraft);
-        onComplete(nextDraft);
-      } catch (caught) {
-        setError(
-          caught instanceof Error ? caught.message : "Unable to continue",
-        );
-      } finally {
-        setWorking(false);
-      }
+  const continueToOrganizations = () => {
+    if ((!eaFile || !efsFile) && !draft.metadata.programId) {
+      setError("Upload both the EA and EFS workbooks.");
       return;
     }
-    setWorking(true);
-    setValidating(true);
-    setError("");
-    try {
-      const summary = await api.validateHistoricalImport(draft.importId);
-      setValidation(summary);
-      setWorkbookSummaries(summary.workbooks);
-      const freshZohoOrganizations = await loadValidatedProgramOrganizations();
-      setFilesChanged(false);
-      setZohoOrganizations(freshZohoOrganizations);
-      const nextOrganizations = applyZohoOrganizations(
-        summary.organizations.map((organization) => ({
-          organizationKey: organization.key,
-          ...(organization.workbookOrganizationId
-            ? { sourceOrganizationId: organization.workbookOrganizationId }
-            : {}),
-          organizationName: organization.displayName,
-          surveysSent:
-            organizationPrograms.find(
-              ({ organizationKey }) => organizationKey === organization.key,
-            )?.surveysSent ?? organization.efsRespondents,
-          isWinner:
-            organizationPrograms.find(
-              ({ organizationKey }) => organizationKey === organization.key,
-            )?.isWinner ?? null,
-          isIncluded:
-            organizationPrograms.find(
-              ({ organizationKey }) => organizationKey === organization.key,
-            )?.isIncluded ?? true,
-        })),
-        freshZohoOrganizations,
-      );
-      setOrganizationPrograms(nextOrganizations);
-      const nextDraft = {
-        ...draft,
-        eaFileName: eaFile?.name ?? draft.eaFileName,
-        efsFileName: efsFile?.name ?? draft.efsFileName,
-        metadata: {
-          ...draft.metadata,
-          zohoOrganizations: freshZohoOrganizations,
-        },
-        validation: summary,
-      };
-      storeDraft(nextDraft);
-      onDraftChange?.(nextDraft);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to validate workbooks",
-      );
-    } finally {
-      setValidating(false);
-      setWorking(false);
-    }
-  };
-
-  const continueWithSurveysSent = async () => {
-    if (!validation || validation.blockingErrorCount > 0) return;
-    setWorking(true);
-    setError("");
-    try {
-      const response = await api.updateHistoricalImportMetadata(
-        draft.importId,
-        {
-          ...draft.metadata,
-          zohoOrganizations,
-          organizationPrograms,
-        },
-      );
-      const nextDraft = { ...draft, metadata: response.metadata, validation };
-      storeDraft(nextDraft);
-      onComplete(nextDraft);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to save Surveys Sent",
-      );
-    } finally {
-      setWorking(false);
-    }
+    onComplete({
+      ...draft,
+      eaFile: eaFile ?? undefined,
+      efsFile: efsFile ?? undefined,
+      uploadsConfigured: true,
+    });
   };
 
   const actions = (position: "top" | "bottom") => (
     <WizardActions position={position}>
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={onBack}
-        disabled={working}
-      >
+      <button type="button" className="secondary-button" onClick={onBack}>
         <ChevronLeft size={16} /> Back
       </button>
-      <RestartButton disabled={working} onRestart={onRestart} />
+      <RestartButton disabled={false} onRestart={onRestart} />
       <button
         type="button"
         className="primary-button compact"
-        disabled={working || Boolean(validation && !filesChanged)}
-        onClick={() => void validate()}
+        onClick={continueToOrganizations}
       >
-        {working
-          ? "Working…"
-          : !eaFile && !efsFile && draft.metadata.programId
-            ? "Skip uploads"
-            : "Validate workbooks"}
+        {!eaFile && !efsFile && draft.metadata.programId
+          ? "Skip uploads"
+          : "Continue"}{" "}
+        <ChevronRight size={16} />
       </button>
-      {validation?.blockingErrorCount === 0 &&
-      validation.workbooks.length > 0 ? (
-        <button
-          type="button"
-          className="primary-button compact"
-          disabled={working}
-          onClick={() => void continueWithSurveysSent()}
-        >
-          Continue <ChevronRight size={16} />
-        </button>
-      ) : null}
     </WizardActions>
   );
 
   return (
     <div className="wizard-panel">
-      {validating ? (
-        <LongRunningActionOverlay title="Validating workbooks…" />
-      ) : null}
       {actions("top")}
       <p className="wizard-copy">
         Upload one Employer Assessment workbook and one Employee Feedback Survey
-        workbook.{" "}
+        workbook. Files remain in this browser until you submit the program and
+        are validated by the server at that time.{" "}
         {draft.metadata.programId
           ? "Both files are optional when only editing program details or store prices."
           : "Both files are required for a new program."}
@@ -1287,32 +1065,24 @@ export function UploadStep({
         <label className="upload-card">
           <FileSpreadsheet size={28} />
           <strong>Employer Assessment (EA)</strong>
-          <span>{eaFile?.name ?? draft.eaFileName ?? "Choose .xlsx file"}</span>
+          <span>{eaFile?.name ?? "Choose .xlsx file"}</span>
           <input
-            disabled={working}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) =>
-              void workbookChanged(
-                "EA",
-                setEaFile,
-                event.target.files?.[0] ?? null,
-              )
+              workbookChanged("EA", setEaFile, event.target.files?.[0] ?? null)
             }
           />
         </label>
         <label className="upload-card">
           <Upload size={28} />
           <strong>Employee Feedback Survey (EFS)</strong>
-          <span>
-            {efsFile?.name ?? draft.efsFileName ?? "Choose .xlsx file"}
-          </span>
+          <span>{efsFile?.name ?? "Choose .xlsx file"}</span>
           <input
-            disabled={working}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) =>
-              void workbookChanged(
+              workbookChanged(
                 "EFS",
                 setEfsFile,
                 event.target.files?.[0] ?? null,
@@ -1321,47 +1091,6 @@ export function UploadStep({
           />
         </label>
       </div>
-      {workbookSummaries.length ? (
-        <>
-          <div className="summary-grid">
-            {workbookSummaries.map((workbook) => (
-              <div className="summary-card" key={workbook.kind}>
-                <strong>{workbook.kind}</strong>
-                <span>{workbook.fileName}</span>
-                <ul>
-                  <li>{workbook.questions} questions</li>
-                  <li>{workbook.organizations} organizations</li>
-                  <li>{workbook.respondents} respondents</li>
-                  <li>{workbook.responses} responses</li>
-                </ul>
-              </div>
-            ))}
-          </div>
-          {validation ? (
-            <div className="issue-list">
-              {validation.organizations.flatMap((organization) =>
-                organization.warnings
-                  .filter(
-                    (warning) =>
-                      warning === "Present in EA only" ||
-                      warning === "Present in EFS only",
-                  )
-                  .map((warning) => (
-                    <div
-                      className="issue-item warning"
-                      key={`${organization.key}-${warning}`}
-                    >
-                      <AlertTriangle size={16} />
-                      <span>
-                        {organization.displayName}: {warning}
-                      </span>
-                    </div>
-                  )),
-              )}
-            </div>
-          ) : null}
-        </>
-      ) : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
     </div>
@@ -1382,14 +1111,9 @@ export function WinnersStep({
   const [organizationPrograms, setOrganizationPrograms] = useState(
     normalizeOrganizationPrograms(draft.metadata.organizationPrograms ?? []),
   );
-  const [rankingSummary, setRankingSummary] = useState<{
-    fileName: string;
-    matchedOrganizations: number;
-    unmatchedOrganizations: string[];
-    invalidRows: number;
-  }>();
-  const [error, setError] = useState("");
-  const [working, setWorking] = useState(false);
+  const [rankingFile, setRankingFile] = useState<File | undefined>(
+    draft.rankingFile,
+  );
   const zohoOrganizations = draft.metadata.zohoOrganizations ?? [];
   const zohoCategories = zohoCategoryNames(draft.metadata.categoryPricing);
   const sortedOrganizationPrograms = [...organizationPrograms].sort(
@@ -1424,86 +1148,23 @@ export function WinnersStep({
     );
   };
 
-  const uploadRankingWorkbook = async (file: File) => {
-    setWorking(true);
-    setError("");
-    try {
-      const result = await api.matchHistoricalImportRankingWorkbook(
-        draft.importId,
-        file,
-      );
-      setOrganizationPrograms(
-        result.organizationPrograms.map((entry) => ({
-          ...entry,
-          isIncluded:
-            entry.isIncluded ??
-            organizationPrograms.find(
-              (current) =>
-                organizationProgramKey(current) ===
-                organizationProgramKey(entry),
-            )?.isIncluded ??
-            true,
-        })),
-      );
-      setRankingSummary({ fileName: file.name, ...result });
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to match ranking workbook",
-      );
-    } finally {
-      setWorking(false);
-    }
-  };
-
-  const save = async () => {
-    setWorking(true);
-    setError("");
-    try {
-      const response = await api.updateHistoricalImportMetadata(
-        draft.importId,
-        {
-          ...draft.metadata,
-          organizationPrograms,
-        },
-      );
-      const next = {
-        ...draft,
-        metadata: response.metadata,
-        winnersConfigured: true,
-      };
-      storeDraft(next);
-      onComplete(next);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to save winner organizations",
-      );
-    } finally {
-      setWorking(false);
-    }
+  const save = () => {
+    onComplete({
+      ...draft,
+      rankingFile,
+      metadata: { ...draft.metadata, organizationPrograms },
+      winnersConfigured: true,
+    });
   };
 
   const actions = (position: "top" | "bottom") => (
     <WizardActions position={position}>
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={onBack}
-        disabled={working}
-      >
+      <button type="button" className="secondary-button" onClick={onBack}>
         <ChevronLeft size={16} /> Back
       </button>
-      <RestartButton disabled={working} onRestart={onRestart} />
-      <button
-        type="button"
-        className="primary-button compact"
-        disabled={working || !organizationPrograms.length}
-        onClick={() => void save()}
-      >
-        {working ? "Saving…" : "Continue"} <ChevronRight size={16} />
+      <RestartButton disabled={false} onRestart={onRestart} />
+      <button type="button" className="primary-button compact" onClick={save}>
+        Continue <ChevronRight size={16} />
       </button>
     </WizardActions>
   );
@@ -1518,6 +1179,31 @@ export function WinnersStep({
         remain visible but will not be imported. You can also upload a ranking
         extract for bulk updates.
       </p>
+      <section className="ranking-upload">
+        <div>
+          <strong>Bulk winner and category matching</strong>
+          <span>
+            Upload the ranking extract with Alias Name, Organization ID, CY
+            Winner, and CY Category columns.
+          </span>
+        </div>
+        <label className="secondary-button compact action-link">
+          <Upload size={16} /> Upload ranking extract
+          <input
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) setRankingFile(file);
+            }}
+            type="file"
+          />
+        </label>
+        {rankingFile ? (
+          <small>
+            {rankingFile.name} will be matched when the program is saved.
+          </small>
+        ) : null}
+      </section>
       {organizationPrograms.length ? (
         <>
           <section
@@ -1550,48 +1236,12 @@ export function WinnersStep({
               <span>Not included</span>
             </div>
           </section>
-          <section className="ranking-upload">
-            <div>
-              <strong>Bulk winner and category matching</strong>
-              <span>
-                Upload the ranking extract with Alias Name, Organization ID, CY
-                Winner, and CY Category columns.
-              </span>
-            </div>
-            <label className="secondary-button compact action-link">
-              <Upload size={16} /> Upload ranking extract
-              <input
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                disabled={working}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void uploadRankingWorkbook(file);
-                  event.currentTarget.value = "";
-                }}
-                type="file"
-              />
-            </label>
-            {rankingSummary ? (
-              <small>
-                {rankingSummary.fileName}: matched{" "}
-                {rankingSummary.matchedOrganizations}
-                {rankingSummary.unmatchedOrganizations.length
-                  ? `; ${rankingSummary.unmatchedOrganizations.length} unmatched`
-                  : ""}
-                {rankingSummary.invalidRows
-                  ? `; ${rankingSummary.invalidRows} rows without Yes/No`
-                  : ""}
-                .
-              </small>
-            ) : null}
-          </section>
           <div className="table-card organization-config-table">
             <table aria-label="Organization winner, surveys, and category configuration">
               <thead>
                 <tr>
                   <th>Organization</th>
                   <th>Winner</th>
-                  <th>EFS respondents</th>
                   <th>Surveys Sent</th>
                   <th>Report category</th>
                   <th>Zoho category (benchmark)</th>
@@ -1604,11 +1254,6 @@ export function WinnersStep({
                   const matched = Boolean(
                     findZohoOrganization(entry, zohoOrganizations),
                   );
-                  const validationOrganization =
-                    draft.validation?.organizations.find(
-                      ({ key: organizationKey }) =>
-                        organizationKey === entry.organizationKey,
-                    );
                   const status = organizationParticipationStatus(entry);
                   const isIncluded = status !== "not-included";
                   const rowClassName =
@@ -1656,7 +1301,6 @@ export function WinnersStep({
                           <option value="N">N</option>
                         </select>
                       </td>
-                      <td>{validationOrganization?.efsRespondents ?? "—"}</td>
                       <td>
                         <input
                           aria-label={`Surveys Sent for ${entry.organizationName ?? "organization"}`}
@@ -1723,12 +1367,11 @@ export function WinnersStep({
           </div>
         </>
       ) : (
-        <p className="form-error">
-          No organizations are available. Return to the upload step and validate
-          the program workbooks first.
+        <p className="wizard-copy">
+          Workbook organizations will be discovered, validated, and imported
+          when you save the program.
         </p>
       )}
-      {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
     </div>
   );
@@ -1748,27 +1391,20 @@ export function ReviewStep({
   const [error, setError] = useState("");
   const [committing, setCommitting] = useState(false);
 
-  const validation = draft.validation;
-
   const commit = async () => {
     setCommitting(true);
     setError("");
     try {
-      const result = await api.commitHistoricalImport(draft.importId);
+      const result = await api.submitHistoricalImport(draft.metadata, {
+        eaFile: draft.eaFile,
+        efsFile: draft.efsFile,
+        rankingFile: draft.rankingFile,
+      });
       setStatus(result);
-      clearDraft();
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Historical import failed",
       );
-      if (draft.importId) {
-        void api
-          .historicalImportStatus(draft.importId)
-          .then((latest) => {
-            if (latest.error) setError(latest.error);
-          })
-          .catch(() => undefined);
-      }
     } finally {
       setCommitting(false);
     }
@@ -1788,9 +1424,7 @@ export function ReviewStep({
       <button
         type="button"
         className="primary-button compact"
-        disabled={
-          committing || !validation || validation.blockingErrorCount > 0
-        }
+        disabled={committing}
         onClick={() => void commit()}
       >
         {committing
@@ -1856,33 +1490,13 @@ export function ReviewStep({
         </div>
         <div className="review-card">
           <span>EA workbook</span>
-          <strong>{draft.eaFileName ?? "Not changed"}</strong>
+          <strong>{draft.eaFile?.name ?? "Not changed"}</strong>
         </div>
         <div className="review-card">
           <span>EFS workbook</span>
-          <strong>{draft.efsFileName ?? "Not changed"}</strong>
+          <strong>{draft.efsFile?.name ?? "Not changed"}</strong>
         </div>
       </div>
-      {validation?.workbooks.length ? (
-        <div className="summary-grid">
-          {validation.workbooks.map((workbook) => (
-            <div className="summary-card" key={workbook.kind}>
-              <strong>
-                {workbook.kind === "EA"
-                  ? "Employer Assessment (EA)"
-                  : "Employee Feedback Survey (EFS)"}
-              </strong>
-              <ul>
-                <li>{workbook.respondents} respondents</li>
-                <li>{workbook.questions} questions</li>
-                <li>{workbook.organizations} organizations</li>
-                <li>{workbook.responses} responses</li>
-              </ul>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {validation ? <IssueList issues={validation.issues} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
     </div>
@@ -1904,7 +1518,6 @@ function CatalogStep({
     draft.metadata.reportCatalog ?? [],
   );
   const [loading, setLoading] = useState(!draft.metadata.reportCatalog?.length);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     if (products.length) return;
@@ -1918,42 +1531,25 @@ function CatalogStep({
       )
       .finally(() => setLoading(false));
   }, [products.length]);
-  const save = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      const response = await api.updateHistoricalImportMetadata(
-        draft.importId,
-        { ...draft.metadata, reportCatalog: products },
-      );
-      const next = { ...draft, metadata: response.metadata };
-      storeDraft(next);
-      onComplete(next);
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Unable to save catalog",
-      );
-      setSaving(false);
-    }
+  const save = () => {
+    onComplete({
+      ...draft,
+      metadata: { ...draft.metadata, reportCatalog: products },
+    });
   };
   const actions = (position: "top" | "bottom") => (
     <WizardActions position={position}>
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={onBack}
-        disabled={saving}
-      >
+      <button type="button" className="secondary-button" onClick={onBack}>
         <ChevronLeft size={16} /> Back
       </button>
-      <RestartButton disabled={saving} onRestart={onRestart} />
+      <RestartButton disabled={false} onRestart={onRestart} />
       <button
         type="button"
         className="primary-button compact"
         onClick={() => void save()}
-        disabled={saving || loading}
+        disabled={loading}
       >
-        {saving ? "Saving…" : "Continue"} <ChevronRight size={16} />
+        Continue <ChevronRight size={16} />
       </button>
     </WizardActions>
   );
@@ -1980,14 +1576,12 @@ export function HistoricalImportPage() {
   const navigate = useNavigate();
   const { projectId: routeProjectId, programId } = useParams();
   const editing = Boolean(programId);
-  const stored = editing ? null : readStoredDraft();
-  const [step, setStep] = useState<WizardStep>(stored?.importId ? 2 : 1);
-  const [draft, setDraft] = useState<Partial<DraftState>>(stored ?? {});
+  const [step, setStep] = useState<WizardStep>(1);
+  const [draft, setDraft] = useState<Partial<DraftState>>({});
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [initialError, setInitialError] = useState("");
   const restart = () => {
-    clearDraft();
     setDraft({});
     setStep(1);
     if (editing) navigate("/admin/projects/import", { replace: true });
@@ -2075,20 +1669,6 @@ export function HistoricalImportPage() {
     };
   }, [programId, routeProjectId]);
 
-  useEffect(() => {
-    if (!draft.importId) return;
-    void api
-      .historicalImportStatus(draft.importId)
-      .then((status) => {
-        if (status.status === "succeeded") {
-          clearDraft();
-          setDraft({});
-          setStep(1);
-        }
-      })
-      .catch(() => undefined);
-  }, [draft.importId]);
-
   let content: ReactNode;
   if (loadingInitial) {
     content = (
@@ -2112,7 +1692,7 @@ export function HistoricalImportPage() {
         }}
       />
     );
-  } else if (!draft.importId || !draft.metadata) {
+  } else if (!draft.metadata) {
     content = (
       <State
         title="Draft unavailable"
@@ -2185,9 +1765,9 @@ export function HistoricalImportPage() {
             ? 5
             : draft.winnersConfigured
               ? 4
-              : draft.validation
+              : draft.uploadsConfigured
                 ? 3
-                : draft.importId && draft.metadata
+                : draft.metadata
                   ? 2
                   : 1
         }

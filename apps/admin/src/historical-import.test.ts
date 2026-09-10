@@ -5,6 +5,7 @@ import {
   filterAndSortProjects,
   filterWinnerOrganizations,
   newProgramProjectPayload,
+  organizationProgramsFromZoho,
   organizationParticipationStatus,
   summarizeOrganizationPrograms,
 } from "./historical-import";
@@ -100,6 +101,36 @@ describe("winner organization filtering", () => {
   });
 });
 
+describe("Zoho organization initialization", () => {
+  it("creates editable local organization rows without a draft request", () => {
+    expect(
+      organizationProgramsFromZoho([
+        {
+          organizationId: "49",
+          organizationName: "Acme-49-Program 2026",
+          isWinner: "Y",
+          surveysSent: 125,
+          stage: "Qualified",
+          companySize: 30,
+          employeesCount: 125,
+          currentZohoCategory: "Small",
+          reportCategory: "25-99",
+          overallRank: "4",
+          categoryRank: "2",
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        organizationKey: "name:acme",
+        sourceOrganizationId: "49",
+        organizationName: "Acme",
+        isWinner: "Y",
+        surveysSent: 125,
+      }),
+    ]);
+  });
+});
+
 describe("organization participation status", () => {
   const organization = (
     isWinner: "Y" | "N",
@@ -191,6 +222,49 @@ describe("project options", () => {
 });
 
 describe("historical import API client", () => {
+  it("submits metadata and all selected files in one request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            importId: "import-id",
+            status: "succeeded",
+            metadata: { programName: "Program 2026" },
+            projectId: "project-id",
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const eaFile = new File(["ea"], "ea.xlsx");
+    const efsFile = new File(["efs"], "efs.xlsx");
+    const rankingFile = new File(["ranking"], "ranking.xlsx");
+
+    await api.submitHistoricalImport(
+      {
+        projectName: "Project",
+        programName: "Program 2026",
+        programYear: 2026,
+        efsLaunchDate: "2026-01-01",
+        efsDeadline: "2026-12-31",
+      },
+      { eaFile, efsFile, rankingFile },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/admin/historicalImports/commit");
+    const body = options.body as FormData;
+    expect(body.get("eaFile")).toBe(eaFile);
+    expect(body.get("efsFile")).toBe(efsFile);
+    expect(body.get("rankingFile")).toBe(rankingFile);
+    expect(JSON.parse(String(body.get("metadata")))).toMatchObject({
+      programName: "Program 2026",
+    });
+  });
+
   it("loads and projects Zoho program options", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -233,56 +307,6 @@ describe("historical import API client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/zoho/projects/zoho-project-1/programs"),
       expect.any(Object),
-    );
-  });
-
-  it("creates a draft with project metadata", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () =>
-        Promise.resolve({
-          success: true,
-          data: {
-            importId: "import-id",
-            metadata: {
-              projectName: "Baton Rouge",
-              programName: "Best Places to Work in Baton Rouge 2026",
-              programYear: 2026,
-            },
-          },
-        }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await api.createHistoricalImport({
-      projectName: "Baton Rouge",
-      programName: "Best Places to Work in Baton Rouge 2026",
-      programYear: 2026,
-      efsLaunchDate: "2026-01-01",
-      efsDeadline: "2026-06-30",
-    });
-
-    expect(result).toEqual({
-      importId: "import-id",
-      metadata: {
-        projectName: "Baton Rouge",
-        programName: "Best Places to Work in Baton Rouge 2026",
-        programYear: 2026,
-      },
-    });
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/admin/historicalImports"),
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          projectName: "Baton Rouge",
-          programName: "Best Places to Work in Baton Rouge 2026",
-          programYear: 2026,
-          efsLaunchDate: "2026-01-01",
-          efsDeadline: "2026-06-30",
-        }),
-      }),
     );
   });
 
@@ -333,106 +357,5 @@ describe("historical import API client", () => {
       expect.stringContaining("/zoho/programs/zoho-program-1/organizations"),
       expect.any(Object),
     );
-  });
-
-  it("uploads EA and EFS workbooks as multipart form data", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () =>
-        Promise.resolve({
-          success: true,
-          data: {
-            importId: "import-id",
-            eaFileName: "ea.xlsx",
-            efsFileName: "efs.xlsx",
-          },
-        }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const eaFile = new File(["ea"], "ea.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const efsFile = new File(["efs"], "efs.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    await api.uploadHistoricalImportWorkbooks("import-id", eaFile, efsFile);
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(options.method).toBe("POST");
-    expect(options.body).toBeInstanceOf(FormData);
-  });
-
-  it("uploads and summarizes one workbook as soon as it is selected", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () =>
-        Promise.resolve({
-          success: true,
-          data: {
-            importId: "import-id",
-            workbook: {
-              kind: "EA",
-              fileName: "ea.xlsx",
-              sha256: "abc123",
-              questions: 12,
-              organizations: 4,
-              respondents: 20,
-              responses: 240,
-            },
-          },
-        }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const workbook = new File(["ea"], "ea.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    await expect(
-      api.uploadHistoricalImportWorkbook("import-id", "EA", workbook),
-    ).resolves.toMatchObject({ workbook: { kind: "EA", questions: 12 } });
-
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain("/historicalImports/import-id/workbooks/ea");
-    expect(options.method).toBe("POST");
-    expect((options.body as FormData).get("workbook")).toBe(workbook);
-  });
-
-  it("uploads a ranking extract for bulk winner matching", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () =>
-        Promise.resolve({
-          success: true,
-          data: {
-            organizationPrograms: [],
-            matchedOrganizations: 10,
-            unmatchedOrganizations: [],
-            invalidRows: 2,
-          },
-        }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const rankingFile = new File(["ranking"], "ranking.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    await expect(
-      api.matchHistoricalImportRankingWorkbook("import-id", rankingFile),
-    ).resolves.toEqual({
-      organizationPrograms: [],
-      matchedOrganizations: 10,
-      unmatchedOrganizations: [],
-      invalidRows: 2,
-    });
-
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain("/admin/historicalImports/import-id/ranking");
-    expect(options.method).toBe("POST");
-    expect((options.body as FormData).get("rankingFile")).toBe(rankingFile);
   });
 });

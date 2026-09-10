@@ -1259,47 +1259,18 @@ export const api = {
     return object(object(response).data) as OrganizationCatalog;
   },
 
-  async createHistoricalImport(
+  async submitHistoricalImport(
     metadata: HistoricalImportMetadata,
-  ): Promise<{ importId: string; metadata: HistoricalImportMetadata }> {
-    const response = await request<unknown>("/admin/historicalImports", {
-      method: "POST",
-      body: JSON.stringify(metadata),
-    });
-    return object(object(response).data) as {
-      importId: string;
-      metadata: HistoricalImportMetadata;
-    };
-  },
-
-  async updateHistoricalImportMetadata(
-    importId: string,
-    metadata: HistoricalImportMetadata,
-  ): Promise<{ importId: string; metadata: HistoricalImportMetadata }> {
-    const response = await request<unknown>(
-      `/admin/historicalImports/${encodeURIComponent(importId)}/metadata`,
-      {
-        method: "PUT",
-        body: JSON.stringify(metadata),
-      },
-    );
-    return object(object(response).data) as {
-      importId: string;
-      metadata: HistoricalImportMetadata;
-    };
-  },
-
-  async uploadHistoricalImportWorkbooks(
-    importId: string,
-    eaFile: File,
-    efsFile: File,
-  ): Promise<{ importId: string; eaFileName: string; efsFileName: string }> {
+    files: { eaFile?: File; efsFile?: File; rankingFile?: File },
+  ): Promise<HistoricalImportStatus> {
     const auth = readAuth();
     const formData = new FormData();
-    formData.append("eaFile", eaFile);
-    formData.append("efsFile", efsFile);
+    formData.append("metadata", JSON.stringify(metadata));
+    if (files.eaFile) formData.append("eaFile", files.eaFile);
+    if (files.efsFile) formData.append("efsFile", files.efsFile);
+    if (files.rankingFile) formData.append("rankingFile", files.rankingFile);
     const response = await fetch(
-      `${apiBaseUrl}/admin/historicalImports/${encodeURIComponent(importId)}/workbooks`,
+      `${apiBaseUrl}/admin/historicalImports/commit`,
       {
         method: "POST",
         headers: {
@@ -1318,131 +1289,11 @@ export const api = {
         stringValue(body.message) ||
           stringValue(body.msg) ||
           stringValue(nested.message) ||
-          "Request failed",
+          "Unable to save historical program",
         response.status,
       );
     }
-    return object(object(payload).data) as {
-      importId: string;
-      eaFileName: string;
-      efsFileName: string;
-    };
-  },
-
-  async uploadHistoricalImportWorkbook(
-    importId: string,
-    kind: "EA" | "EFS",
-    workbook: File,
-  ): Promise<{
-    importId: string;
-    workbook: HistoricalImportWorkbookSummary;
-  }> {
-    const auth = readAuth();
-    const formData = new FormData();
-    formData.append("workbook", workbook);
-    const response = await fetch(
-      `${apiBaseUrl}/admin/historicalImports/${encodeURIComponent(importId)}/workbooks/${kind.toLowerCase()}`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          ...authHeaders(auth?.accessToken),
-        },
-        body: formData,
-      },
-    );
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      if (response.status === 401 && auth?.accessToken) persistAuth(null);
-      const body = object(payload);
-      const nested = object(body.error);
-      throw new ApiError(
-        stringValue(body.message) ||
-          stringValue(body.msg) ||
-          stringValue(nested.message) ||
-          "Unable to upload workbook",
-        response.status,
-      );
-    }
-    return object(object(payload).data) as {
-      importId: string;
-      workbook: HistoricalImportWorkbookSummary;
-    };
-  },
-
-  async matchHistoricalImportRankingWorkbook(
-    importId: string,
-    rankingFile: File,
-  ): Promise<{
-    organizationPrograms: NonNullable<
-      HistoricalImportMetadata["organizationPrograms"]
-    >;
-    matchedOrganizations: number;
-    unmatchedOrganizations: string[];
-    invalidRows: number;
-  }> {
-    const auth = readAuth();
-    const formData = new FormData();
-    formData.append("rankingFile", rankingFile);
-    const response = await fetch(
-      `${apiBaseUrl}/admin/historicalImports/${encodeURIComponent(importId)}/ranking`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          ...authHeaders(auth?.accessToken),
-        },
-        body: formData,
-      },
-    );
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      const body = object(payload);
-      const nested = object(body.error);
-      throw new ApiError(
-        stringValue(body.message) ||
-          stringValue(nested.message) ||
-          "Unable to match ranking workbook",
-        response.status,
-      );
-    }
-    return object(object(payload).data) as {
-      organizationPrograms: NonNullable<
-        HistoricalImportMetadata["organizationPrograms"]
-      >;
-      matchedOrganizations: number;
-      unmatchedOrganizations: string[];
-      invalidRows: number;
-    };
-  },
-
-  async validateHistoricalImport(
-    importId: string,
-  ): Promise<HistoricalImportValidationSummary> {
-    const response = await request<unknown>(
-      `/admin/historicalImports/${encodeURIComponent(importId)}/validate`,
-      { method: "POST" },
-    );
-    return object(object(response).data) as HistoricalImportValidationSummary;
-  },
-
-  async commitHistoricalImport(
-    importId: string,
-  ): Promise<HistoricalImportStatus> {
-    const response = await request<unknown>(
-      `/admin/historicalImports/${encodeURIComponent(importId)}/commit`,
-      { method: "POST" },
-    );
-    return object(object(response).data) as HistoricalImportStatus;
-  },
-
-  async historicalImportStatus(
-    importId: string,
-  ): Promise<HistoricalImportStatus> {
-    const response = await request<unknown>(
-      `/admin/historicalImports/${encodeURIComponent(importId)}`,
-    );
-    return object(object(response).data) as HistoricalImportStatus;
+    return object(object(payload).data) as HistoricalImportStatus;
   },
 };
 

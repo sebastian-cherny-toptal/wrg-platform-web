@@ -30,7 +30,6 @@ describe("WinnersStep benchmark category choices", () => {
     render(
       <WinnersStep
         draft={{
-          importId: "import-id",
           metadata: {
             programName: "Indiana 2026",
             categoryPricing,
@@ -60,7 +59,7 @@ describe("WinnersStep benchmark category choices", () => {
     expect(editedCategory.checked).toBe(true);
     expect(screen.queryByRole("radio", { name: "Small" })).toBeNull();
     const organizationRow = screen.getByRole("row", { name: /Acme/u });
-    expect(within(organizationRow).getAllByRole("cell")[4]?.textContent).toBe(
+    expect(within(organizationRow).getAllByRole("cell")[3]?.textContent).toBe(
       "25-99",
     );
     const winner = within(organizationRow).getByRole("combobox", {
@@ -68,7 +67,9 @@ describe("WinnersStep benchmark category choices", () => {
     }) as HTMLSelectElement;
     expect(winner.value).toBe("Y");
     expect(
-      within(winner).getAllByRole("option").map((option) => option.textContent),
+      within(winner)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
     ).toEqual(["-", "Y", "N"]);
     fireEvent.change(winner, { target: { value: "" } });
     expect(winner.value).toBe("");

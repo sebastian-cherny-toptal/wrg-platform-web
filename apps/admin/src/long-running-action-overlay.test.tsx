@@ -1,4 +1,10 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, type HistoricalImportStatus } from "./api";
@@ -28,7 +34,7 @@ describe("LongRunningActionOverlay", () => {
   it("stays visible while a project and program are being created", async () => {
     let finishCommit: (status: HistoricalImportStatus) => void = () =>
       undefined;
-    vi.spyOn(api, "commitHistoricalImport").mockReturnValue(
+    vi.spyOn(api, "submitHistoricalImport").mockReturnValue(
       new Promise((resolve) => {
         finishCommit = resolve;
       }),
@@ -38,15 +44,7 @@ describe("LongRunningActionOverlay", () => {
       <MemoryRouter>
         <ReviewStep
           draft={{
-            importId: "import-id",
             metadata: { programName: "Indiana 2026" },
-            validation: {
-              issues: [],
-              workbooks: [],
-              organizations: [],
-              blockingErrorCount: 0,
-              warningCount: 0,
-            },
           }}
           onBack={vi.fn()}
           onRestart={vi.fn()}
