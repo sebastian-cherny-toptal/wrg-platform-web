@@ -132,6 +132,7 @@ describe("admin API projections", () => {
               Programs: [
                 {
                   databaseId: "database-program-id",
+                  id: "zoho-program-id",
                   Name: "Imported program",
                 },
               ],
@@ -145,11 +146,49 @@ describe("admin API projections", () => {
       {
         id: "database-project-id",
         name: "Imported project",
-        programs: [{ id: "database-program-id", name: "Imported program" }],
+        programs: [
+          {
+            id: "database-program-id",
+            externalId: "zoho-program-id",
+            name: "Imported program",
+          },
+        ],
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/admin/getprojects?expand=programs"),
+      expect.any(Object),
+    );
+  });
+
+  it("loads the total item counts for admin navigation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          data: {
+            projects: 4,
+            users: 5,
+            keyImpactAnalyses: 2,
+            orders: 8,
+            activity: 13,
+            roles: 3,
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.adminViewCounts()).resolves.toEqual({
+      projects: 4,
+      users: 5,
+      keyImpactAnalyses: 2,
+      orders: 8,
+      activity: 13,
+      roles: 3,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/view-counts"),
       expect.any(Object),
     );
   });

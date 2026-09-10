@@ -28,7 +28,7 @@ import {
   type ZohoOrganizationInfo,
   type ZohoProgramOption,
 } from "./api";
-import { PageHeader, State } from "./admin";
+import { Modal, PageHeader, State } from "./admin";
 import { CatalogEditor, MoneyInput } from "./catalog-editor";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 
@@ -753,7 +753,7 @@ export function CategoryPricingEditor({
   );
 }
 
-function MetadataStep({
+export function MetadataStep({
   draft,
   projects,
   editing,
@@ -764,6 +764,7 @@ function MetadataStep({
   editing: boolean;
   onSaved: (next: DraftState) => void;
 }) {
+  const navigate = useNavigate();
   const [zohoPrograms, setZohoPrograms] = useState<ZohoProgramOption[]>([]);
   const [zohoError, setZohoError] = useState("");
   const [loadingPrograms, setLoadingPrograms] = useState(false);
@@ -793,6 +794,11 @@ function MetadataStep({
       defaultCategoryPricing.map((entry) => ({ ...entry })),
   });
   const [error, setError] = useState("");
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [duplicateProgram, setDuplicateProgram] = useState<{
+    projectId: string;
+    programId: string;
+  } | null>(null);
   const [manualProgram, setManualProgram] = useState(
     !editing &&
       Boolean(draft.metadata?.programName && !draft.metadata?.zohoProgramId),
@@ -841,7 +847,7 @@ function MetadataStep({
     };
   }, [editing, selectedZohoProjectId]);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
     const payload: HistoricalImportMetadata = {
@@ -866,13 +872,45 @@ function MetadataStep({
         ? { projectAbbreviation: form.projectAbbreviation.trim() }
         : {}),
     };
+    if (!editing && payload.zohoProgramId) {
+      setCheckingDuplicate(true);
+      try {
+        const importedProjects = await api.projects();
+        const duplicate = importedProjects.flatMap((project) =>
+          project.programs
+            .filter((program) => program.externalId === payload.zohoProgramId)
+            .map((program) => ({
+              projectId: project.id,
+              programId: program.id,
+            })),
+        )[0];
+        if (duplicate) {
+          setDuplicateProgram(duplicate);
+          return;
+        }
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Unable to check whether this program was already imported.",
+        );
+        return;
+      } finally {
+        setCheckingDuplicate(false);
+      }
+    }
     onSaved({ ...draft, metadata: payload } as DraftState);
   };
 
   const actions = (position: "top" | "bottom") => (
     <WizardActions position={position}>
-      <button className="primary-button compact" type="submit">
-        Continue <ChevronRight size={16} />
+      <button
+        className="primary-button compact"
+        disabled={checkingDuplicate}
+        type="submit"
+      >
+        {checkingDuplicate ? "Checking…" : "Continue"}{" "}
+        <ChevronRight size={16} />
       </button>
     </WizardActions>
   );
@@ -1122,6 +1160,37 @@ function MetadataStep({
       )}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
+      {duplicateProgram ? (
+        <Modal
+          title="Program already imported"
+          onClose={() => setDuplicateProgram(null)}
+        >
+          <p className="modal-copy">
+            This program was already imported. Do you want to go to its page to
+            see it or edit it?
+          </p>
+          <div className="modal-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setDuplicateProgram(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() =>
+                navigate(
+                  `/admin/projects/${duplicateProgram.projectId}/programs/${duplicateProgram.programId}/edit`,
+                )
+              }
+            >
+              Accept
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </form>
   );
 }

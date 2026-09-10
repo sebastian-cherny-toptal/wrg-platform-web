@@ -31,6 +31,7 @@ export type ProjectRecord = {
 
 export type ProgramRecord = {
   id: string;
+  externalId?: string;
   name: string;
   year: number | null;
   createdAt: string | null;
@@ -566,6 +567,10 @@ function program(raw: unknown): ProgramRecord {
       stringValue(value.databaseId) ||
       stringValue(value._id) ||
       stringValue(value.id),
+    externalId:
+      stringValue(value.databaseId) && stringValue(value.id)
+        ? stringValue(value.id)
+        : undefined,
     name: stringValue(value.Name) || stringValue(value.name),
     year: Number.isFinite(Number(value.Program_Year ?? value.year))
       ? Number(value.Program_Year ?? value.year)
@@ -793,6 +798,30 @@ export const api = {
       "/admin/getprojects?expand=programs",
     );
     return array(object(response).data).map(project);
+  },
+
+  async adminViewCounts(): Promise<{
+    projects: number;
+    users: number;
+    keyImpactAnalyses: number;
+    orders: number;
+    activity: number;
+    roles: number;
+  }> {
+    const response = await request<unknown>("/admin/view-counts");
+    const data = object(object(response).data);
+    const count = (key: string) => {
+      const value = Number(data[key]);
+      return Number.isInteger(value) && value >= 0 ? value : 0;
+    };
+    return {
+      projects: count("projects"),
+      users: count("users"),
+      keyImpactAnalyses: count("keyImpactAnalyses"),
+      orders: count("orders"),
+      activity: count("activity"),
+      roles: count("roles"),
+    };
   },
 
   async project(id: string): Promise<ProjectRecord> {

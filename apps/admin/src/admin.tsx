@@ -33,6 +33,7 @@ import {
   Link,
   NavLink,
   Outlet,
+  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
@@ -69,26 +70,56 @@ const permissionLabels: Record<string, string> = {
   orderLogAccess: "Access Order Logs",
 };
 
-const navigation = [
+type AdminViewCountKey =
+  "projects" | "users" | "keyImpactAnalyses" | "orders" | "activity" | "roles";
+
+const navigation: Array<{
+  to: string;
+  label: string;
+  icon: typeof Activity;
+  countKey?: AdminViewCountKey;
+}> = [
   {
     to: "/admin/projects",
     label: "Imported Projects & Programs",
     icon: BriefcaseBusiness,
+    countKey: "projects",
   },
   {
     to: "/admin/projects/import",
     label: "Import Historical Project",
     icon: FileUp,
   },
-  { to: "/admin/users", label: "Users Management", icon: Users },
+  {
+    to: "/admin/users",
+    label: "Users Management",
+    icon: Users,
+    countKey: "users",
+  },
   {
     to: "/admin/key-impact-analysis",
     label: "KIA Uploads",
     icon: FileChartColumn,
+    countKey: "keyImpactAnalyses",
   },
-  { to: "/admin/order-log", label: "Order Log", icon: ClipboardList },
-  { to: "/admin/system-log", label: "Activity Log", icon: Activity },
-  { to: "/admin/role-permissions", label: "Roles", icon: ShieldCheck },
+  {
+    to: "/admin/order-log",
+    label: "Order Log",
+    icon: ClipboardList,
+    countKey: "orders",
+  },
+  {
+    to: "/admin/system-log",
+    label: "Activity Log",
+    icon: Activity,
+    countKey: "activity",
+  },
+  {
+    to: "/admin/role-permissions",
+    label: "Roles",
+    icon: ShieldCheck,
+    countKey: "roles",
+  },
 ];
 
 function formatMoney(amountMinor: number, currency: string): string {
@@ -310,7 +341,12 @@ function Pager({
 
 export function AdminShell() {
   const { auth, logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
+  const viewCounts = useLoad(
+    `admin-view-counts:${location.pathname}`,
+    api.adminViewCounts,
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const initial = auth?.user.displayName.slice(0, 1).toUpperCase() || "A";
@@ -334,7 +370,7 @@ export function AdminShell() {
           <WorkforceLogoWhite />
         </Link>
         <nav>
-          {navigation.map(({ to, label, icon: Icon }) => (
+          {navigation.map(({ to, label, icon: Icon, countKey }) => (
             <NavLink
               key={to}
               to={to}
@@ -343,7 +379,12 @@ export function AdminShell() {
               onClick={() => setMenuOpen(false)}
             >
               <Icon size={18} strokeWidth={1.7} />
-              <span>{label}</span>
+              <span>
+                {label}
+                {countKey && viewCounts.data
+                  ? ` (${viewCounts.data[countKey]})`
+                  : ""}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -809,9 +850,7 @@ export function ProgramDetailPage() {
       (role) => role === "admin" || role === "super_admin",
     ) || auth?.user.permissions.includes("ops.manage");
   const changedOrganizationIds = new Set(
-    (resyncPreview?.changedRows ?? []).map(
-      (row) => row.organizationProgramId,
-    ),
+    (resyncPreview?.changedRows ?? []).map((row) => row.organizationProgramId),
   );
   const normalizedSearch = search.toLowerCase();
   const organizations = [...(organizationsLoaded.data ?? [])]
@@ -1417,7 +1456,7 @@ export function KeyImpactAnalysisUploadsPage() {
   );
 }
 
-function Modal({
+export function Modal({
   title,
   children,
   onClose,
@@ -1426,6 +1465,14 @@ function Modal({
   children: ReactNode;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
