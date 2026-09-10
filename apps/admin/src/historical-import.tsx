@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -15,6 +16,7 @@ import {
   type CategoryPricing,
   type HistoricalImportMetadata,
   type HistoricalImportStatus,
+  type HistoricalImportValidationSummary,
   type ProjectRecord,
   type WinnerStatus,
   type ZohoOrganizationInfo,
@@ -30,10 +32,31 @@ type DraftState = {
   metadata: HistoricalImportMetadata;
   eaFile?: File;
   efsFile?: File;
-  rankingFile?: File;
+  validation?: HistoricalImportValidationSummary;
   uploadsConfigured?: boolean;
   winnersConfigured?: boolean;
 };
+
+function IssueList({
+  issues,
+}: {
+  issues: HistoricalImportValidationSummary["issues"];
+}) {
+  if (!issues.length) return null;
+  return (
+    <div className="issue-list">
+      {issues.map((issue, index) => (
+        <div
+          key={`${issue.level}-${index}`}
+          className={`issue-item ${issue.level}`}
+        >
+          <AlertTriangle size={16} />
+          <span>{issue.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const currentYear = new Date().getFullYear();
 export const defaultCategoryPricing: CategoryPricing[] = [
@@ -393,6 +416,23 @@ export function organizationProgramsFromZoho(
         : {}),
     };
   });
+}
+
+export function refreshOrganizationProgramsFromZoho(
+  entries: OrganizationProgramDraft[],
+  organizations: ZohoOrganizationInfo[],
+): OrganizationProgramDraft[] {
+  const refreshed = applyZohoOrganizations(entries, organizations);
+  const additions = organizationProgramsFromZoho(organizations).filter(
+    (candidate) =>
+      !refreshed.some(
+        (entry) =>
+          entry.sourceOrganizationId === candidate.sourceOrganizationId ||
+          normalizeOrganizationIdentity(entry.organizationName) ===
+            normalizeOrganizationIdentity(candidate.organizationName),
+      ),
+  );
+  return [...refreshed, ...additions];
 }
 
 function WinnerMultiSelect({
@@ -1000,7 +1040,9 @@ export function UploadStep({
 }) {
   const [eaFile, setEaFile] = useState<File | null>(draft.eaFile ?? null);
   const [efsFile, setEfsFile] = useState<File | null>(draft.efsFile ?? null);
+  const [validation, setValidation] = useState(draft.validation);
   const [error, setError] = useState("");
+  const [working, setWorking] = useState(false);
 
   const workbookChanged = (
     kind: "EA" | "EFS",
@@ -1008,43 +1050,112 @@ export function UploadStep({
     file: File | null,
   ) => {
     setFile(file);
+    setValidation(undefined);
     setError("");
     const nextDraft = {
       ...draft,
       ...(kind === "EA" ? { eaFile: file ?? undefined } : {}),
       ...(kind === "EFS" ? { efsFile: file ?? undefined } : {}),
       uploadsConfigured: false,
+      validation: undefined,
     };
     onDraftChange?.(nextDraft);
   };
 
-  const continueToOrganizations = () => {
+  const continueToOrganizations = async () => {
     if ((!eaFile || !efsFile) && !draft.metadata.programId) {
       setError("Upload both the EA and EFS workbooks.");
       return;
     }
-    onComplete({
-      ...draft,
-      eaFile: eaFile ?? undefined,
-      efsFile: efsFile ?? undefined,
-      uploadsConfigured: true,
-    });
+    setWorking(true);
+    setError("");
+    try {
+      const [prepared, zohoOrganizations] = await Promise.all([
+        api.prepareHistoricalImport(draft.metadata, {
+          eaFile: eaFile ?? undefined,
+          efsFile: efsFile ?? undefined,
+        }),
+        draft.metadata.zohoProgramId
+          ? api.zohoProgramOrganizations(draft.metadata.zohoProgramId)
+          : Promise.resolve(draft.metadata.zohoOrganizations ?? []),
+      ]);
+      setValidation(prepared.validation);
+      if (prepared.validation.blockingErrorCount > 0) {
+        onDraftChange?.({ ...draft, validation: prepared.validation });
+        return;
+      }
+      const currentOrganizations = normalizeOrganizationPrograms(
+        draft.metadata.organizationPrograms ?? [],
+      );
+      const workbookOrganizations = prepared.validation.organizations.map(
+        (organization) => {
+          const current = currentOrganizations.find(
+            (entry) => entry.organizationKey === organization.key,
+          );
+          return {
+            ...current,
+            organizationKey: organization.key,
+            ...(organization.workbookOrganizationId
+              ? { sourceOrganizationId: organization.workbookOrganizationId }
+              : {}),
+            organizationName: organization.displayName,
+            surveysSent: current?.surveysSent ?? organization.efsRespondents,
+            isWinner: current?.isWinner ?? null,
+            isIncluded: current?.isIncluded ?? true,
+          } satisfies OrganizationProgramDraft;
+        },
+      );
+      const organizationPrograms = refreshOrganizationProgramsFromZoho(
+        workbookOrganizations.length
+          ? workbookOrganizations
+          : currentOrganizations,
+        zohoOrganizations,
+      );
+      onComplete({
+        ...draft,
+        eaFile: eaFile ?? undefined,
+        efsFile: efsFile ?? undefined,
+        uploadsConfigured: true,
+        validation: prepared.validation,
+        metadata: {
+          ...prepared.metadata,
+          zohoOrganizations,
+          organizationPrograms,
+        },
+      });
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to load organizations from Zoho",
+      );
+    } finally {
+      setWorking(false);
+    }
   };
 
   const actions = (position: "top" | "bottom") => (
     <WizardActions position={position}>
-      <button type="button" className="secondary-button" onClick={onBack}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={onBack}
+        disabled={working}
+      >
         <ChevronLeft size={16} /> Back
       </button>
-      <RestartButton disabled={false} onRestart={onRestart} />
+      <RestartButton disabled={working} onRestart={onRestart} />
       <button
         type="button"
         className="primary-button compact"
-        onClick={continueToOrganizations}
+        disabled={working}
+        onClick={() => void continueToOrganizations()}
       >
-        {!eaFile && !efsFile && draft.metadata.programId
-          ? "Skip uploads"
-          : "Continue"}{" "}
+        {working
+          ? "Validating and loading Zoho…"
+          : !eaFile && !efsFile && draft.metadata.programId
+            ? "Skip uploads"
+            : "Continue"}{" "}
         <ChevronRight size={16} />
       </button>
     </WizardActions>
@@ -1055,8 +1166,9 @@ export function UploadStep({
       {actions("top")}
       <p className="wizard-copy">
         Upload one Employer Assessment workbook and one Employee Feedback Survey
-        workbook. Files remain in this browser until you submit the program and
-        are validated by the server at that time.{" "}
+        workbook. When you continue, the server validates both workbooks and
+        loads the latest program organizations from Zoho. You can review and
+        adjust the combined data in Step 3 before anything is saved.{" "}
         {draft.metadata.programId
           ? "Both files are optional when only editing program details or store prices."
           : "Both files are required for a new program."}
@@ -1067,6 +1179,7 @@ export function UploadStep({
           <strong>Employer Assessment (EA)</strong>
           <span>{eaFile?.name ?? "Choose .xlsx file"}</span>
           <input
+            disabled={working}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) =>
@@ -1079,6 +1192,7 @@ export function UploadStep({
           <strong>Employee Feedback Survey (EFS)</strong>
           <span>{efsFile?.name ?? "Choose .xlsx file"}</span>
           <input
+            disabled={working}
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) =>
@@ -1091,6 +1205,40 @@ export function UploadStep({
           />
         </label>
       </div>
+      {validation?.workbooks.length ? (
+        <div className="summary-grid">
+          {validation.workbooks.map((workbook) => (
+            <div className="summary-card" key={workbook.kind}>
+              <strong>{workbook.kind}</strong>
+              <span>{workbook.fileName}</span>
+              <ul>
+                <li>{workbook.questions} questions</li>
+                <li>{workbook.organizations} organizations</li>
+                <li>{workbook.respondents} respondents</li>
+                <li>{workbook.responses} responses</li>
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {validation ? <IssueList issues={validation.issues} /> : null}
+      {validation ? (
+        <div className="issue-list">
+          {validation.organizations.flatMap((organization) =>
+            organization.warnings.map((warning) => (
+              <div
+                className="issue-item warning"
+                key={`${organization.key}-${warning}`}
+              >
+                <AlertTriangle size={16} />
+                <span>
+                  {organization.displayName}: {warning}
+                </span>
+              </div>
+            )),
+          )}
+        </div>
+      ) : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
     </div>
@@ -1111,9 +1259,14 @@ export function WinnersStep({
   const [organizationPrograms, setOrganizationPrograms] = useState(
     normalizeOrganizationPrograms(draft.metadata.organizationPrograms ?? []),
   );
-  const [rankingFile, setRankingFile] = useState<File | undefined>(
-    draft.rankingFile,
-  );
+  const [rankingSummary, setRankingSummary] = useState<{
+    fileName: string;
+    matchedOrganizations: number;
+    unmatchedOrganizations: string[];
+    invalidRows: number;
+  }>();
+  const [error, setError] = useState("");
+  const [working, setWorking] = useState(false);
   const zohoOrganizations = draft.metadata.zohoOrganizations ?? [];
   const zohoCategories = zohoCategoryNames(draft.metadata.categoryPricing);
   const sortedOrganizationPrograms = [...organizationPrograms].sort(
@@ -1148,10 +1301,32 @@ export function WinnersStep({
     );
   };
 
+  const uploadRankingWorkbook = async (file: File) => {
+    setWorking(true);
+    setError("");
+    try {
+      const result = await api.previewHistoricalImportRanking(
+        { ...draft.metadata, organizationPrograms },
+        file,
+      );
+      setOrganizationPrograms(
+        normalizeOrganizationPrograms(result.organizationPrograms),
+      );
+      setRankingSummary({ fileName: file.name, ...result });
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to match ranking workbook",
+      );
+    } finally {
+      setWorking(false);
+    }
+  };
+
   const save = () => {
     onComplete({
       ...draft,
-      rankingFile,
       metadata: { ...draft.metadata, organizationPrograms },
       winnersConfigured: true,
     });
@@ -1159,12 +1334,22 @@ export function WinnersStep({
 
   const actions = (position: "top" | "bottom") => (
     <WizardActions position={position}>
-      <button type="button" className="secondary-button" onClick={onBack}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={onBack}
+        disabled={working}
+      >
         <ChevronLeft size={16} /> Back
       </button>
-      <RestartButton disabled={false} onRestart={onRestart} />
-      <button type="button" className="primary-button compact" onClick={save}>
-        Continue <ChevronRight size={16} />
+      <RestartButton disabled={working} onRestart={onRestart} />
+      <button
+        type="button"
+        className="primary-button compact"
+        disabled={working || !organizationPrograms.length}
+        onClick={save}
+      >
+        {working ? "Matching…" : "Continue"} <ChevronRight size={16} />
       </button>
     </WizardActions>
   );
@@ -1191,19 +1376,30 @@ export function WinnersStep({
           <Upload size={16} /> Upload ranking extract
           <input
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            disabled={working}
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) setRankingFile(file);
+              if (file) void uploadRankingWorkbook(file);
+              event.currentTarget.value = "";
             }}
             type="file"
           />
         </label>
-        {rankingFile ? (
+        {rankingSummary ? (
           <small>
-            {rankingFile.name} will be matched when the program is saved.
+            {rankingSummary.fileName}: matched{" "}
+            {rankingSummary.matchedOrganizations}
+            {rankingSummary.unmatchedOrganizations.length
+              ? `; ${rankingSummary.unmatchedOrganizations.length} unmatched`
+              : ""}
+            {rankingSummary.invalidRows
+              ? `; ${rankingSummary.invalidRows} rows without Yes/No`
+              : ""}
+            .
           </small>
         ) : null}
       </section>
+      {error ? <p className="form-error">{error}</p> : null}
       {organizationPrograms.length ? (
         <>
           <section
@@ -1242,6 +1438,7 @@ export function WinnersStep({
                 <tr>
                   <th>Organization</th>
                   <th>Winner</th>
+                  <th>EFS respondents</th>
                   <th>Surveys Sent</th>
                   <th>Report category</th>
                   <th>Zoho category (benchmark)</th>
@@ -1255,6 +1452,11 @@ export function WinnersStep({
                     findZohoOrganization(entry, zohoOrganizations),
                   );
                   const status = organizationParticipationStatus(entry);
+                  const validationOrganization =
+                    draft.validation?.organizations.find(
+                      (organization) =>
+                        organization.key === entry.organizationKey,
+                    );
                   const isIncluded = status !== "not-included";
                   const rowClassName =
                     [
@@ -1301,6 +1503,7 @@ export function WinnersStep({
                           <option value="N">N</option>
                         </select>
                       </td>
+                      <td>{validationOrganization?.efsRespondents ?? "—"}</td>
                       <td>
                         <input
                           aria-label={`Surveys Sent for ${entry.organizationName ?? "organization"}`}
@@ -1368,8 +1571,9 @@ export function WinnersStep({
         </>
       ) : (
         <p className="wizard-copy">
-          Workbook organizations will be discovered, validated, and imported
-          when you save the program.
+          {draft.metadata.zohoProgramId
+            ? "Zoho did not return any organizations for this program. You can return to Step 2 and try loading the program again before submitting."
+            : "This program is not linked to a Zoho program, so there is no Zoho organization information to review."}
         </p>
       )}
       {actions("bottom")}
@@ -1398,7 +1602,6 @@ export function ReviewStep({
       const result = await api.submitHistoricalImport(draft.metadata, {
         eaFile: draft.eaFile,
         efsFile: draft.efsFile,
-        rankingFile: draft.rankingFile,
       });
       setStatus(result);
     } catch (caught) {
@@ -1496,7 +1699,16 @@ export function ReviewStep({
           <span>EFS workbook</span>
           <strong>{draft.efsFile?.name ?? "Not changed"}</strong>
         </div>
+        <div className="review-card">
+          <span>Organizations reviewed</span>
+          <strong>
+            {draft.metadata.organizationPrograms?.filter(
+              (organization) => organization.isIncluded !== false,
+            ).length ?? 0}
+          </strong>
+        </div>
       </div>
+      {draft.validation ? <IssueList issues={draft.validation.issues} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
     </div>

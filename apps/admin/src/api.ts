@@ -1295,6 +1295,93 @@ export const api = {
     }
     return object(object(payload).data) as HistoricalImportStatus;
   },
+
+  async prepareHistoricalImport(
+    metadata: HistoricalImportMetadata,
+    files: { eaFile?: File; efsFile?: File },
+  ): Promise<{
+    metadata: HistoricalImportMetadata;
+    validation: HistoricalImportValidationSummary;
+  }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("metadata", JSON.stringify(metadata));
+    if (files.eaFile) formData.append("eaFile", files.eaFile);
+    if (files.efsFile) formData.append("efsFile", files.efsFile);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/historicalImports/prepare`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const body = object(payload);
+      const nested = object(body.error);
+      throw new ApiError(
+        stringValue(body.message) ||
+          stringValue(nested.message) ||
+          "Unable to prepare historical program",
+        response.status,
+      );
+    }
+    return object(object(payload).data) as {
+      metadata: HistoricalImportMetadata;
+      validation: HistoricalImportValidationSummary;
+    };
+  },
+
+  async previewHistoricalImportRanking(
+    metadata: HistoricalImportMetadata,
+    rankingFile: File,
+  ): Promise<{
+    organizationPrograms: NonNullable<
+      HistoricalImportMetadata["organizationPrograms"]
+    >;
+    matchedOrganizations: number;
+    unmatchedOrganizations: string[];
+    invalidRows: number;
+  }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("metadata", JSON.stringify(metadata));
+    formData.append("rankingFile", rankingFile);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/historicalImports/match-ranking`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const body = object(payload);
+      const nested = object(body.error);
+      throw new ApiError(
+        stringValue(body.message) ||
+          stringValue(nested.message) ||
+          "Unable to match ranking workbook",
+        response.status,
+      );
+    }
+    return object(object(payload).data) as {
+      organizationPrograms: NonNullable<
+        HistoricalImportMetadata["organizationPrograms"]
+      >;
+      matchedOrganizations: number;
+      unmatchedOrganizations: string[];
+      invalidRows: number;
+    };
+  },
 };
 
 export const formatDate = (value: unknown): string => {

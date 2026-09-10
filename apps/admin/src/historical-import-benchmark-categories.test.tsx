@@ -59,7 +59,7 @@ describe("WinnersStep benchmark category choices", () => {
     expect(editedCategory.checked).toBe(true);
     expect(screen.queryByRole("radio", { name: "Small" })).toBeNull();
     const organizationRow = screen.getByRole("row", { name: /Acme/u });
-    expect(within(organizationRow).getAllByRole("cell")[3]?.textContent).toBe(
+    expect(within(organizationRow).getAllByRole("cell")[4]?.textContent).toBe(
       "25-99",
     );
     const winner = within(organizationRow).getByRole("combobox", {
