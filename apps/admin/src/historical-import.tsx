@@ -19,6 +19,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { SearchableSelect } from "@wrg/platform-ui";
 import {
   api,
+  categoryPricingFromApi,
   type CategoryPricing,
   type HistoricalImportMetadata,
   type HistoricalImportStatus,
@@ -163,47 +164,48 @@ const currentYear = new Date().getFullYear();
 export const defaultCategoryPricing: CategoryPricing[] = [
   {
     tier: "Boutique",
-    zohoCategoryName: "Boutique",
-    employeeSize: "15-24",
+    pricingCategoryName: "15-24",
     priceCents: null,
   },
   {
     tier: "Small",
-    zohoCategoryName: "Small",
-    employeeSize: "25-99",
+    pricingCategoryName: "25-99",
     priceCents: null,
   },
   {
     tier: "Medium",
-    zohoCategoryName: "Medium",
-    employeeSize: "100-199",
+    pricingCategoryName: "100-199",
     priceCents: null,
   },
   {
     tier: "Large",
-    zohoCategoryName: "Large",
-    employeeSize: "200-499",
+    pricingCategoryName: "200-499",
     priceCents: null,
   },
   {
     tier: "Mega",
-    zohoCategoryName: "Mega",
-    employeeSize: "500-999",
+    pricingCategoryName: "500-999",
     priceCents: null,
   },
   {
     tier: "Major",
-    zohoCategoryName: "Major",
-    employeeSize: "1,000+",
+    pricingCategoryName: "1000+",
     priceCents: null,
   },
 ];
-export function zohoCategoryNames(
-  categoryPricing: CategoryPricing[] = defaultCategoryPricing,
+export const defaultBenchmarkCategories = [
+  "Small",
+  "Medium",
+  "Large",
+  "Major",
+  "Super",
+];
+export function benchmarkCategoryNames(
+  categories: string[] = defaultBenchmarkCategories,
 ): string[] {
   const seen = new Set<string>();
-  return categoryPricing.flatMap(({ zohoCategoryName }) => {
-    const name = zohoCategoryName.trim();
+  return categories.flatMap((category) => {
+    const name = category.trim();
     const normalized = name.toLocaleLowerCase("en");
     if (!name || seen.has(normalized)) return [];
     seen.add(normalized);
@@ -316,7 +318,7 @@ export function organizationParticipationStatus(
 
 export function summarizeOrganizationPrograms(
   entries: OrganizationProgramDraft[],
-  categories = zohoCategoryNames(),
+  categories = benchmarkCategoryNames(),
 ) {
   return {
     notIncluded: entries.filter(
@@ -697,9 +699,11 @@ function WinnerMultiSelect({
 }
 
 export function CategoryPricingEditor({
+  benchmarkCategories,
   value,
   onChange,
 }: {
+  benchmarkCategories: string[];
   value: CategoryPricing[];
   onChange: (value: CategoryPricing[]) => void;
 }) {
@@ -713,43 +717,56 @@ export function CategoryPricingEditor({
       ),
     );
   return (
-    <section className="category-pricing-editor">
-      <div>
-        <strong>Zoho and report category configuration</strong>
-        <span>
-          Category names and employee-size definitions come from the selected
-          Zoho program. Report prices can be adjusted for this import.
-        </span>
-      </div>
-      <div className="category-pricing-grid">
-        {!value.length ? (
+    <div className="category-configuration-sections">
+      <section className="category-pricing-editor benchmark-category-section">
+        <div>
+          <strong>Benchmark categories</strong>
+          <span>
+            Fixed names from Zoho Category List Information. These categories
+            are used only for benchmark reporting.
+          </span>
+        </div>
+        {benchmarkCategories.length ? (
+          <ul className="benchmark-category-list">
+            {benchmarkCategoryNames(benchmarkCategories).map((category) => (
+              <li key={category}>{category}</li>
+            ))}
+          </ul>
+        ) : (
           <p className="form-error">
-            The selected Zoho program has no configured benchmark categories.
+            The selected Zoho program has no Category List names.
           </p>
-        ) : null}
-        {value.map((entry) => (
-          <div className="category-pricing-row" key={entry.tier}>
-            <div className="category-name-control">
-              <span>Zoho category</span>
-              <strong>{entry.zohoCategoryName}</strong>
+        )}
+      </section>
+      <section className="category-pricing-editor">
+        <div>
+          <strong>Report pricing</strong>
+          <span>
+            Fixed pricing bands and fees from Zoho Pricing Information. These
+            values are used only to price the report and can be adjusted here.
+          </span>
+        </div>
+        <div className="category-pricing-grid">
+          {value.map((entry) => (
+            <div className="category-pricing-row" key={entry.tier}>
+              <div className="category-name-control">
+                <span>Pricing category</span>
+                <strong>{entry.pricingCategoryName}</strong>
+              </div>
+              <label>
+                Report price (USD)
+                <MoneyInput
+                  ariaLabel={`${entry.pricingCategoryName} report price`}
+                  onChange={(priceCents) => update(entry.tier, { priceCents })}
+                  priceCents={entry.priceCents}
+                  required
+                />
+              </label>
             </div>
-            <div className="category-source-field">
-              <span>Zoho category size</span>
-              <strong>{entry.employeeSize}</strong>
-            </div>
-            <label>
-              Report price (USD)
-              <MoneyInput
-                ariaLabel={`${entry.tier} category price`}
-                onChange={(priceCents) => update(entry.tier, { priceCents })}
-                priceCents={entry.priceCents}
-                required
-              />
-            </label>
-          </div>
-        ))}
-      </div>
-    </section>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -764,7 +781,6 @@ export function MetadataStep({
   editing: boolean;
   onSaved: (next: DraftState) => void;
 }) {
-  const navigate = useNavigate();
   const [zohoPrograms, setZohoPrograms] = useState<ZohoProgramOption[]>([]);
   const [zohoError, setZohoError] = useState("");
   const [loadingPrograms, setLoadingPrograms] = useState(false);
@@ -789,6 +805,9 @@ export function MetadataStep({
     zohoWinnerOrganizations: draft.metadata?.zohoWinnerOrganizations,
     zohoOrganizations: draft.metadata?.zohoOrganizations,
     reportCatalog: draft.metadata?.reportCatalog,
+    benchmarkCategories: draft.metadata?.benchmarkCategories ?? [
+      ...defaultBenchmarkCategories,
+    ],
     categoryPricing:
       draft.metadata?.categoryPricing ??
       defaultCategoryPricing.map((entry) => ({ ...entry })),
@@ -867,6 +886,7 @@ export function MetadataStep({
       zohoOrganizations: form.zohoOrganizations,
       organizationPrograms: form.organizationPrograms,
       reportCatalog: form.reportCatalog,
+      benchmarkCategories: form.benchmarkCategories,
       categoryPricing: form.categoryPricing,
       ...(form.projectAbbreviation?.trim()
         ? { projectAbbreviation: form.projectAbbreviation.trim() }
@@ -946,6 +966,9 @@ export function MetadataStep({
                 zohoWinnerOrganizations: [],
                 zohoOrganizations: [],
                 organizationPrograms: [],
+                benchmarkCategories: project
+                  ? []
+                  : [...defaultBenchmarkCategories],
                 categoryPricing: project
                   ? []
                   : defaultCategoryPricing.map((entry) => ({ ...entry })),
@@ -1007,6 +1030,7 @@ export function MetadataStep({
                       zohoWinnerOrganizations: [],
                       zohoOrganizations: [],
                       organizationPrograms: [],
+                      benchmarkCategories: [...defaultBenchmarkCategories],
                       categoryPricing: defaultCategoryPricing.map((entry) => ({
                         ...entry,
                       })),
@@ -1037,6 +1061,7 @@ export function MetadataStep({
                     organizationPrograms: organizationProgramsFromZoho(
                       selected.organizations,
                     ),
+                    benchmarkCategories: selected.benchmarkCategories ?? [],
                     categoryPricing: selected.categoryPricing ?? [],
                   });
                 }}
@@ -1149,13 +1174,19 @@ export function MetadataStep({
       </div>
       {editing || form.zohoProgramId || metadataIsManual ? (
         <CategoryPricingEditor
+          benchmarkCategories={
+            form.benchmarkCategories ?? defaultBenchmarkCategories
+          }
           onChange={(categoryPricing) => setForm({ ...form, categoryPricing })}
           value={form.categoryPricing ?? defaultCategoryPricing}
         />
       ) : (
         <section className="category-pricing-editor">
-          <strong>Zoho and report category configuration</strong>
-          <span>Select a Zoho program to load its category configuration.</span>
+          <strong>Benchmark categories and report pricing</strong>
+          <span>
+            Select a Zoho program to load Category List Information and Pricing
+            Information separately.
+          </span>
         </section>
       )}
       {error ? <p className="form-error">{error}</p> : null}
@@ -1177,17 +1208,12 @@ export function MetadataStep({
             >
               Cancel
             </button>
-            <button
+            <Link
               className="primary-button"
-              type="button"
-              onClick={() =>
-                navigate(
-                  `/admin/projects/${duplicateProgram.projectId}/programs/${duplicateProgram.programId}/edit`,
-                )
-              }
+              to={`/admin/projects/${duplicateProgram.projectId}/programs/${duplicateProgram.programId}/edit`}
             >
               Accept
-            </button>
+            </Link>
           </div>
         </Modal>
       ) : null}
@@ -1485,7 +1511,9 @@ export function WinnersStep({
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const zohoOrganizations = draft.metadata.zohoOrganizations ?? [];
-  const zohoCategories = zohoCategoryNames(draft.metadata.categoryPricing);
+  const benchmarkCategories = benchmarkCategoryNames(
+    draft.metadata.benchmarkCategories,
+  );
   const sortedOrganizationPrograms = [...organizationPrograms].sort(
     (left, right) => {
       const leftMatched = Boolean(
@@ -1504,7 +1532,7 @@ export function WinnersStep({
   );
   const organizationSummary = summarizeOrganizationPrograms(
     organizationPrograms,
-    zohoCategories,
+    benchmarkCategories,
   );
 
   const updateOrganization = (
@@ -1657,8 +1685,8 @@ export function WinnersStep({
                   <th>Winner</th>
                   <th>EFS respondents</th>
                   <th>Surveys Sent</th>
-                  <th>Report category</th>
-                  <th>Zoho category (benchmark)</th>
+                  <th>Pricing category (Zoho)</th>
+                  <th>Benchmark category (Category List)</th>
                   <th aria-label="Inclusion actions">Actions</th>
                 </tr>
               </thead>
@@ -1740,7 +1768,7 @@ export function WinnersStep({
                       <td>{entry.reportCategory ?? "Not provided"}</td>
                       <td>
                         <div className="category-radio-group">
-                          {zohoCategories.map((category) => (
+                          {benchmarkCategories.map((category) => (
                             <label key={category}>
                               <input
                                 checked={entry.currentZohoCategory === category}
@@ -2053,8 +2081,19 @@ export function HistoricalImportPage() {
               ),
               efsDeadline: datePart(details.EndDate ?? details.endsAt, "-"),
               reportCatalog,
+              benchmarkCategories: Array.isArray(details.benchmarkCategories)
+                ? (details.benchmarkCategories as string[])
+                : Array.isArray(details.categoryPricing)
+                  ? (details.categoryPricing as Array<Record<string, unknown>>)
+                      .map(({ zohoCategoryName }) =>
+                        typeof zohoCategoryName === "string"
+                          ? zohoCategoryName.trim()
+                          : "",
+                      )
+                      .filter(Boolean)
+                  : [...defaultBenchmarkCategories],
               categoryPricing: Array.isArray(details.categoryPricing)
-                ? (details.categoryPricing as CategoryPricing[])
+                ? categoryPricingFromApi(details.categoryPricing)
                 : defaultCategoryPricing.map((entry) => ({ ...entry })),
               organizationPrograms: organizations.map((organization) => ({
                 organizationProgramId: organization.organizationProgramId,

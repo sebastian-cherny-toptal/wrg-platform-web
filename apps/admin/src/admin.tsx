@@ -40,10 +40,12 @@ import {
 import { SearchableSelect, WorkforceLogoWhite } from "@wrg/platform-ui";
 import {
   api,
+  categoryPricingFromApi,
   field,
   formatCalendarDate,
   formatDate,
   formatDateTime,
+  type CategoryPricing,
   type OrganizationRecord,
   type PendingKeyImpactAnalysis,
   type PortalUserRecord,
@@ -53,10 +55,11 @@ import {
   type ProgramZohoResyncPreview,
   type ProgramZohoResyncValue,
   type ProjectRecord,
+  type ReportProduct,
   type UserRecord,
 } from "./api";
 import { useAuth } from "./auth";
-import { CatalogEditor } from "./catalog-editor";
+import { CatalogEditor, MoneyInput } from "./catalog-editor";
 import { filterAndSortOrganizations } from "./organization-options";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 
@@ -675,12 +678,6 @@ export function ProjectDetailPage() {
           <div className="row-actions">
             <Link
               className="action-link"
-              to={`/admin/projects/${project.id}/programs/${item.id}/edit`}
-            >
-              Edit <ChevronRight size={17} />
-            </Link>
-            <Link
-              className="action-link"
               to={`/admin/projects/${project.id}/programs/${item.id}`}
             >
               View <ChevronRight size={18} />
@@ -820,6 +817,24 @@ function SummaryPreviewValue({
   );
 }
 
+function programCategoryPricing(
+  program: ProgramRecord | null,
+): CategoryPricing[] {
+  const configured = program?.details?.categoryPricing;
+  return Array.isArray(configured) ? categoryPricingFromApi(configured) : [];
+}
+
+async function loadProgramCatalog(programId: string): Promise<ReportProduct[]> {
+  const [templates, configured] = await Promise.all([
+    api.reportProductTemplates(),
+    api.programCatalog(programId),
+  ]);
+  return templates.map(
+    (template) =>
+      configured.find(({ id }) => id === template.id) ?? { ...template },
+  );
+}
+
 export function ProgramDetailPage() {
   const { projectId = "", programId = "" } = useParams();
   const { auth } = useAuth();
@@ -829,12 +844,24 @@ export function ProgramDetailPage() {
   const organizationsLoaded = useLoad(`organizations:${programId}`, () =>
     api.organizations(programId),
   );
+  const catalogLoaded = useLoad(`program-catalog:${programId}`, () =>
+    loadProgramCatalog(programId),
+  );
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [sort, setSort] = useState("id:asc");
   const [page, setPage] = useState(1);
-  const [expanded, setExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  const [storeExpanded, setStoreExpanded] = useState(false);
+  const [categoryPricing, setCategoryPricing] = useState<CategoryPricing[]>([]);
+  const [products, setProducts] = useState<ReportProduct[]>([]);
+  const [categoryError, setCategoryError] = useState("");
+  const [storeError, setStoreError] = useState("");
+  const [savingCategories, setSavingCategories] = useState(false);
+  const [savingStore, setSavingStore] = useState(false);
   const [notice, setNotice] = useState("");
+  const [syncNotice, setSyncNotice] = useState("");
   const [resyncPreview, setResyncPreview] =
     useState<ProgramZohoResyncPreview | null>(null);
   const [resyncApplied, setResyncApplied] = useState(false);
@@ -845,6 +872,12 @@ export function ProgramDetailPage() {
   const [catalogOrganization, setCatalogOrganization] =
     useState<OrganizationRecord | null>(null);
   const program = programLoaded.data;
+  useEffect(() => {
+    setCategoryPricing(programCategoryPricing(program));
+  }, [program]);
+  useEffect(() => {
+    if (catalogLoaded.data) setProducts(catalogLoaded.data);
+  }, [catalogLoaded.data]);
   const canUploadBenefits =
     auth?.user.roles.some(
       (role) => role === "admin" || role === "super_admin",
@@ -915,7 +948,7 @@ export function ProgramDetailPage() {
     setResyncPreview(null);
     setResyncApplied(false);
     setResyncing("preview");
-    setNotice("Checking Zoho for changes…");
+    setSyncNotice("Checking Zoho for changes…");
     try {
       const preview = await api.previewProgramZohoResync(program.id);
       setResyncPreview(preview);
@@ -928,13 +961,13 @@ export function ProgramDetailPage() {
           ? `${preview.missingLocal.length} local organization${preview.missingLocal.length === 1 ? " is" : "s are"} missing from Zoho`
           : "",
       ].filter(Boolean);
-      setNotice(
+      setSyncNotice(
         preview.changedRows.length
           ? `${preview.changedRows.length} organization${preview.changedRows.length === 1 ? " has" : "s have"} changes to review.${warnings.length ? ` ${warnings.join("; ")}.` : ""}`
           : `Zoho is already in sync.${warnings.length ? ` ${warnings.join("; ")}.` : ""}`,
       );
     } catch (caught) {
-      setNotice(
+      setSyncNotice(
         caught instanceof Error
           ? caught.message
           : "Zoho changes could not be loaded.",
@@ -952,7 +985,7 @@ export function ProgramDetailPage() {
     )
       return;
     setResyncing("apply");
-    setNotice("Applying Zoho changes…");
+    setSyncNotice("Applying Zoho changes…");
     try {
       const result = await api.applyProgramZohoResync(
         program.id,
@@ -960,12 +993,12 @@ export function ProgramDetailPage() {
       );
       setResyncPreview(result);
       setResyncApplied(true);
-      setNotice(
+      setSyncNotice(
         `Applied Zoho changes to ${result.appliedCount} organization${result.appliedCount === 1 ? "" : "s"}.`,
       );
       await Promise.all([organizationsLoaded.reload(), programLoaded.reload()]);
     } catch (caught) {
-      setNotice(
+      setSyncNotice(
         caught instanceof Error
           ? caught.message
           : "Zoho changes could not be applied.",
@@ -982,17 +1015,68 @@ export function ProgramDetailPage() {
   );
   const downloadConnections = async () => {
     setDownloadingConnections(true);
-    setNotice("");
     try {
       await api.downloadOrganizationsConnectionFields(program.id);
     } catch (caught) {
-      setNotice(
+      setSyncNotice(
         caught instanceof Error
           ? caught.message
           : "The organizations connection fields could not be downloaded.",
       );
     } finally {
       setDownloadingConnections(false);
+    }
+  };
+  const saveCategoryPrices = async (event: FormEvent) => {
+    event.preventDefault();
+    setCategoryError("");
+    if (
+      !categoryPricing.length ||
+      categoryPricing.some(
+        ({ priceCents }) =>
+          priceCents === null ||
+          !Number.isInteger(priceCents) ||
+          priceCents < 0,
+      )
+    ) {
+      setCategoryError("Enter a price for every category.");
+      return;
+    }
+    setSavingCategories(true);
+    try {
+      const saved = await api.saveProgramCategoryPrices(
+        program.id,
+        categoryPricing,
+      );
+      setCategoryPricing(saved);
+      setNotice("Category prices were saved.");
+      await programLoaded.reload();
+    } catch (caught) {
+      setCategoryError(
+        caught instanceof Error
+          ? caught.message
+          : "Category prices could not be saved.",
+      );
+    } finally {
+      setSavingCategories(false);
+    }
+  };
+  const saveStore = async (event: FormEvent) => {
+    event.preventDefault();
+    setStoreError("");
+    setSavingStore(true);
+    try {
+      const saved = await api.saveProgramCatalog(program.id, products);
+      setProducts(saved);
+      setNotice("The program store was saved.");
+    } catch (caught) {
+      setStoreError(
+        caught instanceof Error
+          ? caught.message
+          : "The store could not be saved.",
+      );
+    } finally {
+      setSavingStore(false);
     }
   };
   return (
@@ -1008,13 +1092,15 @@ export function ProgramDetailPage() {
         }
       />
       <button
-        className={expanded ? "details-toggle expanded" : "details-toggle"}
-        onClick={() => setExpanded((value) => !value)}
+        className={
+          detailsExpanded ? "details-toggle expanded" : "details-toggle"
+        }
+        onClick={() => setDetailsExpanded((value) => !value)}
       >
         <strong>Program Details</strong>
         <ChevronDown size={18} />
       </button>
-      {expanded ? (
+      {detailsExpanded ? (
         <div className="details-panel details-grid">
           <Detail label="Program ID" value={program.id} />
           <Detail
@@ -1073,60 +1159,103 @@ export function ProgramDetailPage() {
           </section>
         </div>
       ) : null}
-      <div className="section-row">
-        <h2 className="section-title">Organization</h2>
-        <div className="row-actions">
-          <button
-            className="secondary-button compact action-link"
-            disabled={downloadingConnections}
-            onClick={() => void downloadConnections()}
-          >
-            <Download size={16} />
-            {downloadingConnections
-              ? "Downloading…"
-              : "Download organizations connection fields"}
-          </button>
-          <Link
-            className="secondary-button compact action-link"
-            to={`/admin/projects/${projectId}/programs/${program.id}/edit`}
-          >
-            Edit program <ChevronRight size={16} />
-          </Link>
-          <span className="latest-zoho-sync">
-            Latest Zoho sync: {formatDateTime(program.latestZohoSync)}
-          </span>
-          <button
-            className="primary-button compact"
-            disabled={resyncing !== null}
-            onClick={() => void resync()}
-          >
-            {resyncing === "preview" ? "Checking Zoho…" : "Re-Sync All Deals"}
-          </button>
-          {resyncPreview ? (
+      <button
+        className={
+          categoriesExpanded ? "details-toggle expanded" : "details-toggle"
+        }
+        onClick={() => setCategoriesExpanded((value) => !value)}
+      >
+        <strong>Report pricing</strong>
+        <ChevronDown size={18} />
+      </button>
+      {categoriesExpanded ? (
+        <form
+          className="details-panel program-configuration-panel"
+          noValidate
+          onSubmit={(event) => void saveCategoryPrices(event)}
+        >
+          <div className="category-pricing-grid">
+            {categoryPricing.length ? (
+              categoryPricing.map((entry) => (
+                <div className="category-pricing-row" key={entry.tier}>
+                  <div className="category-name-control">
+                    <span>Pricing category</span>
+                    <strong>{entry.pricingCategoryName}</strong>
+                  </div>
+                  <label>
+                    Report price (USD)
+                    <MoneyInput
+                      ariaLabel={`${entry.pricingCategoryName} report price`}
+                      onChange={(priceCents) =>
+                        setCategoryPricing((current) =>
+                          current.map((category) =>
+                            category.tier === entry.tier
+                              ? { ...category, priceCents }
+                              : category,
+                          ),
+                        )
+                      }
+                      priceCents={entry.priceCents}
+                      required
+                    />
+                  </label>
+                </div>
+              ))
+            ) : (
+              <p className="form-error">
+                This program has no configured categories.
+              </p>
+            )}
+          </div>
+          {categoryError ? <p className="form-error">{categoryError}</p> : null}
+          <div className="program-configuration-actions">
             <button
-              className="secondary-button compact"
-              disabled={resyncing !== null}
-              onClick={() => {
-                setResyncPreview(null);
-                setResyncApplied(false);
-                setNotice("");
-              }}
+              className="primary-button"
+              disabled={savingCategories || !categoryPricing.length}
+              type="submit"
             >
-              Discard preview
+              {savingCategories ? "Saving…" : "Save"}
             </button>
-          ) : null}
-          {resyncPreview?.changedRows.length && !resyncApplied ? (
+          </div>
+        </form>
+      ) : null}
+      <button
+        className={storeExpanded ? "details-toggle expanded" : "details-toggle"}
+        onClick={() => setStoreExpanded((value) => !value)}
+      >
+        <strong>Store</strong>
+        <ChevronDown size={18} />
+      </button>
+      {storeExpanded ? (
+        <form
+          className="details-panel program-configuration-panel"
+          onSubmit={(event) => void saveStore(event)}
+        >
+          {catalogLoaded.loading ? (
+            <p>Loading product options…</p>
+          ) : catalogLoaded.error ? (
+            <p className="form-error">{catalogLoaded.error}</p>
+          ) : (
+            <CatalogEditor products={products} onChange={setProducts} />
+          )}
+          {storeError ? <p className="form-error">{storeError}</p> : null}
+          <div className="program-configuration-actions">
             <button
-              className="primary-button compact"
-              disabled={resyncing !== null}
-              onClick={() => void applyResync()}
+              className="primary-button"
+              disabled={
+                savingStore ||
+                catalogLoaded.loading ||
+                Boolean(catalogLoaded.error)
+              }
+              type="submit"
             >
-              {resyncing === "apply" ? "Applying…" : "Apply all Zoho changes"}
+              {savingStore ? "Saving…" : "Save"}
             </button>
-          ) : null}
-        </div>
-      </div>
+          </div>
+        </form>
+      ) : null}
       {notice ? <div className="notice">{notice}</div> : null}
+      <h2 className="section-title">Organization</h2>
       <Toolbar
         search={search}
         setSearch={setSearch}
@@ -1144,6 +1273,107 @@ export function ProgramDetailPage() {
           { value: "winners:last", label: "Winners last" },
         ]}
       />
+      <section
+        aria-labelledby="program-sync-title"
+        className="program-sync-panel"
+      >
+        <div className="program-sync-heading">
+          <div>
+            <h3 id="program-sync-title">Zoho deal synchronization</h3>
+            <p>
+              Review the latest Zoho data before applying changes to local
+              organizations.
+            </p>
+          </div>
+          <span className="latest-zoho-sync">
+            Latest Zoho sync: {formatDateTime(program.latestZohoSync)}
+          </span>
+        </div>
+        <div className="program-sync-actions">
+          <button
+            className="secondary-button compact action-link"
+            disabled={downloadingConnections}
+            onClick={() => void downloadConnections()}
+          >
+            <Download size={16} />
+            {downloadingConnections
+              ? "Downloading…"
+              : "Download organizations connection fields"}
+          </button>
+          <button
+            className="primary-button compact"
+            disabled={resyncing !== null}
+            onClick={() => void resync()}
+          >
+            {resyncing === "preview" ? "Checking Zoho…" : "Re-Sync All Deals"}
+          </button>
+          {resyncPreview ? (
+            <button
+              className="secondary-button compact"
+              disabled={resyncing !== null}
+              onClick={() => {
+                setResyncPreview(null);
+                setResyncApplied(false);
+                setSyncNotice("");
+              }}
+            >
+              Discard preview
+            </button>
+          ) : null}
+          {resyncPreview?.changedRows.length && !resyncApplied ? (
+            <button
+              className="primary-button compact"
+              disabled={resyncing !== null}
+              onClick={() => void applyResync()}
+            >
+              {resyncing === "apply" ? "Applying…" : "Apply all Zoho changes"}
+            </button>
+          ) : null}
+        </div>
+        {syncNotice ? (
+          <div className="program-sync-status" role="status">
+            {syncNotice}
+          </div>
+        ) : null}
+        {resyncPreview?.unmatchedZoho.length ||
+        resyncPreview?.missingLocal.length ? (
+          <div className="program-sync-exceptions">
+            {resyncPreview.unmatchedZoho.length ? (
+              <section className="program-sync-exception-list">
+                <div>
+                  <h4>Zoho deals without a local match</h4>
+                  <span>{resyncPreview.unmatchedZoho.length}</span>
+                </div>
+                <p>These deals did not match an existing organization.</p>
+                <ul>
+                  {resyncPreview.unmatchedZoho.map((deal) => (
+                    <li key={deal.organizationId}>
+                      <strong>{deal.organizationName || "Unnamed deal"}</strong>
+                      <span>Zoho organization ID: {deal.organizationId}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+            {resyncPreview.missingLocal.length ? (
+              <section className="program-sync-exception-list">
+                <div>
+                  <h4>Local organizations missing from Zoho</h4>
+                  <span>{resyncPreview.missingLocal.length}</span>
+                </div>
+                <p>These local organizations were not found in Zoho.</p>
+                <ul>
+                  {resyncPreview.missingLocal.map((organization) => (
+                    <li key={organization.organizationProgramId}>
+                      <strong>{organization.organizationName}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
       <DataTable
         headers={[
           "Organization ID",

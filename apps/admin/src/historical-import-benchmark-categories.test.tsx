@@ -12,16 +12,15 @@ import { WinnersStep } from "./historical-import";
 afterEach(cleanup);
 
 const categoryPricing: CategoryPricing[] = [
-  ["Boutique", "Boutique", "15-24"],
-  ["Small", "Small/Medium", "25-99"],
-  ["Medium", "Medium", "100-199"],
-  ["Large", "Large", "200-499"],
-  ["Mega", "Mega", "500-999"],
-  ["Major", "Major", "1,000+"],
-].map(([tier, zohoCategoryName, employeeSize]) => ({
+  ["Boutique", "15-24"],
+  ["Small", "25-99"],
+  ["Medium", "100-199"],
+  ["Large", "200-499"],
+  ["Mega", "500-999"],
+  ["Major", "1000+"],
+].map(([tier, pricingCategoryName]) => ({
   tier: tier as CategoryPricing["tier"],
-  zohoCategoryName,
-  employeeSize,
+  pricingCategoryName,
   priceCents: 100,
 }));
 
@@ -32,6 +31,7 @@ describe("WinnersStep benchmark category choices", () => {
         draft={{
           metadata: {
             programName: "Indiana 2026",
+            benchmarkCategories: ["Small/Medium", "Large"],
             categoryPricing,
             organizationPrograms: [
               {
@@ -75,6 +75,6 @@ describe("WinnersStep benchmark category choices", () => {
     expect(winner.value).toBe("");
 
     const summary = screen.getByLabelText("Organization summary");
-    expect(within(summary).getAllByText("Non-winners")).toHaveLength(6);
+    expect(within(summary).getAllByText("Non-winners")).toHaveLength(2);
   });
 });

@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -148,8 +149,18 @@ describe("program Zoho resync changes", () => {
           ],
         },
       ],
-      unmatchedZoho: [],
-      missingLocal: [],
+      unmatchedZoho: [
+        {
+          organizationId: "zoho-only-id",
+          organizationName: "Zoho Only Company",
+        },
+      ],
+      missingLocal: [
+        {
+          organizationProgramId: "local-only-enrollment-id",
+          organizationName: "Local Only Company",
+        },
+      ],
     };
     vi.spyOn(api, "previewProgramZohoResync").mockResolvedValue(preview);
     const apply = vi
@@ -177,10 +188,27 @@ describe("program Zoho resync changes", () => {
     expect(screen.getByText(/Latest Zoho sync:/u).textContent).toContain(
       "Sep 7, 2026",
     );
+    const syncPanel = screen.getByRole("region", {
+      name: "Zoho deal synchronization",
+    });
+    expect(
+      within(syncPanel).getByRole("button", {
+        name: "Download organizations connection fields",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(syncPanel).getByRole("button", { name: "Re-Sync All Deals" }),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Program Details" }));
     fireEvent.click(screen.getByRole("button", { name: "Re-Sync All Deals" }));
 
     expect(await screen.findByText("Closed")).toBeTruthy();
+    expect(screen.getByText("Zoho Only Company")).toBeTruthy();
+    expect(screen.getByText("Zoho organization ID: zoho-only-id")).toBeTruthy();
+    expect(screen.getByText("Local Only Company")).toBeTruthy();
+    expect(
+      screen.getByText("These deals did not match an existing organization."),
+    ).toBeTruthy();
     expect(
       document.querySelectorAll(".zoho-resync-summary-change"),
     ).toHaveLength(4);

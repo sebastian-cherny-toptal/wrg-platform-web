@@ -127,7 +127,11 @@ describe("historical import duplicate program check", () => {
     await renderSelectedProgram();
     await screen.findByRole("dialog", { name: "Program already imported" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    const accept = screen.getByRole("link", { name: "Accept" });
+    expect(accept.getAttribute("href")).toBe(
+      "/admin/projects/database-project-id/programs/database-program-id/edit",
+    );
+    fireEvent.click(accept);
 
     expect(await screen.findByText("Edit program destination")).toBeTruthy();
   });

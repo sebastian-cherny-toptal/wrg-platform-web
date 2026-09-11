@@ -58,8 +58,15 @@ const organizationCategories = [
 
 function configuredOrganizationCategories(value: Record<string, unknown>) {
   const seen = new Set<string>();
-  const configured = array(value.categoryPricing).flatMap((entry) => {
-    const name = stringValue(object(entry).zohoCategoryName).trim();
+  const explicit = array(value.benchmarkCategories);
+  const configured = (
+    explicit.length
+      ? explicit
+      : array(value.categoryPricing).map(
+          (entry) => object(entry).zohoCategoryName,
+        )
+  ).flatMap((entry) => {
+    const name = stringValue(entry).trim();
     const normalized = name.toLocaleLowerCase("en");
     if (!name || seen.has(normalized)) return [];
     seen.add(normalized);
@@ -99,6 +106,7 @@ export type ZohoProgramOption = {
   efsDeadline: string | null;
   winnerOrganizations: ZohoWinnerOrganization[];
   organizations: ZohoOrganizationInfo[];
+  benchmarkCategories?: string[];
   categoryPricing?: CategoryPricing[];
 };
 
@@ -126,10 +134,40 @@ export type ZohoWinnerOrganization = {
 
 export type CategoryPricing = {
   tier: "Boutique" | "Small" | "Medium" | "Large" | "Mega" | "Major";
-  zohoCategoryName: string;
-  employeeSize: string;
+  pricingCategoryName: string;
   priceCents: number | null;
 };
+
+const pricingCategoryNames: Record<CategoryPricing["tier"], string> = {
+  Boutique: "15-24",
+  Small: "25-99",
+  Medium: "100-199",
+  Large: "200-499",
+  Mega: "500-999",
+  Major: "1000+",
+};
+
+export function categoryPricingFromApi(value: unknown): CategoryPricing[] {
+  return array(value).flatMap((raw) => {
+    const entry = object(raw);
+    const tier = stringValue(entry.tier) as CategoryPricing["tier"];
+    if (!(tier in pricingCategoryNames)) return [];
+    const numericPrice = Number(entry.priceCents);
+    return [
+      {
+        tier,
+        pricingCategoryName:
+          stringValue(entry.pricingCategoryName) || pricingCategoryNames[tier],
+        priceCents:
+          entry.priceCents === null || entry.priceCents === undefined
+            ? null
+            : Number.isInteger(numericPrice) && numericPrice >= 0
+              ? numericPrice
+              : null,
+      },
+    ];
+  });
+}
 
 export type PortalUserRecord = {
   id: string;
@@ -194,6 +232,7 @@ export type HistoricalImportMetadata = {
     categoryRank?: string;
   }>;
   reportCatalog?: ReportProduct[];
+  benchmarkCategories?: string[];
   categoryPricing?: CategoryPricing[];
 };
 
@@ -1178,8 +1217,15 @@ export const api = {
             categoryRank: stringValue(organization.categoryRank) || null,
           };
         }),
+        ...(Array.isArray(value.benchmarkCategories)
+          ? {
+              benchmarkCategories: value.benchmarkCategories
+                .map((entry) => stringValue(entry).trim())
+                .filter(Boolean),
+            }
+          : {}),
         ...(Array.isArray(value.categoryPricing)
-          ? { categoryPricing: value.categoryPricing as CategoryPricing[] }
+          ? { categoryPricing: categoryPricingFromApi(value.categoryPricing) }
           : {}),
       };
     });
@@ -1262,6 +1308,25 @@ export const api = {
       },
     );
     return array(object(response).data) as ReportProduct[];
+  },
+
+  async saveProgramCategoryPrices(
+    programId: string,
+    categories: CategoryPricing[],
+  ): Promise<CategoryPricing[]> {
+    const response = await request<unknown>(
+      `/admin/programs/${encodeURIComponent(programId)}/category-prices`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          prices: categories.map(({ tier, priceCents }) => ({
+            tier,
+            priceCents,
+          })),
+        }),
+      },
+    );
+    return categoryPricingFromApi(object(response).data);
   },
 
   async organizationCatalog(

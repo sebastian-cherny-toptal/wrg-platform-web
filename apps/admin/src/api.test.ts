@@ -84,13 +84,12 @@ describe("admin API projections", () => {
                 _id: "program-id",
                 Name: "Program 2026",
                 latestZohoSync: "2026-09-07T10:15:00.000Z",
-                categoryPricing: [
-                  { tier: "Boutique", zohoCategoryName: "Community" },
-                  { tier: "Small", zohoCategoryName: "Growing" },
-                  { tier: "Medium", zohoCategoryName: "Growing" },
-                  { tier: "Large", zohoCategoryName: "Enterprise" },
-                  { tier: "Mega", zohoCategoryName: "Premier" },
-                  { tier: "Major", zohoCategoryName: "National" },
+                benchmarkCategories: [
+                  "Community",
+                  "Growing",
+                  "Enterprise",
+                  "Premier",
+                  "National",
                 ],
               },
               categoriesInfo: {
@@ -316,6 +315,35 @@ describe("admin API projections", () => {
       configurable: true,
       value: originalRevokeObjectURL,
     });
+  });
+
+  it("sends only category tiers and prices when updating a program", async () => {
+    const categories = [
+      {
+        tier: "Small" as const,
+        pricingCategoryName: "25-99",
+        priceCents: 125_000,
+      },
+    ];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: categories }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      api.saveProgramCategoryPrices("program/id", categories),
+    ).resolves.toEqual(categories);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/programs/program%2Fid/category-prices"),
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          prices: [{ tier: "Small", priceCents: 125_000 }],
+        }),
+      }),
+    );
   });
 
   it("keeps the Zoho project source available to the import wizard", async () => {

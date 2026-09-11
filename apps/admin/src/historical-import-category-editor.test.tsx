@@ -8,8 +8,7 @@ import {
 
 const category: CategoryPricing = {
   tier: "Small",
-  zohoCategoryName: "Small-Medium",
-  employeeSize: "35-74 US",
+  pricingCategoryName: "25-99",
   priceCents: 111_000,
 };
 
@@ -19,33 +18,43 @@ describe("CategoryPricingEditor", () => {
   it("leaves fallback prices blank when the backend provides no pricing", () => {
     render(
       <CategoryPricingEditor
+        benchmarkCategories={["Small/Medium", "Large"]}
         onChange={vi.fn()}
         value={defaultCategoryPricing}
       />,
     );
 
-    for (const input of screen.getAllByLabelText(/category price$/)) {
+    for (const input of screen.getAllByLabelText(/report price$/)) {
       expect((input as HTMLInputElement).value).toBe("");
     }
   });
 
-  it("shows the Zoho name and range as read-only values", () => {
-    render(<CategoryPricingEditor onChange={vi.fn()} value={[category]} />);
+  it("shows benchmark names separately from the fixed pricing band", () => {
+    render(
+      <CategoryPricingEditor
+        benchmarkCategories={["Small/Medium", "Large"]}
+        onChange={vi.fn()}
+        value={[category]}
+      />,
+    );
 
-    expect(screen.getByText("Small-Medium")).toBeTruthy();
-    expect(screen.getByText("35-74 US")).toBeTruthy();
-    expect(screen.queryByLabelText("Small Zoho category name")).toBeNull();
-    expect(screen.queryByLabelText("Small category size")).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Edit Small category name" }),
-    ).toBeNull();
+    expect(screen.getByText("Small/Medium")).toBeTruthy();
+    expect(screen.getByText("Large")).toBeTruthy();
+    expect(screen.getByText("25-99")).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: /benchmark/u })).toBeNull();
   });
 
   it("allows the Zoho-backed report price to be changed", () => {
     const onChange = vi.fn();
-    render(<CategoryPricingEditor onChange={onChange} value={[category]} />);
+    render(
+      <CategoryPricingEditor
+        benchmarkCategories={["Small/Medium", "Large"]}
+        onChange={onChange}
+        value={[category]}
+      />,
+    );
 
-    const input = screen.getByLabelText("Small category price");
+    const input = screen.getByLabelText("25-99 report price");
     expect((input as HTMLInputElement).value).toBe("1110.00");
     fireEvent.change(input, { target: { value: "1234.56" } });
     fireEvent.blur(input);
@@ -58,16 +67,17 @@ describe("CategoryPricingEditor", () => {
   it("leaves a missing Zoho price blank until the admin enters one", () => {
     render(
       <CategoryPricingEditor
+        benchmarkCategories={["Small/Medium", "Large"]}
         onChange={vi.fn()}
         value={[{ ...category, priceCents: null }]}
       />,
     );
 
     expect(
-      (screen.getByLabelText("Small category price") as HTMLInputElement).value,
+      (screen.getByLabelText("25-99 report price") as HTMLInputElement).value,
     ).toBe("");
     expect(
-      (screen.getByLabelText("Small category price") as HTMLInputElement)
+      (screen.getByLabelText("25-99 report price") as HTMLInputElement)
         .required,
     ).toBe(true);
   });

@@ -138,6 +138,7 @@ export function CatalogEditor({
                 <label>
                   Price (USD)
                   <MoneyInput
+                    ariaLabel={`${product.name} price`}
                     priceCents={product.priceCents}
                     onChange={(priceCents) =>
                       update(product.id, { priceCents })
