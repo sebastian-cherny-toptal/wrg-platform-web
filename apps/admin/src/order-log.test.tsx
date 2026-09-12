@@ -18,7 +18,7 @@ describe("order log", () => {
         createdAt: "2026-09-12T10:00:00.000Z",
         purchaserUsername: "admin@example.com",
         organizationName: "Acme",
-        productName: "Employee Verbatim agegeneration",
+        productName: "Sorted Employee Verbatims agegeneration",
         amountMinor: 42_500,
         currency: "USD",
         sortingFilter: "agegeneration",
@@ -34,7 +34,7 @@ describe("order log", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Employee Verbatim")).toBeTruthy();
+    expect(await screen.findByText("Sorted Employee Verbatims")).toBeTruthy();
     expect(screen.getByText("(Age Generation)").tagName).toBe("STRONG");
     expect(
       screen.queryByRole("columnheader", { name: "Sorting Filter" }),
@@ -78,5 +78,35 @@ describe("order log", () => {
     expect(
       screen.queryByText(/Seed Br Question 2026 Efs/),
     ).toBeNull();
+  });
+
+  it("places the sorting filter immediately after Sorted Employee Verbatims", async () => {
+    vi.spyOn(api, "orders").mockResolvedValue([
+      {
+        createdAt: "2026-09-12T10:00:00.000Z",
+        purchaserUsername: "admin@example.com",
+        organizationName: "Acme",
+        productName:
+          "Sorted Employee Verbatims, Key Impact Analysis, Response Detail Report",
+        amountMinor: 167_000,
+        currency: "USD",
+        sortingFilter: "department",
+        paymentMethod: "Card",
+        programName: "Program 2026",
+        status: "PAID",
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <OrderLogPage />
+      </MemoryRouter>,
+    );
+
+    const filter = await screen.findByText("(Department)");
+    expect(filter.tagName).toBe("STRONG");
+    expect(filter.parentElement?.innerHTML).toBe(
+      "Sorted Employee Verbatims <strong>(Department)</strong>, Key Impact Analysis, Response Detail Report",
+    );
   });
 });

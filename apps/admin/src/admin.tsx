@@ -2609,9 +2609,19 @@ function OrderProductCell({ row }: { row: Record<string, unknown> }) {
       "",
     )
     .trim();
+  const displayProduct = productWithoutFilter || product;
+  const sortedVerbatimsMatch = /Sorted Employee Verbatims/iu.exec(
+    displayProduct,
+  );
+  if (!sortedVerbatimsMatch) return <>{displayProduct}</>;
+  const sortedVerbatimsStart = sortedVerbatimsMatch.index;
+  const sortedVerbatimsEnd =
+    sortedVerbatimsStart + sortedVerbatimsMatch[0].length;
   return (
     <>
-      {productWithoutFilter || product} <strong>({label})</strong>
+      {displayProduct.slice(0, sortedVerbatimsStart)}
+      {sortedVerbatimsMatch[0]} <strong>({label})</strong>
+      {displayProduct.slice(sortedVerbatimsEnd)}
     </>
   );
 }
