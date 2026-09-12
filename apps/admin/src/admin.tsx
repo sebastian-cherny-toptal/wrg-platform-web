@@ -12,7 +12,6 @@ import {
   KeyRound,
   LogOut,
   Menu,
-  MoreHorizontal,
   Pencil,
   Search,
   ShoppingBag,
@@ -72,6 +71,8 @@ const permissionLabels: Record<string, string> = {
   uploadKeyImpactAnalysisAccess: "Upload Key Impact Analysis",
   orderLogAccess: "Access Order Logs",
 };
+
+const ADMIN_TABLE_PAGE_SIZE = 10;
 
 type AdminViewCountKey =
   "projects" | "users" | "keyImpactAnalyses" | "orders" | "activity" | "roles";
@@ -301,12 +302,14 @@ function Pager({
   page = 1,
   pageSize = shown,
   onPageChange,
+  wording = "dash",
 }: {
   count: number;
   shown: number;
   page?: number;
   pageSize?: number;
   onPageChange?: (page: number) => void;
+  wording?: "dash" | "to";
 }) {
   const pageCount = Math.max(1, Math.ceil(count / pageSize));
   const controlled = Boolean(onPageChange);
@@ -316,7 +319,7 @@ function Pager({
     <div className="pager">
       <span>
         {controlled
-          ? `${start} - ${end} of ${count}`
+          ? `${start}${wording === "to" ? " to " : " - "}${end} of ${count}`
           : `${Math.min(shown, count)} out of ${count}`}
       </span>
       <div>
@@ -446,6 +449,7 @@ export function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [sort, setSort] = useState("createdAt:desc");
+  const [page, setPage] = useState(1);
   const [deleting, setDeleting] = useState("");
   const deletingRef = useRef("");
   const [notice, setNotice] = useState("");
@@ -496,6 +500,16 @@ export function ProjectsPage() {
       );
     });
   }, [loaded.data, search, date, sort]);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE),
+  );
+  const currentPage = Math.min(page, pageCount);
+  const pagedRows = rows.slice(
+    (currentPage - 1) * ADMIN_TABLE_PAGE_SIZE,
+    currentPage * ADMIN_TABLE_PAGE_SIZE,
+  );
+  useEffect(() => setPage(1), [search, date, sort]);
   return (
     <>
       {deleting ? <LongRunningActionOverlay title="Deleting project…" /> : null}
@@ -540,7 +554,7 @@ export function ProjectsPage() {
               "Programs",
               "Actions",
             ]}
-            rows={rows.slice(0, 10).map((item) => [
+            rows={pagedRows.map((item) => [
               <strong>{item.name}</strong>,
               formatDate(item.createdAt),
               item.programs.length,
@@ -564,7 +578,14 @@ export function ProjectsPage() {
             ])}
           />
           {notice ? <div className="notice">{notice}</div> : null}
-          <Pager count={rows.length} shown={10} />
+          <Pager
+            count={rows.length}
+            shown={ADMIN_TABLE_PAGE_SIZE}
+            page={currentPage}
+            pageSize={ADMIN_TABLE_PAGE_SIZE}
+            onPageChange={setPage}
+            wording="to"
+          />
         </>
       )}
     </>
@@ -1363,7 +1384,7 @@ export function ProgramDetailPage() {
             {resyncPreview.missingLocal.length ? (
               <section className="program-sync-exception-list">
                 <div>
-                  <h4>Local organizations missing from Zoho</h4>
+                  <h3>Local organizations missing from Zoho</h3>
                   <span>{resyncPreview.missingLocal.length}</span>
                 </div>
                 <p>These local organizations were not found in Zoho.</p>
@@ -2290,11 +2311,73 @@ export function UsersManagementPage() {
   const [resetting, setResetting] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
-  const users = (loaded.data ?? []).filter((user) =>
-    `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.role ?? ""} ${JSON.stringify(user.payments)}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
+  const [role, setRole] = useState("all");
+  const [sort, setSort] = useState("createdAt");
+  const [page, setPage] = useState(1);
+  const roleOptions = useMemo(
+    () => [
+      { value: "all", label: "All Roles" },
+      ...Array.from(
+        new Set(
+          (loaded.data ?? [])
+            .map((user) => user.role)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      )
+        .sort()
+        .map((value) => ({
+          value,
+          label: value
+            .replaceAll("_", " ")
+            .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        })),
+    ],
+    [loaded.data],
   );
+  const users = useMemo(() => {
+    const filtered = (loaded.data ?? []).filter(
+      (user) =>
+        (role === "all" || user.role === role) &&
+        `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.role ?? ""} ${JSON.stringify(user.payments)}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+    );
+    const stringValue = (value: string | null) => value ?? "";
+    const timeValue = (value: string | null) =>
+      value ? new Date(value).getTime() : 0;
+    return [...filtered].sort((left, right) => {
+      if (sort === "fullName")
+        return left.fullName.localeCompare(right.fullName);
+      if (sort === "email") return left.email.localeCompare(right.email);
+      if (sort === "username")
+        return stringValue(left.username).localeCompare(
+          stringValue(right.username),
+        );
+      if (sort === "lastLogin")
+        return timeValue(right.lastLogin) - timeValue(left.lastLogin);
+      if (sort === "totalPaid")
+        return (
+          right.totalPaid.reduce((total, item) => total + item.amountMinor, 0) -
+          left.totalPaid.reduce((total, item) => total + item.amountMinor, 0)
+        );
+      if (sort === "lastPayment")
+        return (
+          timeValue(right.lastPaymentDatetime) -
+          timeValue(left.lastPaymentDatetime)
+        );
+      return timeValue(right.createdAt) - timeValue(left.createdAt);
+    });
+  }, [loaded.data, role, search, sort]);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(users.length / ADMIN_TABLE_PAGE_SIZE),
+  );
+  const currentPage = Math.min(page, pageCount);
+  const pagedUsers = users.slice(
+    (currentPage - 1) * ADMIN_TABLE_PAGE_SIZE,
+    currentPage * ADMIN_TABLE_PAGE_SIZE,
+  );
+  useEffect(() => setPage(1), [search, role, sort]);
   const resetPassword = async (user: UserRecord) => {
     setResetting(user.id);
     setNotice("");
@@ -2327,6 +2410,27 @@ export function UsersManagementPage() {
         search={search}
         setSearch={setSearch}
         placeholder="Search users"
+        sort={sort}
+        setSort={setSort}
+        sortOptions={[
+          { value: "fullName", label: "User Full Name" },
+          { value: "email", label: "Email" },
+          { value: "username", label: "Username" },
+          { value: "createdAt", label: "Date Created" },
+          { value: "lastLogin", label: "Last Login" },
+          { value: "totalPaid", label: "Total Paid" },
+          { value: "lastPayment", label: "Last Payment" },
+        ]}
+        extra={
+          <SearchableSelect
+            ariaLabel="Filter by role"
+            className="toolbar-select"
+            onChange={setRole}
+            options={roleOptions}
+            searchPlaceholder="Search roles…"
+            value={role}
+          />
+        }
       />
       {notice ? <div className="notice">{notice}</div> : null}
       {loaded.loading ? (
@@ -2354,7 +2458,7 @@ export function UsersManagementPage() {
               "Status",
               "Actions",
             ]}
-            rows={users.map((user) => {
+            rows={pagedUsers.map((user) => {
               return [
                 <strong>{user.fullName}</strong>,
                 user.email,
@@ -2457,7 +2561,14 @@ export function UsersManagementPage() {
               ];
             })}
           />
-          <Pager count={loaded.data?.length ?? 0} shown={10} />
+          <Pager
+            count={users.length}
+            shown={ADMIN_TABLE_PAGE_SIZE}
+            page={currentPage}
+            pageSize={ADMIN_TABLE_PAGE_SIZE}
+            onPageChange={setPage}
+            wording="to"
+          />
         </>
       )}
       {modal ? (
@@ -2493,9 +2604,20 @@ function GenericLogPage({
   const loader = kind === "orders" ? api.orders : api.activity;
   const loaded = useLoad(kind, loader);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const rows = (loaded.data ?? []).filter((row) =>
     JSON.stringify(row).toLowerCase().includes(search.toLowerCase()),
   );
+  const pageCount = Math.max(
+    1,
+    Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE),
+  );
+  const currentPage = Math.min(page, pageCount);
+  const pagedRows = rows.slice(
+    (currentPage - 1) * ADMIN_TABLE_PAGE_SIZE,
+    currentPage * ADMIN_TABLE_PAGE_SIZE,
+  );
+  useEffect(() => setPage(1), [search]);
   const headers =
     kind === "orders"
       ? [
@@ -2558,10 +2680,17 @@ function GenericLogPage({
         <>
           <DataTable
             headers={headers}
-            rows={rows.map(cells)}
+            rows={pagedRows.map(cells)}
             empty={`No ${title} Found!`}
           />
-          <Pager count={rows.length} shown={10} />
+          <Pager
+            count={rows.length}
+            shown={ADMIN_TABLE_PAGE_SIZE}
+            page={currentPage}
+            pageSize={ADMIN_TABLE_PAGE_SIZE}
+            onPageChange={setPage}
+            wording="to"
+          />
         </>
       )}
     </>
@@ -2732,16 +2861,10 @@ export function RolesPage() {
       ) : (
         <>
           <DataTable
-            headers={["Role", "Users", "Actions"]}
+            headers={["Role", "Users"]}
             rows={(loaded.data ?? []).map((role) => [
               <strong>{field(role, "name", "role")}</strong>,
               field(role, "userCount", "users"),
-              <button
-                className="more-button"
-                aria-label={`Actions for ${field(role, "name", "role")}`}
-              >
-                <MoreHorizontal size={18} />
-              </button>,
             ])}
           />
           <Pager count={loaded.data?.length ?? 0} shown={10} />
