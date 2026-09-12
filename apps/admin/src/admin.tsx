@@ -2595,7 +2595,11 @@ function OrderProductCell({ row }: { row: Record<string, unknown> }) {
   const product = field(row, "productName", "product", "itemTitle");
   const rawFilter = field(row, "sortingFilter");
   if (rawFilter === "—") return <>{product}</>;
-  const label = sortingFilterLabel(rawFilter);
+  const resolvedFilter = field(row, "sortingFilterLabel");
+  const label =
+    resolvedFilter === "—"
+      ? sortingFilterLabel(rawFilter)
+      : sortingFilterLabel(resolvedFilter);
   const productWithoutFilter = product
     .replace(
       new RegExp(

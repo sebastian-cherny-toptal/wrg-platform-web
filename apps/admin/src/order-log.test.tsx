@@ -41,4 +41,42 @@ describe("order log", () => {
     ).toBeNull();
     expect(screen.getAllByRole("columnheader")).toHaveLength(8);
   });
+
+  it("uses the resolved demographic label for internal question references", async () => {
+    const sortingQuestionReference =
+      "seed-br-question-2026-efs-0dbcf364a57f";
+    vi.spyOn(api, "orders").mockResolvedValue([
+      {
+        createdAt: "2026-09-12T10:00:00.000Z",
+        purchaserUsername: "admin@example.com",
+        organizationName: "Acme",
+        productName: `Key Impact Analysis, Sorted Employee Verbatims ${sortingQuestionReference}`,
+        amountMinor: 124_500,
+        currency: "USD",
+        sortingFilter: sortingQuestionReference,
+        sortingFilterLabel: "Age Generation",
+        paymentMethod: "Card",
+        programName: "Program 2026",
+        status: "PAID",
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <OrderLogPage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(
+        (_, element) =>
+          element?.tagName === "TD" &&
+          element.textContent ===
+            "Key Impact Analysis, Sorted Employee Verbatims (Age Generation)",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(/Seed Br Question 2026 Efs/),
+    ).toBeNull();
+  });
 });
