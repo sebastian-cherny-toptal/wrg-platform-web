@@ -1408,7 +1408,9 @@ export function UploadStep({
         disabled={working}
         onClick={() => void continueToOrganizations()}
       >
-        {working
+        {pendingAnalyses > 0
+          ? "Loading file…"
+          : continuing
           ? "Validating and loading Zoho…"
           : !eaFile && !efsFile && draft.metadata.programId
             ? "Skip uploads"
@@ -1469,7 +1471,6 @@ export function UploadStep({
         <div className="summary-grid">
           {validation.workbooks.map((workbook) => (
             <div className="summary-card" key={workbook.kind}>
-              <strong>{workbook.kind}</strong>
               <span>{workbook.fileName}</span>
               <ul>
                 <li>{workbook.questions} questions</li>

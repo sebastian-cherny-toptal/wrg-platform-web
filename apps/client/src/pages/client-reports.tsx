@@ -758,6 +758,55 @@ function PieChartCard({
 
 type DetailReport = Awaited<ReturnType<typeof api.reports.responseBreakdown>>;
 
+type DetailResponse = DetailReport["data"][number]["responses"][number];
+
+const DETAIL_RESPONSE_GROUPS = [
+  {
+    caption: "Agreement",
+    members: ["Agree", "Strongly Agree"],
+    colorSource: "Strongly Agree",
+    fallbackColor: "#00a46a",
+  },
+  {
+    caption: "Neutral",
+    members: ["Neutral"],
+    colorSource: "Neutral",
+    fallbackColor: "#ffc955",
+  },
+  {
+    caption: "Disagreement",
+    members: ["Disagree", "Strongly Disagree"],
+    colorSource: "Strongly Disagree",
+    fallbackColor: "#c00000",
+  },
+] as const;
+
+function groupedDetailResponses(responses: DetailResponse[]) {
+  return DETAIL_RESPONSE_GROUPS.map((group) => {
+    const members = responses.filter((response) =>
+      group.members.some((caption) => caption === response.ResponseCaption),
+    );
+    const colorSource = responses.find(
+      (response) => response.ResponseCaption === group.colorSource,
+    );
+
+    return {
+      ResponseCaption: group.caption,
+      numberOfResponses: members.reduce(
+        (total, response) => total + response.numberOfResponses,
+        0,
+      ),
+      percent: members.reduce(
+        (total, response) =>
+          total +
+          (response.percent <= 1 ? response.percent * 100 : response.percent),
+        0,
+      ),
+      colorCode: colorSource?.colorCode ?? group.fallbackColor,
+    };
+  });
+}
+
 function DetailPanel({
   title,
   data,
@@ -806,54 +855,51 @@ function DetailPanel({
       ) : null}
       {!loading && !error && data?.data.length ? (
         <div className="mt-5 divide-y divide-violet-100">
-          {data.data.map((question) => (
-            <div
-              className="py-4 first:pt-0 last:pb-0"
-              key={question.questionId}
-            >
-              <p className="text-sm font-medium text-zinc-800">
-                {question.question}
-              </p>
+          {data.data.map((question) => {
+            const responses = groupedDetailResponses(question.responses);
+            return (
               <div
-                className="mt-3 flex h-8 overflow-hidden rounded-lg bg-white"
-                role="img"
-                aria-label={`${question.question} response distribution`}
+                className="py-4 first:pt-0 last:pb-0"
+                key={question.questionId}
               >
-                {question.responses.map((response) => {
-                  const percentage =
-                    response.percent <= 1
-                      ? response.percent * 100
-                      : response.percent;
-                  return percentage > 0 ? (
-                    <div
-                      className="flex items-center justify-center text-[10px] font-semibold text-white"
-                      key={response.ResponseCaption}
-                      style={{
-                        backgroundColor: response.colorCode,
-                        width: `${Math.min(100, percentage)}%`,
-                      }}
-                    >
-                      {Math.round(percentage)}%
-                    </div>
-                  ) : null;
-                })}
+                <p className="text-sm font-medium text-zinc-800">
+                  {question.question}
+                </p>
+                <div
+                  className="mt-3 flex h-8 overflow-hidden rounded-lg bg-white"
+                  role="img"
+                  aria-label={`${question.question} response distribution`}
+                >
+                  {responses.map((response) => {
+                    const percentage = response.percent;
+                    return percentage > 0 ? (
+                      <div
+                        className="flex items-center justify-center text-[10px] font-semibold text-white"
+                        key={response.ResponseCaption}
+                        style={{
+                          backgroundColor: response.colorCode,
+                          width: `${Math.min(100, percentage)}%`,
+                        }}
+                      >
+                        {Math.round(percentage)}%
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500">
+                  {responses.map((response) => {
+                    const percentage = response.percent;
+                    return (
+                      <span key={response.ResponseCaption}>
+                        {response.ResponseCaption}: {Math.round(percentage)}% (
+                        {response.numberOfResponses} responses)
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500">
-                {question.responses.map((response) => {
-                  const percentage =
-                    response.percent <= 1
-                      ? response.percent * 100
-                      : response.percent;
-                  return (
-                    <span key={response.ResponseCaption}>
-                      {response.ResponseCaption}: {Math.round(percentage)}% (
-                      {response.numberOfResponses} responses)
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : null}
     </section>

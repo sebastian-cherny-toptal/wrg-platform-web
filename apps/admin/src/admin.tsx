@@ -1341,10 +1341,9 @@ export function ProgramDetailPage() {
             {resyncPreview.unmatchedZoho.length ? (
               <section className="program-sync-exception-list">
                 <div>
-                  <h4>Zoho deals without a local match</h4>
+                  <h3>Zoho deals without a local match</h3>
                   <span>{resyncPreview.unmatchedZoho.length}</span>
                 </div>
-                <p>These deals did not match an existing organization.</p>
                 <ul>
                   {resyncPreview.unmatchedZoho.map((deal) => (
                     <li key={deal.organizationId}>

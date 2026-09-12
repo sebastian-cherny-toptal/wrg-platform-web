@@ -88,9 +88,33 @@ describe("Detailed Results page", () => {
           responses: [
             {
               ResponseCaption: "Strongly Agree",
-              numberOfResponses: 10,
-              percent: 100,
+              numberOfResponses: 4,
+              percent: 40,
               colorCode: "#00a46a",
+            },
+            {
+              ResponseCaption: "Agree",
+              numberOfResponses: 3,
+              percent: 30,
+              colorCode: "#70ad47",
+            },
+            {
+              ResponseCaption: "Neutral",
+              numberOfResponses: 1,
+              percent: 10,
+              colorCode: "#ffc955",
+            },
+            {
+              ResponseCaption: "Disagree",
+              numberOfResponses: 1,
+              percent: 10,
+              colorCode: "#ed7d31",
+            },
+            {
+              ResponseCaption: "Strongly Disagree",
+              numberOfResponses: 1,
+              percent: 10,
+              colorCode: "#c00000",
             },
           ],
         },
@@ -121,8 +145,23 @@ describe("Detailed Results page", () => {
     expect(section).not.toBeNull();
     expect(section?.parentElement).toBe(card.parentElement);
     expect(
-      await screen.findByText("Strongly Agree: 100% (10 responses)"),
+      await screen.findByText("Agreement: 70% (7 responses)"),
     ).toBeVisible();
+    expect(screen.getByText("Neutral: 10% (1 responses)")).toBeVisible();
+    expect(
+      screen.getByText("Disagreement: 20% (2 responses)"),
+    ).toBeVisible();
+    expect(screen.queryByText(/Strongly Agree:/u)).not.toBeInTheDocument();
+
+    const distribution = screen.getByRole("img", {
+      name: "I can do my best work. response distribution",
+    });
+    expect(distribution.children[0]).toHaveStyle({
+      backgroundColor: "#00a46a",
+    });
+    expect(distribution.children[2]).toHaveStyle({
+      backgroundColor: "#c00000",
+    });
 
     fireEvent.click(card);
     expect(
