@@ -33,6 +33,19 @@ import { BenefitsBenchmarkTable } from "../components/benefits-benchmark-table";
 import { ImageDownloadMenu } from "../components/image-download-menu";
 import { Button, Card, PageHeader, StatePanel, cn } from "../components/ui";
 import { useAppStore, useSelectedProgram } from "../store/app-store";
+import { pairedWorkforceCohorts, workforceCohorts } from "./workforce-cohorts";
+
+const OPEN_REPORT_CART_EVENT = "wrg:open-report-cart";
+const reportMoney = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function openReportCart() {
+  window.dispatchEvent(new Event(OPEN_REPORT_CART_EVENT));
+}
 
 type CategoryResult = {
   title: string;
@@ -131,7 +144,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                   </span>
                 ) : null}
                 <span className="text-zinc-500">
-                  ${(item.priceCents / 100).toLocaleString()}
+                  {reportMoney.format(item.priceCents / 100)}
                 </span>
               </div>
             ))
@@ -142,7 +155,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="border-t border-zinc-200 p-6">
           <div className="mb-5 flex justify-between">
             <span>Total:</span>
-            <span>$ {Math.round(total / 100).toLocaleString()}</span>
+            <span>{reportMoney.format(total / 100)}</span>
           </div>
           {cart.length ? (
             <Link
@@ -176,6 +189,11 @@ function ReportHeader({
 }) {
   const program = useSelectedProgram();
   const [cartOpen, setCartOpen] = useState(false);
+  useEffect(() => {
+    const openCart = () => setCartOpen(true);
+    window.addEventListener(OPEN_REPORT_CART_EVENT, openCart);
+    return () => window.removeEventListener(OPEN_REPORT_CART_EVENT, openCart);
+  }, []);
   const cartCount = useAppStore((state) =>
     state.cart.reduce((total, item) => total + item.quantity, 0),
   );
@@ -1913,7 +1931,7 @@ export function EmployeeVerbatimsPage() {
               !effectiveSortingFilter ||
               sortedVerbatims.priceCents == null
             }
-            onClick={() =>
+            onClick={() => {
               addToCart({
                 productId: sortedVerbatims.id,
                 name: sortedVerbatims.name,
@@ -1922,8 +1940,9 @@ export function EmployeeVerbatimsPage() {
                 ...(selectedSortingLabel
                   ? { optionLabel: selectedSortingLabel }
                   : {}),
-              })
-            }
+              });
+              openReportCart();
+            }}
           >
             {inCart ? "Added" : "Add to cart"}
           </Button>
@@ -2376,10 +2395,25 @@ export function BenchmarkDataPage() {
     queryFn: () => api.reports.workforceComparison(program?.id ?? "", isDummy),
     enabled: Boolean(program),
   });
-  const categories: BenchmarkCategory[] = comparison.data?.data.data ?? [];
-  const employerLabels = (comparison.data?.data.tableHeaders ?? [])
-    .filter((header) => header.type.includes("Yes"))
-    .map((header) => header.title);
+  const rawHeaders = comparison.data?.data.tableHeaders ?? [];
+  const employerCohorts = pairedWorkforceCohorts(rawHeaders);
+  const employerLabels = employerCohorts.map(({ label }) => label);
+  const categories: BenchmarkCategory[] = (comparison.data?.data.data ?? []).map(
+    (category) => ({
+      ...category,
+      dataValues: employerCohorts.flatMap(({ winnerIndex, nonWinnerIndex }) => [
+        category.dataValues[winnerIndex] ?? "x",
+        nonWinnerIndex == null ? "x" : (category.dataValues[nonWinnerIndex] ?? "x"),
+      ]),
+      nestedData: category.nestedData.map((row) => ({
+        ...row,
+        dataValues: employerCohorts.flatMap(({ winnerIndex, nonWinnerIndex }) => [
+          row.dataValues[winnerIndex] ?? "x",
+          nonWinnerIndex == null ? "x" : (row.dataValues[nonWinnerIndex] ?? "x"),
+        ]),
+      })),
+    }),
+  );
   const averages = (comparison.data?.data.surveyAverage ?? []).map(
     (average) => {
       const yes = average.Yes;
@@ -2450,33 +2484,44 @@ export function BenchmarkDataPage() {
         ) : (
           <>
             <Card className="mt-6 p-5 shadow-none">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-                {averages.map((average) => (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {averages.map((average, index) => (
                   <div
-                    className="rounded-xl bg-zinc-100 p-4 text-center"
+                    className={cn(
+                      "rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm",
+                      index === 0 && "border-violet-200 bg-violet-50",
+                    )}
                     key={average.title}
                   >
-                    <h2 className="min-h-10 text-[13px] font-semibold">
+                    <h2 className="text-base font-semibold">
                       {average.title}
                     </h2>
-                    <p className="mt-3 text-xs text-zinc-500">
+                    <p className="mt-2 text-sm text-zinc-500">
                       {average.subTitle}
                     </p>
-                    <strong className="mt-1 block text-2xl">
-                      {typeof average.winner === "number"
-                        ? `${Math.round(average.winner)}%`
-                        : average.winner}
-                    </strong>
-                    <div className="mt-3 flex justify-center gap-3 text-xs">
-                      <span className="flex items-center gap-1 text-emerald-600">
-                        <Check className="size-4" /> Winners
-                      </span>
-                      <span className="flex items-center gap-1 text-red-500">
-                        <XCircle className="size-4" />{" "}
-                        {typeof average.nonWinner === "number"
-                          ? `${Math.round(average.nonWinner)}%`
-                          : average.nonWinner}
-                      </span>
+                    <div className="mt-6 grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Check className="size-5 rounded-full border border-emerald-600 p-0.5 text-emerald-600" />
+                        <div>
+                          <span className="block text-sm text-zinc-500">Winners</span>
+                          <strong className="mt-1 block text-sm">
+                            {typeof average.winner === "number"
+                              ? `${Math.round(average.winner)}%`
+                              : average.winner}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <XCircle className="size-5 text-red-600" />
+                        <div>
+                          <span className="block text-sm text-zinc-500">Non-winners</span>
+                          <strong className="mt-1 block text-sm">
+                            {typeof average.nonWinner === "number"
+                              ? `${Math.round(average.nonWinner)}%`
+                              : average.nonWinner}
+                          </strong>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -2533,9 +2578,11 @@ export function BenchmarkDataPage() {
 function AgreementDonut({
   value,
   label,
+  color,
 }: {
   value: number | string;
   label: string;
+  color: string;
 }) {
   const numeric = typeof value === "number" ? Math.round(value) : 0;
   return (
@@ -2543,7 +2590,7 @@ function AgreementDonut({
       <div
         className="relative grid size-44 place-items-center rounded-full"
         style={{
-          background: `conic-gradient(#7c3aed ${numeric * 3.6}deg, #ede9fe 0deg)`,
+          background: `conic-gradient(${color} ${numeric * 3.6}deg, #ede9fe 0deg)`,
         }}
       >
         <div className="grid size-32 place-items-center rounded-full bg-white text-center shadow-inner">
@@ -2706,9 +2753,9 @@ function ComparisonCategoryCard({
             <ImageDownloadMenu iconOnly name={title} targetRef={cardRef} />
           </div>
           <div className="grid gap-8 p-7 md:grid-cols-2 md:divide-x md:divide-zinc-200">
-            <AgreementDonut label="Your Results" value={currentValue} />
+            <AgreementDonut color="#4c1d95" label="Your Results" value={currentValue} />
             <div className="md:pl-8">
-              <AgreementDonut label={compareLabel} value={benchmark} />
+              <AgreementDonut color="#a78bfa" label={compareLabel} value={benchmark} />
             </div>
           </div>
         </div>
@@ -2727,7 +2774,7 @@ function ComparisonCategoryCard({
 }
 
 export function ComparisonDataPage() {
-  const [active, setActive] = useState(0);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const categoryReport = useCategoryResults();
   const { categoryResults } = categoryReport;
@@ -2737,23 +2784,27 @@ export function ComparisonDataPage() {
     queryFn: () => api.reports.workforceComparison(program?.id ?? ""),
     enabled: Boolean(program),
   });
-  const cohorts = (comparison.data?.data.tableHeaders ?? [])
-    .map((header, index) => ({
-      label: header.title,
-      key: header.type.replace("_", ""),
-      index,
-    }))
-    .filter((cohort) => cohort.key.endsWith("Yes"));
+  const cohorts = workforceCohorts(comparison.data?.data.tableHeaders ?? []);
+  const winnerCohorts = cohorts.filter(({ kind }) => kind === "winner");
+  const nonWinnerCohorts = cohorts.filter(({ kind }) => kind === "nonWinner");
+  const cohortSections = [
+    { label: "Winners", items: winnerCohorts },
+    { label: "Non-Winners", items: nonWinnerCohorts },
+  ];
   const categories = categoryResults.filter(
     ({ title }) => title !== "Supplementary Questions",
   );
-  const selectedCohort = cohorts[active];
+  const selectedCohort =
+    cohorts.find(({ key }) => key === activeKey) ?? winnerCohorts[0] ?? cohorts[0];
+  const selectedCohortIndex = cohorts.findIndex(
+    ({ key }) => key === selectedCohort?.key,
+  );
   const details = useQuery({
     queryKey: [
       "comparison-question-details",
       program?.id,
       selectedCategory,
-      active,
+      selectedCohort?.key,
     ],
     queryFn: () =>
       api.reports.comparisonQuestions(
@@ -2781,31 +2832,43 @@ export function ComparisonDataPage() {
           <button
             aria-label="Previous comparison group"
             className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-zinc-500"
-            onClick={() => setActive((value) => Math.max(0, value - 1))}
+            onClick={() =>
+              setActiveKey(cohorts[Math.max(0, selectedCohortIndex - 1)]?.key ?? null)
+            }
           >
             <ChevronLeft className="size-4" />
           </button>
-          <div className="grid flex-1 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-            {cohorts.map((cohort, index) => (
-              <button
-                className={cn(
-                  "h-10 rounded-lg px-2 text-xs font-medium",
-                  active === index
-                    ? "bg-violet-600 text-white"
-                    : "bg-white text-zinc-600",
-                )}
-                key={cohort.key}
-                onClick={() => setActive(index)}
-              >
-                {cohort.label}
-              </button>
+          <div className="grid min-w-0 flex-1 gap-3 xl:grid-cols-2">
+            {cohortSections.map(({ label, items }) => (
+              <section className="min-w-0" key={label}>
+                <h2 className="mb-2 text-xs font-semibold text-violet-950">{label}</h2>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {items.map((cohort) => (
+                    <button
+                      className={cn(
+                        "h-10 truncate rounded-lg px-2 text-xs font-medium",
+                        selectedCohort?.key === cohort.key
+                          ? "bg-violet-600 text-white"
+                          : "bg-white text-zinc-600",
+                      )}
+                      key={cohort.key}
+                      onClick={() => setActiveKey(cohort.key)}
+                      title={cohort.label}
+                    >
+                      {cohort.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
           <button
             aria-label="Next comparison group"
             className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-zinc-500"
             onClick={() =>
-              setActive((value) => Math.min(cohorts.length - 1, value + 1))
+              setActiveKey(
+                cohorts[Math.min(cohorts.length - 1, selectedCohortIndex + 1)]?.key ?? null,
+              )
             }
           >
             <ChevronRight className="size-4" />
@@ -3113,13 +3176,14 @@ export function ResponseDetailPage() {
               responseDetailProduct.owned ||
               responseDetailProduct.priceCents == null
             }
-            onClick={() =>
+            onClick={() => {
               addToCart({
                 productId: responseDetailProduct.id,
                 name: responseDetailProduct.name,
                 priceCents: responseDetailProduct.priceCents ?? 0,
-              })
-            }
+              });
+              openReportCart();
+            }}
           >
             {inCart ? "Added" : "Add to cart"}
           </Button>
@@ -3431,13 +3495,14 @@ export function KeyImpactAnalysisPage() {
               keyImpactProduct.owned ||
               keyImpactProduct.priceCents == null
             }
-            onClick={() =>
+            onClick={() => {
               addToCart({
                 productId: keyImpactProduct.id,
                 name: keyImpactProduct.name,
                 priceCents: keyImpactProduct.priceCents ?? 0,
-              })
-            }
+              });
+              openReportCart();
+            }}
           >
             {inCart ? "Added" : "Add to cart"}
           </Button>

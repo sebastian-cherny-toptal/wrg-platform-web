@@ -35,7 +35,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const syncAuth = () => setAuthState(readAuth());
     window.addEventListener(adminAuthChangedEvent, syncAuth);
-    return () => window.removeEventListener(adminAuthChangedEvent, syncAuth);
+    window.addEventListener("storage", syncAuth);
+    return () => {
+      window.removeEventListener(adminAuthChangedEvent, syncAuth);
+      window.removeEventListener("storage", syncAuth);
+    };
   }, []);
   const setAuth = (next: AdminAuth | null) => {
     persistAuth(next);

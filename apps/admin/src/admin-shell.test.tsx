@@ -9,6 +9,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   window.sessionStorage.clear();
+  window.localStorage.clear();
 });
 
 describe("admin sidebar", () => {

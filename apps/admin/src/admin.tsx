@@ -851,9 +851,9 @@ export function ProgramDetailPage() {
   const [date, setDate] = useState("");
   const [sort, setSort] = useState("id:asc");
   const [page, setPage] = useState(1);
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
-  const [storeExpanded, setStoreExpanded] = useState(false);
+  const [activeProgramSection, setActiveProgramSection] = useState<
+    "details" | "pricing" | "store"
+  >("details");
   const [categoryPricing, setCategoryPricing] = useState<CategoryPricing[]>([]);
   const [products, setProducts] = useState<ReportProduct[]>([]);
   const [categoryError, setCategoryError] = useState("");
@@ -1091,17 +1091,33 @@ export function ProgramDetailPage() {
           </>
         }
       />
-      <button
-        className={
-          detailsExpanded ? "details-toggle expanded" : "details-toggle"
-        }
-        onClick={() => setDetailsExpanded((value) => !value)}
-      >
-        <strong>Program Details</strong>
-        <ChevronDown size={18} />
-      </button>
-      {detailsExpanded ? (
-        <div className="details-panel details-grid">
+      <div aria-label="Program sections" className="program-tabs" role="tablist">
+        {([
+          ["details", "Program Details"],
+          ["pricing", "Report pricing"],
+          ["store", "Store"],
+        ] as const).map(([section, label]) => (
+          <button
+            aria-controls={`program-${section}-panel`}
+            aria-selected={activeProgramSection === section}
+            className="program-tab"
+            id={`program-${section}-tab`}
+            key={section}
+            onClick={() => setActiveProgramSection(section)}
+            role="tab"
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {activeProgramSection === "details" ? (
+        <div
+          aria-labelledby="program-details-tab"
+          className="details-panel details-grid program-tab-panel"
+          id="program-details-panel"
+          role="tabpanel"
+        >
           <Detail label="Program ID" value={program.id} />
           <Detail
             label="Program Year"
@@ -1159,20 +1175,14 @@ export function ProgramDetailPage() {
           </section>
         </div>
       ) : null}
-      <button
-        className={
-          categoriesExpanded ? "details-toggle expanded" : "details-toggle"
-        }
-        onClick={() => setCategoriesExpanded((value) => !value)}
-      >
-        <strong>Report pricing</strong>
-        <ChevronDown size={18} />
-      </button>
-      {categoriesExpanded ? (
+      {activeProgramSection === "pricing" ? (
         <form
-          className="details-panel program-configuration-panel"
+          aria-labelledby="program-pricing-tab"
+          className="details-panel program-configuration-panel program-tab-panel"
+          id="program-pricing-panel"
           noValidate
           onSubmit={(event) => void saveCategoryPrices(event)}
+          role="tabpanel"
         >
           <div className="category-pricing-grid">
             {categoryPricing.length ? (
@@ -1219,17 +1229,13 @@ export function ProgramDetailPage() {
           </div>
         </form>
       ) : null}
-      <button
-        className={storeExpanded ? "details-toggle expanded" : "details-toggle"}
-        onClick={() => setStoreExpanded((value) => !value)}
-      >
-        <strong>Store</strong>
-        <ChevronDown size={18} />
-      </button>
-      {storeExpanded ? (
+      {activeProgramSection === "store" ? (
         <form
-          className="details-panel program-configuration-panel"
+          aria-labelledby="program-store-tab"
+          className="details-panel program-configuration-panel program-tab-panel"
+          id="program-store-panel"
           onSubmit={(event) => void saveStore(event)}
+          role="tabpanel"
         >
           {catalogLoaded.loading ? (
             <p>Loading product options…</p>
@@ -1302,7 +1308,7 @@ export function ProgramDetailPage() {
           </button>
           <button
             className="primary-button compact"
-            disabled={resyncing !== null}
+            disabled={resyncing !== null || resyncPreview !== null}
             onClick={() => void resync()}
           >
             {resyncing === "preview" ? "Checking Zoho…" : "Re-Sync All Deals"}
@@ -2498,7 +2504,6 @@ function GenericLogPage({
           "Organization",
           "Product",
           "Amount Paid",
-          "Sorting Filter",
           "Payment Method",
           "Program",
           "Stripe Status",
@@ -2510,7 +2515,7 @@ function GenericLogPage({
           formatDate(row.createdAt ?? row.createAt),
           field(row, "purchaserUsername", "username"),
           field(row, "organizationName", "client", "Account_Name"),
-          field(row, "productName", "product", "itemTitle"),
+          <OrderProductCell row={row} />,
           formatMoney(
             typeof row.amountMinor === "number"
               ? row.amountMinor
@@ -2519,7 +2524,6 @@ function GenericLogPage({
                 : 0,
             typeof row.currency === "string" ? row.currency : "USD",
           ),
-          field(row, "sortingFilter"),
           field(row, "paymentMethod"),
           field(row, "programName", "program"),
           <span className="status-pill">
@@ -2562,6 +2566,54 @@ function GenericLogPage({
       )}
     </>
   );
+}
+
+const sortingFilterLabels: Record<string, string> = {
+  agegeneration: "Age Generation",
+  department: "Department",
+  employmentlength: "Employment Length",
+  ethnicorigin: "Race/Ethnicity",
+  gender: "Gender",
+  joblevel: "Job Level",
+  jobstatus: "Job Status",
+  race: "Race/Ethnicity",
+  workplacesetting: "Workplace Setting",
+};
+
+function sortingFilterLabel(value: string): string {
+  const normalized = value.replace(/[^a-z0-9]/giu, "").toLowerCase();
+  return (
+    sortingFilterLabels[normalized] ??
+    value
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase())
+  );
+}
+
+function OrderProductCell({ row }: { row: Record<string, unknown> }) {
+  const product = field(row, "productName", "product", "itemTitle");
+  const rawFilter = field(row, "sortingFilter");
+  if (rawFilter === "—") return <>{product}</>;
+  const label = sortingFilterLabel(rawFilter);
+  const productWithoutFilter = product
+    .replace(
+      new RegExp(
+        `\\s*\\(?(?:${escapeRegExp(rawFilter)}|${escapeRegExp(label)})\\)?\\s*$`,
+        "iu",
+      ),
+      "",
+    )
+    .trim();
+  return (
+    <>
+      {productWithoutFilter || product} <strong>({label})</strong>
+    </>
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export const OrderLogPage = () => (

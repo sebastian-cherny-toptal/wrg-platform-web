@@ -15,10 +15,11 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   window.sessionStorage.clear();
+  window.localStorage.clear();
 });
 
 describe("program configuration", () => {
-  it("edits category prices and the program store from collapsible sections", async () => {
+  it("edits category prices and the program store from tabs", async () => {
     persistAuth({
       accessToken: "token",
       refreshToken: "refresh",
@@ -87,10 +88,21 @@ describe("program configuration", () => {
     );
 
     expect(
-      await screen.findByRole("button", { name: "Report pricing" }),
+      await screen.findByRole("tab", { name: "Report pricing" }),
     ).toBeTruthy();
-    expect(screen.queryByText("Community")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Report pricing" }));
+    expect(
+      screen.getByRole("tab", { name: "Program Details" }).getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("tab", { name: "Report pricing" }));
+    expect(
+      screen.getByRole("tab", { name: "Report pricing" }).getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(screen.getByText("15-24")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -108,13 +120,13 @@ describe("program configuration", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Store" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Store" }));
     const productName = await screen.findByLabelText("Product name");
     fireEvent.change(productName, { target: { value: "Updated Dashboard" } });
     const storePrice = screen.getByLabelText("Updated Dashboard price");
     fireEvent.change(storePrice, { target: { value: "1250" } });
     fireEvent.blur(storePrice);
-    fireEvent.click(screen.getAllByRole("button", { name: "Save" })[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
       expect(saveStore).toHaveBeenCalledWith("program-id", [
         expect.objectContaining({

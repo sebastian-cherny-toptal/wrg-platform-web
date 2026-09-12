@@ -13,9 +13,55 @@ import {
 afterEach(() => {
   vi.unstubAllGlobals();
   window.sessionStorage.clear();
+  window.localStorage.clear();
 });
 
 describe("admin API projections", () => {
+  it("persists admin authentication across browser tabs", () => {
+    const auth = {
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      user: {
+        id: "admin-id",
+        displayName: "Admin",
+        email: "admin@example.com",
+        roles: ["admin"],
+        permissions: [],
+      },
+    };
+
+    persistAuth(auth);
+    window.sessionStorage.clear();
+
+    expect(readAuth()).toEqual(auth);
+    expect(window.localStorage.getItem("wrg-admin-auth")).toContain(
+      "access-token",
+    );
+  });
+
+  it("migrates an existing tab-scoped admin session", () => {
+    window.sessionStorage.setItem(
+      "wrg-admin-auth",
+      JSON.stringify({
+        accessToken: "legacy-access",
+        refreshToken: "legacy-refresh",
+        user: {
+          id: "admin-id",
+          displayName: "Admin",
+          email: "admin@example.com",
+          roles: ["admin"],
+          permissions: [],
+        },
+      }),
+    );
+
+    expect(readAuth()?.accessToken).toBe("legacy-access");
+    expect(window.localStorage.getItem("wrg-admin-auth")).toContain(
+      "legacy-access",
+    );
+    expect(window.sessionStorage.getItem("wrg-admin-auth")).toBeNull();
+  });
+
   it("reads the first available compatibility field", () => {
     expect(
       field({ Account_Name: "Demo Organization" }, "name", "Account_Name"),

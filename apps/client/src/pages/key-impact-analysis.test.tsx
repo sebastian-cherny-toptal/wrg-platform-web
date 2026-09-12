@@ -111,7 +111,8 @@ describe("Key Impact Analysis page", () => {
     );
 
     expect(await screen.findByText("Viewing demo")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Add to cart" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+    expect(screen.getByRole("complementary", { name: "Cart" })).toBeVisible();
     expect(analysis).toHaveBeenCalledWith("program-2026", true);
   });
 

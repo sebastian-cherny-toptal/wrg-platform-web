@@ -16,6 +16,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   window.sessionStorage.clear();
+  window.localStorage.clear();
 });
 
 describe("program Zoho resync changes", () => {
@@ -199,16 +200,17 @@ describe("program Zoho resync changes", () => {
     expect(
       within(syncPanel).getByRole("button", { name: "Re-Sync All Deals" }),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Program Details" }));
     fireEvent.click(screen.getByRole("button", { name: "Re-Sync All Deals" }));
 
     expect(await screen.findByText("Closed")).toBeTruthy();
+    expect(
+      (screen.getByRole("button", {
+        name: "Re-Sync All Deals",
+      }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(screen.getByText("Zoho Only Company")).toBeTruthy();
     expect(screen.getByText("Zoho organization ID: zoho-only-id")).toBeTruthy();
     expect(screen.getByText("Local Only Company")).toBeTruthy();
-    expect(
-      screen.getByText("These deals did not match an existing organization."),
-    ).toBeTruthy();
     expect(
       document.querySelectorAll(".zoho-resync-summary-change"),
     ).toHaveLength(4);

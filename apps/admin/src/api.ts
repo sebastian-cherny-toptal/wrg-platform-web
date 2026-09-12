@@ -391,7 +391,9 @@ export class ApiError extends Error {
 
 export function readAuth(): AdminAuth | null {
   try {
-    const raw = window.sessionStorage.getItem(authStorageKey);
+    const raw =
+      window.localStorage.getItem(authStorageKey) ??
+      window.sessionStorage.getItem(authStorageKey);
     if (!raw) return null;
     const parsed = z
       .object({
@@ -406,15 +408,21 @@ export function readAuth(): AdminAuth | null {
         }),
       })
       .safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
+    if (!parsed.success) return null;
+    if (!window.localStorage.getItem(authStorageKey)) {
+      window.localStorage.setItem(authStorageKey, raw);
+      window.sessionStorage.removeItem(authStorageKey);
+    }
+    return parsed.data;
   } catch {
     return null;
   }
 }
 
 export function persistAuth(auth: AdminAuth | null): void {
-  if (auth) window.sessionStorage.setItem(authStorageKey, JSON.stringify(auth));
-  else window.sessionStorage.removeItem(authStorageKey);
+  if (auth) window.localStorage.setItem(authStorageKey, JSON.stringify(auth));
+  else window.localStorage.removeItem(authStorageKey);
+  window.sessionStorage.removeItem(authStorageKey);
   window.dispatchEvent(new Event(adminAuthChangedEvent));
 }
 

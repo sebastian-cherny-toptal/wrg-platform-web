@@ -38,7 +38,12 @@ import { ImageDownloadMenu } from '../components/image-download-menu'
 import { Badge, Button, Card, PageHeader, StatePanel, cn } from '../components/ui'
 import { useAppStore, useSelectedProgram } from '../store/app-store'
 
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+const money = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 
 const demographicIcons = {
   Gender: Users,
