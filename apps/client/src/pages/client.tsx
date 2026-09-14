@@ -480,7 +480,7 @@ export function WorkforceFeedbackPage() {
               {(['personal', 'workplace'] as const).map((group) => (
                 <section key={group}>
                   <h2 className="mb-4 text-base font-semibold capitalize">{group} Demographics</h2>
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {report.data.filter((item) => item.group === group).map((item) => {
                       const DemographicIcon = item.category in demographicIcons
                         ? demographicIcons[item.category as keyof typeof demographicIcons]

@@ -1367,22 +1367,29 @@ export function ResponsePatternsPage() {
   );
 }
 
+const CURRENT_YEAR_AGREEMENT_COLOR = "#4c1d95";
+
 function DonutScore({
   value,
   year,
   delta,
+  color = "#7c3aed",
 }: {
   value: number;
   year: number;
   delta?: number;
+  color?: string;
 }) {
   return (
     <div className="grid flex-1 place-items-center px-8 py-9">
       <div
         className="relative grid size-[238px] place-items-center rounded-full"
-        style={{
-          background: `conic-gradient(#7c3aed 0 ${value}%, #eee ${value}% 100%)`,
-        }}
+        style={
+          {
+            "--donut-color": color,
+            background: `conic-gradient(var(--donut-color) 0 ${value}%, #eee ${value}% 100%)`,
+          } as CSSProperties
+        }
       >
         <div className="grid size-[168px] place-items-center rounded-full bg-white text-center">
           <span>
@@ -1422,7 +1429,11 @@ function DistributionDonut({
 }) {
   const palette = previous
     ? { Agree: "#9278e8", Neutral: "#b4a5ef", Disagree: "#ddd6fe" }
-    : { Agree: "#4c1d95", Neutral: "#7c3aed", Disagree: "#b5a7ef" };
+    : {
+        Agree: CURRENT_YEAR_AGREEMENT_COLOR,
+        Neutral: "#7c3aed",
+        Disagree: "#b5a7ef",
+      };
   const values = (["Agree", "Neutral", "Disagree"] as const).map((caption) => ({
     caption,
     value:
@@ -1550,7 +1561,9 @@ function QuestionTrendBars({
             <div
               className="h-full rounded-md"
               style={{
-                backgroundColor: previous ? "#9b87e5" : "#4c1d95",
+                backgroundColor: previous
+                  ? "#9b87e5"
+                  : CURRENT_YEAR_AGREEMENT_COLOR,
                 width: `${width}%`,
               }}
             />
@@ -1676,6 +1689,7 @@ export function AnnualTrendsPage() {
             ) : (
               <div className="mt-3 grid lg:grid-cols-2 lg:divide-x lg:divide-zinc-200">
                 <DonutScore
+                  color={CURRENT_YEAR_AGREEMENT_COLOR}
                   delta={Math.round(currentAverage - previousAverage)}
                   value={Math.round(currentAverage)}
                   year={Number(currentYear)}
