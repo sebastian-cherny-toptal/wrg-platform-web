@@ -61,6 +61,7 @@ import { useAuth } from "./auth";
 import { CatalogEditor, MoneyInput } from "./catalog-editor";
 import { filterAndSortOrganizations } from "./organization-options";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
+import { BulkUserCreation } from "./bulk-user-creation";
 
 const permissionLabels: Record<string, string> = {
   clientsProjectsProgramsAccess: "Access Shared Projects, Programs & Clients",
@@ -2428,8 +2429,29 @@ export function PortalUsersPage() {
   return <UsersManagementPage />;
 }
 
+const userTableColumns = [
+  "User Full Name",
+  "Email",
+  "Username",
+  "Role",
+  "Projects",
+  "Organizations",
+  "Date Created",
+  "Last Login",
+  "Product Payments",
+  "Total Paid",
+  "Last Payment",
+  "Status",
+  "Actions",
+];
+
 export function UsersManagementPage() {
   const loaded = useLoad("management-users", api.users);
+  const [bulkCreation, setBulkCreation] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => [
+    ...userTableColumns,
+  ]);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<UserRecord | null>(null);
   const [credential, setCredential] = useState<{
@@ -2467,7 +2489,7 @@ export function UsersManagementPage() {
     const filtered = (loaded.data ?? []).filter(
       (user) =>
         (role === "all" || user.role === role) &&
-        `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.role ?? ""} ${JSON.stringify(user.payments)}`
+        `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.projects.map((project) => project.name).join(" ")} ${user.role ?? ""} ${JSON.stringify(user.payments)}`
           .toLowerCase()
           .includes(search.toLowerCase()),
     );
@@ -2527,12 +2549,20 @@ export function UsersManagementPage() {
       <PageHeader
         title="Users Management"
         actions={
-          <button
-            className="primary-button compact"
-            onClick={() => setModal(true)}
-          >
-            + Add User
-          </button>
+          <>
+            <button
+              className="secondary-button compact"
+              onClick={() => setBulkCreation(true)}
+            >
+              Bulk Creation
+            </button>
+            <button
+              className="primary-button compact"
+              onClick={() => setModal(true)}
+            >
+              + Add User
+            </button>
+          </>
         }
       />
       <Toolbar
@@ -2561,6 +2591,39 @@ export function UsersManagementPage() {
           />
         }
       />
+      <details className="user-column-selector">
+        <summary>
+          Columns to show ({visibleColumns.length}/{userTableColumns.length})
+        </summary>
+        <fieldset>
+          <legend>Visible user columns</legend>
+          <div className="user-column-options">
+            {userTableColumns.map((column) => (
+              <label key={column}>
+                <input
+                  type="checkbox"
+                  checked={visibleColumns.includes(column)}
+                  onChange={(event) =>
+                    setVisibleColumns((current) =>
+                      event.target.checked
+                        ? [...current, column]
+                        : current.filter((value) => value !== column),
+                    )
+                  }
+                />
+                {column}
+              </label>
+            ))}
+          </div>
+          <button
+            className="secondary-button compact"
+            type="button"
+            onClick={() => setVisibleColumns([...userTableColumns])}
+          >
+            Select all columns
+          </button>
+        </fieldset>
+      </details>
       {notice ? <div className="notice">{notice}</div> : null}
       {loaded.loading ? (
         <State
@@ -2572,124 +2635,124 @@ export function UsersManagementPage() {
         <State title="Users unavailable" message={loaded.error} />
       ) : (
         <>
-          <DataTable
-            headers={[
-              "User Full Name",
-              "Email",
-              "Username",
-              "Role",
-              "Organization",
-              "Date Created",
-              "Last Login",
-              "Product Payments",
-              "Total Paid",
-              "Last Payment",
-              "Status",
-              "Actions",
-            ]}
-            rows={pagedUsers.map((user) => {
-              return [
-                <strong>{user.fullName}</strong>,
-                user.email,
-                user.username ?? "—",
-                user.role === "super_admin"
-                  ? "Super Admin"
-                  : user.role === "admin"
-                    ? "Admin"
-                    : (user.role ?? "—"),
-                user.organization?.name ?? "—",
-                formatDate(user.createdAt),
-                formatDateTime(user.lastLogin),
-                user.payments.length ? (
-                  <div className="payment-status-list">
-                    {user.payments.map((payment, index) => (
-                      <div
-                        className="payment-status-item"
-                        key={`${payment.productId ?? payment.productName}-${payment.paymentDatetime ?? index}`}
-                      >
-                        <span>
-                          <strong>{payment.productName}</strong>
-                          {payment.programName ? (
-                            <small>{payment.programName}</small>
-                          ) : null}
-                        </span>
-                        <span
-                          className="payment-status-pill"
-                          data-status={payment.status.toLowerCase()}
+          {visibleColumns.length ? (
+            <DataTable
+              headers={userTableColumns.filter((column) =>
+                visibleColumns.includes(column),
+              )}
+              rows={pagedUsers.map((user) => {
+                return [
+                  <strong>{user.fullName}</strong>,
+                  user.email,
+                  user.username ?? "—",
+                  user.role === "super_admin"
+                    ? "Super Admin"
+                    : user.role === "admin"
+                      ? "Admin"
+                      : (user.role ?? "—"),
+                  user.projects.length
+                    ? user.projects.map((project) => project.name).join(" · ")
+                    : "—",
+                  user.organization?.name ?? "—",
+                  formatDate(user.createdAt),
+                  formatDateTime(user.lastLogin),
+                  user.payments.length ? (
+                    <div className="payment-status-list">
+                      {user.payments.map((payment, index) => (
+                        <div
+                          className="payment-status-item"
+                          key={`${payment.productId ?? payment.productName}-${payment.paymentDatetime ?? index}`}
                         >
-                          {payment.status.replaceAll("_", " ")}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  "—"
-                ),
-                user.totalPaid.length
-                  ? user.totalPaid
-                      .map(({ amountMinor, currency }) =>
-                        formatMoney(amountMinor, currency),
-                      )
-                      .join(" · ")
-                  : formatMoney(0, "USD"),
-                formatDateTime(user.lastPaymentDatetime),
-                <span
-                  className={
-                    user.status === "ACTIVE"
-                      ? "status-pill"
-                      : "payment-status-pill"
-                  }
-                  data-status={user.status.toLowerCase()}
-                >
-                  {user.status.replaceAll("_", " ")}
-                </span>,
-                <div className="row-actions">
-                  <button
-                    className="icon-button"
-                    title="Edit"
-                    aria-label={`Edit ${user.fullName}`}
-                    onClick={() => setEditing(user)}
-                  >
-                    <Pencil size={16} />
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label={`Reset password for ${user.fullName}`}
-                    title="Reset password"
-                    disabled={resetting === user.id}
-                    onClick={() => void resetPassword(user)}
-                  >
-                    <KeyRound size={16} />
-                  </button>
-                  <button
-                    className="icon-button danger-text"
-                    title="Delete"
-                    aria-label={`Delete ${user.fullName}`}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Delete ${user.fullName}? This will disable their account and sign them out.`,
+                          <span>
+                            <strong>{payment.productName}</strong>
+                            {payment.programName ? (
+                              <small>{payment.programName}</small>
+                            ) : null}
+                          </span>
+                          <span
+                            className="payment-status-pill"
+                            data-status={payment.status.toLowerCase()}
+                          >
+                            {payment.status.replaceAll("_", " ")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    "—"
+                  ),
+                  user.totalPaid.length
+                    ? user.totalPaid
+                        .map(({ amountMinor, currency }) =>
+                          formatMoney(amountMinor, currency),
                         )
-                      ) {
-                        void api
-                          .deleteUser(user.id)
-                          .then(loaded.reload)
-                          .catch((caught: unknown) =>
-                            setNotice(
-                              caught instanceof Error
-                                ? caught.message
-                                : "User could not be deleted.",
-                            ),
-                          );
-                      }
-                    }}
+                        .join(" · ")
+                    : formatMoney(0, "USD"),
+                  formatDateTime(user.lastPaymentDatetime),
+                  <span
+                    className={
+                      user.status === "ACTIVE"
+                        ? "status-pill"
+                        : "payment-status-pill"
+                    }
+                    data-status={user.status.toLowerCase()}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </div>,
-              ];
-            })}
-          />
+                    {user.status.replaceAll("_", " ")}
+                  </span>,
+                  <div className="row-actions">
+                    <button
+                      className="icon-button"
+                      title="Edit"
+                      aria-label={`Edit ${user.fullName}`}
+                      onClick={() => setEditing(user)}
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label={`Reset password for ${user.fullName}`}
+                      title="Reset password"
+                      disabled={resetting === user.id}
+                      onClick={() => void resetPassword(user)}
+                    >
+                      <KeyRound size={16} />
+                    </button>
+                    <button
+                      className="icon-button danger-text"
+                      title="Delete"
+                      aria-label={`Delete ${user.fullName}`}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Delete ${user.fullName}? This will disable their account and sign them out.`,
+                          )
+                        ) {
+                          void api
+                            .deleteUser(user.id)
+                            .then(loaded.reload)
+                            .catch((caught: unknown) =>
+                              setNotice(
+                                caught instanceof Error
+                                  ? caught.message
+                                  : "User could not be deleted.",
+                              ),
+                            );
+                        }
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>,
+                ].filter((_, index) =>
+                  visibleColumns.includes(userTableColumns[index]),
+                );
+              })}
+            />
+          ) : (
+            <p className="notice">
+              Select at least one column to display the users table.
+            </p>
+          )}
           <Pager
             count={users.length}
             shown={ADMIN_TABLE_PAGE_SIZE}
@@ -2705,6 +2768,20 @@ export function UsersManagementPage() {
           onClose={() => setModal(false)}
           onCreated={loaded.reload}
         />
+      ) : null}
+      {bulkCreation ? (
+        <Modal
+          title="Bulk Creation"
+          onClose={() => {
+            if (!bulkBusy) setBulkCreation(false);
+          }}
+        >
+          <BulkUserCreation
+            onClose={() => setBulkCreation(false)}
+            onCreated={loaded.reload}
+            onBusyChange={setBulkBusy}
+          />
+        </Modal>
       ) : null}
       {editing ? (
         <EditUserModal

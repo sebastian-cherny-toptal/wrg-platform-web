@@ -612,9 +612,12 @@ export function CatalogPage() {
                   ['Employee Verbatims', 'Employee feedback from open-ended questions'],
                   ['Workforce Benchmark Comparisons', 'Compare your employee score with other participants'],
                   ['Benefits & Best Practices', 'Compare employer benefits, policies, and practices'],
-                ].map(([title, description]) => (
+                ].map(([title, description], index) => (
                   <div className="rounded-lg border border-violet-100 bg-violet-50 px-3 py-2.5" key={title}>
-                    <p className="flex gap-2 text-xs font-semibold text-zinc-900"><span className="text-violet-600">✓</span>{title}</p>
+                    <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-zinc-900">
+                      <span className="text-violet-600">✓</span>{title}
+                      {index >= 2 ? <span className="rounded-full border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">Downloadable!</span> : null}
+                    </p>
                     <p className="mt-1 pl-4 text-[11px] text-zinc-500">{description}</p>
                   </div>
                 ))}
@@ -627,7 +630,7 @@ export function CatalogPage() {
                 <div className="flex gap-2">
                   {!standardPackage.owned ? <Link to={routeMap.dashboard}><Button variant="secondary">View demo</Button></Link> : null}
                   <Button
-                    className="bg-red-500 hover:bg-red-600"
+                    className="bg-violet-900 hover:bg-violet-950"
                     disabled={standardPackage.owned || inCart(standardPackage.id) || standardPackage.priceCents === null}
                     onClick={() => addProduct(standardPackage)}
                   >
@@ -672,7 +675,7 @@ export function CatalogPage() {
                 <div className="mt-auto grid gap-2 pt-4">
                   {!product.owned ? <Link to={`${demoPath}?demo=${product.id}`}><Button className="w-full" variant="secondary">View demo</Button></Link> : null}
                   <Button
-                    className="w-full bg-red-500 hover:bg-red-600"
+                    className="w-full bg-violet-900 hover:bg-violet-950"
                     disabled={disabled}
                     onClick={() => addProduct(
                       product,

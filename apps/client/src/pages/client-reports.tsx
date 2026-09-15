@@ -818,9 +818,7 @@ function groupedDetailResponses(responses: DetailResponse[]) {
         0,
       ),
       percent: members.reduce(
-        (total, response) =>
-          total +
-          (response.percent <= 1 ? response.percent * 100 : response.percent),
+        (total, response) => total + response.percent,
         0,
       ),
       colorCode: colorSource?.colorCode ?? group.fallbackColor,
