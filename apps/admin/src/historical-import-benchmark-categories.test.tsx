@@ -78,3 +78,44 @@ describe("WinnersStep benchmark category choices", () => {
     expect(within(summary).getAllByText("Non-winners")).toHaveLength(2);
   });
 });
+
+for (const categories of [undefined, [], ["Default"]]) {
+  it(`assigns every organization to Default for ${JSON.stringify(categories)}`, () => {
+    const onComplete = vi.fn();
+    render(
+      <WinnersStep
+        draft={{
+          metadata: {
+            programName: "No categories",
+            benchmarkCategories: categories,
+            organizationPrograms: [
+              {
+                organizationKey: "acme",
+                organizationName: "Acme",
+                surveysSent: 20,
+                isWinner: "Y",
+                isIncluded: true,
+                currentZohoCategory: "Large",
+              },
+            ],
+          },
+        }}
+        onComplete={onComplete}
+        onBack={vi.fn()}
+        onRestart={vi.fn()}
+      />,
+    );
+    expect(
+      (screen.getByRole("radio", { name: "Default" }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+    expect(screen.queryByRole("radio", { name: "Large" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: /Continue/ })[0]!);
+    expect(
+      onComplete.mock.calls[0]?.[0].metadata.organizationPrograms[0],
+    ).toMatchObject({
+      currentZohoCategory: "Default",
+      benchmarkCategory: "Default",
+    });
+  });
+}

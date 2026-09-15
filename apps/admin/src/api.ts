@@ -48,31 +48,17 @@ export type ProgramRecord = {
   details?: Record<string, unknown>;
 };
 
-const organizationCategories = [
-  "Small",
-  "Medium",
-  "Large",
-  "Major",
-  "Super",
-] as const;
-
 function configuredOrganizationCategories(value: Record<string, unknown>) {
   const seen = new Set<string>();
   const explicit = array(value.benchmarkCategories);
-  const configured = (
-    explicit.length
-      ? explicit
-      : array(value.categoryPricing).map(
-          (entry) => object(entry).zohoCategoryName,
-        )
-  ).flatMap((entry) => {
+  const configured = explicit.flatMap((entry) => {
     const name = stringValue(entry).trim();
     const normalized = name.toLocaleLowerCase("en");
     if (!name || seen.has(normalized)) return [];
     seen.add(normalized);
     return [name];
   });
-  return configured.length ? configured : [...organizationCategories];
+  return configured.length ? configured : ["Default"];
 }
 
 function categorySummaries(

@@ -194,24 +194,19 @@ export const defaultCategoryPricing: CategoryPricing[] = [
     priceCents: null,
   },
 ];
-export const defaultBenchmarkCategories = [
-  "Small",
-  "Medium",
-  "Large",
-  "Major",
-  "Super",
-];
+export const defaultBenchmarkCategories = ["Default"];
 export function benchmarkCategoryNames(
   categories: string[] = defaultBenchmarkCategories,
 ): string[] {
   const seen = new Set<string>();
-  return categories.flatMap((category) => {
+  const names = categories.flatMap((category) => {
     const name = category.trim();
     const normalized = name.toLocaleLowerCase("en");
     if (!name || seen.has(normalized)) return [];
     seen.add(normalized);
     return [name];
   });
+  return names.length ? names : ["Default"];
 }
 
 function StepIndicator({
@@ -329,7 +324,8 @@ export function summarizeOrganizationPrograms(
       const included = entries.filter(
         (entry) =>
           organizationParticipationStatus(entry) !== "not-included" &&
-          entry.currentZohoCategory === category,
+          ((category === "Default" && categories.length === 1) ||
+            entry.currentZohoCategory === category),
       );
       return {
         category,
@@ -357,7 +353,16 @@ function normalizedWinnerStatus(value: unknown): WinnerStatus | null {
 
 function normalizeOrganizationPrograms(
   entries: OrganizationProgramDraft[],
+  categories?: string[],
 ): OrganizationProgramDraft[] {
+  const names = benchmarkCategoryNames(categories);
+  if (names.length === 1 && names[0] === "Default") {
+    entries = entries.map((entry) => ({
+      ...entry,
+      currentZohoCategory: "Default",
+      benchmarkCategory: "Default",
+    }));
+  }
   return entries.map((entry) => ({
     ...entry,
     isWinner: normalizedWinnerStatus(entry.isWinner),
@@ -724,20 +729,15 @@ export function CategoryPricingEditor({
           <strong>Benchmark categories</strong>
           <span>
             Fixed names from Zoho Category List Information. These categories
-            are used only for benchmark reporting.
+            are used only for benchmark reporting. Programs without benchmark
+            categories use Default for every organization.
           </span>
         </div>
-        {benchmarkCategories.length ? (
-          <ul className="benchmark-category-list">
-            {benchmarkCategoryNames(benchmarkCategories).map((category) => (
-              <li key={category}>{category}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="form-error">
-            The selected Zoho program has no Category List names.
-          </p>
-        )}
+        <ul className="benchmark-category-list">
+          {benchmarkCategoryNames(benchmarkCategories).map((category) => (
+            <li key={category}>{category}</li>
+          ))}
+        </ul>
       </section>
       <section className="category-pricing-editor">
         <div>
@@ -1401,6 +1401,7 @@ export function UploadStep({
         : (draft.metadata.zohoOrganizations ?? []);
       const currentOrganizations = normalizeOrganizationPrograms(
         draft.metadata.organizationPrograms ?? [],
+        draft.metadata.benchmarkCategories,
       );
       const workbookOrganizations = preparedValidation.organizations.map(
         (organization) => {
@@ -1470,10 +1471,13 @@ export function UploadStep({
         {pendingAnalyses > 0
           ? "Loading file…"
           : continuing
-          ? "Validating and loading Zoho…"
-          : !eaFile && !efsFile && !surveyDefinitionFile && draft.metadata.programId
-            ? "Skip uploads"
-            : "Continue"}{" "}
+            ? "Validating and loading Zoho…"
+            : !eaFile &&
+                !efsFile &&
+                !surveyDefinitionFile &&
+                draft.metadata.programId
+              ? "Skip uploads"
+              : "Continue"}{" "}
         <ChevronRight size={16} />
       </button>
     </WizardActions>
@@ -1581,7 +1585,10 @@ export function WinnersStep({
   onRestart: () => void;
 }) {
   const [organizationPrograms, setOrganizationPrograms] = useState(
-    normalizeOrganizationPrograms(draft.metadata.organizationPrograms ?? []),
+    normalizeOrganizationPrograms(
+      draft.metadata.organizationPrograms ?? [],
+      draft.metadata.benchmarkCategories,
+    ),
   );
   const [rankingSummary, setRankingSummary] = useState<{
     fileName: string;
@@ -1636,7 +1643,10 @@ export function WinnersStep({
         file,
       );
       setOrganizationPrograms(
-        normalizeOrganizationPrograms(result.organizationPrograms),
+        normalizeOrganizationPrograms(
+          result.organizationPrograms,
+          draft.metadata.benchmarkCategories,
+        ),
       );
       setRankingSummary({ fileName: file.name, ...result });
     } catch (caught) {
@@ -2170,17 +2180,11 @@ export function HistoricalImportPage() {
               ),
               efsDeadline: datePart(details.EndDate ?? details.endsAt, "-"),
               reportCatalog,
-              benchmarkCategories: Array.isArray(details.benchmarkCategories)
-                ? (details.benchmarkCategories as string[])
-                : Array.isArray(details.categoryPricing)
-                  ? (details.categoryPricing as Array<Record<string, unknown>>)
-                      .map(({ zohoCategoryName }) =>
-                        typeof zohoCategoryName === "string"
-                          ? zohoCategoryName.trim()
-                          : "",
-                      )
-                      .filter(Boolean)
-                  : [...defaultBenchmarkCategories],
+              benchmarkCategories: benchmarkCategoryNames(
+                Array.isArray(details.benchmarkCategories)
+                  ? (details.benchmarkCategories as string[])
+                  : undefined,
+              ),
               categoryPricing: Array.isArray(details.categoryPricing)
                 ? categoryPricingFromApi(details.categoryPricing)
                 : defaultCategoryPricing.map((entry) => ({ ...entry })),

@@ -206,7 +206,7 @@ describe("organization participation status", () => {
       organization("N", true),
       organization("N", false),
       organization("Y", true, "Medium"),
-    ]);
+    ], ["Small", "Medium"]);
 
     expect(summary.notIncluded).toBe(1);
     expect(summary.categories).toContainEqual({

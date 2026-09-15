@@ -87,7 +87,17 @@ describe("admin API projections", () => {
         json: () =>
           Promise.resolve({
             data: {
-              program: { _id: "program-id", Name: "Program 2026" },
+              program: {
+                _id: "program-id",
+                Name: "Program 2026",
+                benchmarkCategories: [
+                  "Small",
+                  "Medium",
+                  "Large",
+                  "Major",
+                  "Super",
+                ],
+              },
               numberOfOrgs: 3,
               categoriesInfo: {
                 winnersCount: 2,
