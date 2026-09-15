@@ -171,6 +171,7 @@ export type UserRecord = {
   roleId: string | null;
   organization: { id: string; name: string } | null;
   projects: Array<{ id: string; name: string }>;
+  programs?: string[];
   createdAt: string | null;
   lastLogin: string | null;
   status: string;
@@ -1036,6 +1037,7 @@ export const api = {
               name: stringValue(organizationValue.name),
             }
           : null,
+        programs: array(value.programs).map((id) => stringValue(id)),
         projects: array(value.projects).map((projectValue) => {
           const project = object(projectValue);
           return {
@@ -1111,6 +1113,7 @@ export const api = {
       username: string;
       roleId?: string;
       projects?: string[];
+      programs?: string[];
     },
   ): Promise<void> {
     await request(`/user/update/${encodeURIComponent(userId)}`, {

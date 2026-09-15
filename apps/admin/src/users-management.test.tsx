@@ -89,3 +89,55 @@ it("allows clearing all columns and restoring them", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Select all columns" }));
   expect(screen.getByRole("table")).toBeTruthy();
 });
+
+it("retains earlier programs and adds new years only within assigned projects", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([{ ...user, programs: ["old"] }]);
+  const program = (id: string, year: number) => ({
+    id,
+    name: "Workforce",
+    year,
+    createdAt: null,
+    organizationCount: 0,
+    winnersCount: 0,
+    categorySummaries: [],
+    latestZohoSync: null,
+  });
+  vi.spyOn(api, "projects").mockResolvedValue([
+    {
+      id: "p1",
+      name: "Workforce",
+      createdAt: null,
+      programs: [program("old", 2025), program("new", 2026)],
+    },
+    {
+      id: "unassigned",
+      name: "Other project",
+      createdAt: null,
+      programs: [program("other", 2027)],
+    },
+  ]);
+  const update = vi.spyOn(api, "updateUser").mockResolvedValue();
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Edit Alex Example" }),
+  );
+  const old = await screen.findByRole("checkbox", { name: "Workforce (2025)" });
+  expect((old as HTMLInputElement).checked).toBe(true);
+  expect(
+    screen.queryByRole("checkbox", { name: "Workforce (2027)" }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Workforce (2026)" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await vi.waitFor(() =>
+    expect(update).toHaveBeenCalledWith("user-1", {
+      fullName: "Alex Example",
+      email: "alex@example.com",
+      username: "alex",
+      programs: ["old", "new"],
+    }),
+  );
+});

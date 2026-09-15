@@ -2322,10 +2322,15 @@ function EditUserModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const projects = useLoad(`edit-user-projects-${user.id}`, api.projects);
+  const assignedProjects = (projects.data ?? []).filter((project) =>
+    user.projects.some(({ id }) => id === project.id),
+  );
   const [form, setForm] = useState({
     fullName: user.fullName,
     email: user.email,
     username: user.username ?? "",
+    programs: user.programs ?? [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -2338,6 +2343,7 @@ function EditUserModal({
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         username: form.username.trim(),
+        programs: form.programs,
       });
       onSaved();
       onClose();
@@ -2374,12 +2380,55 @@ function EditUserModal({
             setForm({ ...form, username: event.target.value })
           }
         />
+        <fieldset>
+          <legend>Assigned programs</legend>
+          <small>
+            Select programs from the user's projects to compare different years.
+          </small>
+          {projects.loading ? <p>Loading programs…</p> : null}
+          {projects.error ? (
+            <p className="form-error">{projects.error}</p>
+          ) : null}
+          {assignedProjects.map((project) => (
+            <div key={project.id}>
+              <strong>{project.name}</strong>
+              {project.programs.length ? (
+                project.programs.map((program) => (
+                  <label key={program.id}>
+                    <input
+                      type="checkbox"
+                      checked={form.programs.includes(program.id)}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          programs: event.target.checked
+                            ? [...form.programs, program.id]
+                            : form.programs.filter((id) => id !== program.id),
+                        })
+                      }
+                    />{" "}
+                    {program.name}
+                    {program.year ? ` (${program.year})` : ""}
+                  </label>
+                ))
+              ) : (
+                <p>No programs are available in this project.</p>
+              )}
+            </div>
+          ))}
+          {!projects.loading && !projects.error && !assignedProjects.length ? (
+            <p>No projects are assigned to this user.</p>
+          ) : null}
+        </fieldset>
         {error ? <p className="form-error">{error}</p> : null}
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>
             Cancel
           </button>
-          <button className="primary-button compact" disabled={saving}>
+          <button
+            className="primary-button compact"
+            disabled={saving || projects.loading || Boolean(projects.error)}
+          >
             {saving ? "Saving…" : "Save changes"}
           </button>
         </div>
