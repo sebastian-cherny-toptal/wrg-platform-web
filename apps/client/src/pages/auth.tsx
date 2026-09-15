@@ -234,7 +234,7 @@ function OrganizationModal({
         }}>
           No
         </SecondaryButton>
-        <PrimaryButton className="h-10 flex-1 px-4 text-sm" onClick={onConfirm}>
+        <PrimaryButton autoFocus className="h-10 flex-1 px-4 text-sm" onClick={onConfirm}>
           Yes
         </PrimaryButton>
       </div>
