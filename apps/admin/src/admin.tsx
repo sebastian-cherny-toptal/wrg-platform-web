@@ -888,6 +888,15 @@ export function ProgramDetailPage() {
   const [resyncApplied, setResyncApplied] = useState(false);
   const [resyncing, setResyncing] = useState<"preview" | "apply" | null>(null);
   const [downloadingConnections, setDownloadingConnections] = useState(false);
+  const [surveyDefinitionFile, setSurveyDefinitionFile] = useState<File | null>(
+    null,
+  );
+  const [surveyDefinitionAction, setSurveyDefinitionAction] = useState<
+    "download" | "upload" | null
+  >(null);
+  const [surveyDefinitionNotice, setSurveyDefinitionNotice] = useState("");
+  const [surveyDefinitionError, setSurveyDefinitionError] = useState("");
+  const surveyDefinitionInput = useRef<HTMLInputElement>(null);
   const [previewOrganization, setPreviewOrganization] =
     useState<OrganizationRecord | null>(null);
   const [catalogOrganization, setCatalogOrganization] =
@@ -1046,6 +1055,51 @@ export function ProgramDetailPage() {
       );
     } finally {
       setDownloadingConnections(false);
+    }
+  };
+  const downloadSurveyDefinition = async () => {
+    setSurveyDefinitionAction("download");
+    setSurveyDefinitionError("");
+    try {
+      await api.downloadProgramSurveyDefinition(program.id);
+    } catch (caught) {
+      setSurveyDefinitionError(
+        caught instanceof Error
+          ? caught.message
+          : "Questions and Answers could not be downloaded.",
+      );
+    } finally {
+      setSurveyDefinitionAction(null);
+    }
+  };
+  const uploadSurveyDefinition = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!surveyDefinitionFile) return;
+    setSurveyDefinitionAction("upload");
+    setSurveyDefinitionError("");
+    setSurveyDefinitionNotice("");
+    try {
+      const result = await api.uploadProgramSurveyDefinition(
+        program.id,
+        surveyDefinitionFile,
+      );
+      setSurveyDefinitionNotice(
+        result.unchanged
+          ? "Questions and Answers are unchanged."
+          : `Questions and Answers updated for this program (${result.updatedQuestions} questions). Refresh the client view to see the new labels.`,
+      );
+      setSurveyDefinitionFile(null);
+      if (surveyDefinitionInput.current)
+        surveyDefinitionInput.current.value = "";
+      await programLoaded.reload();
+    } catch (caught) {
+      setSurveyDefinitionError(
+        caught instanceof Error
+          ? caught.message
+          : "Questions and Answers could not be uploaded.",
+      );
+    } finally {
+      setSurveyDefinitionAction(null);
     }
   };
   const saveCategoryPrices = async (event: FormEvent) => {
@@ -1282,6 +1336,81 @@ export function ProgramDetailPage() {
         </form>
       ) : null}
       {notice ? <div className="notice">{notice}</div> : null}
+      <section
+        className="program-sync-panel"
+        aria-labelledby="program-survey-definition-title"
+      >
+        <div className="program-sync-heading">
+          <div>
+            <h3 id="program-survey-definition-title">Questions and Answers</h3>
+            <p>
+              Download this program's current EFS labels, edit the Questions and
+              Answers sheets, then upload the XLSX. Only listed questions in
+              this program are updated. Include every answer value for each
+              answer list you change.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={(event) => void uploadSurveyDefinition(event)}>
+          <div className="program-sync-actions">
+            <button
+              className="secondary-button compact action-link"
+              type="button"
+              disabled={surveyDefinitionAction !== null}
+              onClick={() => void downloadSurveyDefinition()}
+            >
+              <Download size={16} />{" "}
+              {surveyDefinitionAction === "download"
+                ? "Downloading…"
+                : "Download Questions and Answers XLSX"}
+            </button>
+            {canUploadBenefits ? (
+              <>
+                <label>
+                  New Questions and Answers XLSX
+                  <input
+                    ref={surveyDefinitionInput}
+                    type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    disabled={surveyDefinitionAction !== null}
+                    onChange={(event) => {
+                      setSurveyDefinitionFile(event.target.files?.[0] ?? null);
+                      setSurveyDefinitionError("");
+                      setSurveyDefinitionNotice("");
+                    }}
+                  />
+                </label>
+                <button
+                  className="primary-button compact"
+                  type="submit"
+                  disabled={
+                    !surveyDefinitionFile || surveyDefinitionAction !== null
+                  }
+                >
+                  <FileUp size={16} />{" "}
+                  {surveyDefinitionAction === "upload"
+                    ? "Uploading…"
+                    : "Upload Questions and Answers"}
+                </button>
+              </>
+            ) : null}
+          </div>
+          {surveyDefinitionError ? (
+            <p
+              className="form-error"
+              role="alert"
+              style={{ whiteSpace: "pre-line" }}
+            >
+              {surveyDefinitionError}
+            </p>
+          ) : null}
+          {surveyDefinitionNotice ? (
+            <p className="program-sync-status" role="status">
+              {surveyDefinitionNotice}
+            </p>
+          ) : null}
+        </form>
+      </section>
       <h2 className="section-title">Organization</h2>
       <Toolbar
         search={search}

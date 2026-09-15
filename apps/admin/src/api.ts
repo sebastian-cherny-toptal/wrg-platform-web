@@ -912,6 +912,47 @@ export const api = {
     );
   },
 
+  async downloadProgramSurveyDefinition(id: string): Promise<void> {
+    await downloadRequest(
+      `/admin/programs/${encodeURIComponent(id)}/survey-definition.xlsx`,
+      "Questions_and_Answers.xlsx",
+    );
+  },
+
+  async uploadProgramSurveyDefinition(
+    id: string,
+    file: File,
+  ): Promise<{ updatedQuestions: number; unchanged: boolean }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("surveyDefinitionFile", file);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/programs/${encodeURIComponent(id)}/survey-definition`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401 && auth?.accessToken) persistAuth(null);
+      throw new ApiError(
+        stringValue(object(payload).message) ||
+          "Questions and Answers could not be uploaded",
+        response.status,
+      );
+    }
+    const data = object(object(payload).data);
+    return {
+      updatedQuestions: Number(data.updatedQuestions ?? 0),
+      unchanged: data.unchanged === true,
+    };
+  },
+
   async organizations(programId?: string): Promise<OrganizationRecord[]> {
     const query = programId
       ? `?programId=${encodeURIComponent(programId)}`
@@ -1363,7 +1404,12 @@ export const api = {
 
   async submitHistoricalImport(
     metadata: HistoricalImportMetadata,
-    files: { eaFile?: File; efsFile?: File; rankingFile?: File },
+    files: {
+      eaFile?: File;
+      efsFile?: File;
+      rankingFile?: File;
+      surveyDefinitionFile?: File;
+    },
   ): Promise<HistoricalImportStatus> {
     const auth = readAuth();
     const formData = new FormData();
@@ -1371,6 +1417,8 @@ export const api = {
     if (files.eaFile) formData.append("eaFile", files.eaFile);
     if (files.efsFile) formData.append("efsFile", files.efsFile);
     if (files.rankingFile) formData.append("rankingFile", files.rankingFile);
+    if (files.surveyDefinitionFile)
+      formData.append("surveyDefinitionFile", files.surveyDefinitionFile);
     const response = await fetch(
       `${apiBaseUrl}/admin/historicalImports/commit`,
       {
@@ -1400,7 +1448,7 @@ export const api = {
 
   async prepareHistoricalImport(
     metadata: HistoricalImportMetadata,
-    files: { eaFile?: File; efsFile?: File },
+    files: { eaFile?: File; efsFile?: File; surveyDefinitionFile?: File },
   ): Promise<{
     metadata: HistoricalImportMetadata;
     validation: HistoricalImportValidationSummary;
@@ -1410,6 +1458,8 @@ export const api = {
     formData.append("metadata", JSON.stringify(metadata));
     if (files.eaFile) formData.append("eaFile", files.eaFile);
     if (files.efsFile) formData.append("efsFile", files.efsFile);
+    if (files.surveyDefinitionFile)
+      formData.append("surveyDefinitionFile", files.surveyDefinitionFile);
     const response = await fetch(
       `${apiBaseUrl}/admin/historicalImports/prepare`,
       {

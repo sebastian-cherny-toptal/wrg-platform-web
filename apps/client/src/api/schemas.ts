@@ -214,6 +214,7 @@ export const employeeResponseBreakdownBySectionSchema = z.object({
 
 const questionResponseSchema = z.object({
   ResponseCaption: z.string(),
+  agreementGroup: z.enum(["Agree", "Neutral", "Disagree"]).optional(),
   numberOfResponses: z.number().int().nonnegative(),
   percent: z.number().min(0).max(100),
   colorCode: z.string(),

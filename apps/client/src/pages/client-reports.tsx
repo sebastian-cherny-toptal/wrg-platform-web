@@ -802,7 +802,10 @@ const DETAIL_RESPONSE_GROUPS = [
 function groupedDetailResponses(responses: DetailResponse[]) {
   return DETAIL_RESPONSE_GROUPS.map((group) => {
     const members = responses.filter((response) =>
-      group.members.some((caption) => caption === response.ResponseCaption),
+      group.members.some(
+        (caption) =>
+          caption === (response.agreementGroup ?? response.ResponseCaption),
+      ),
     );
     const colorSource = responses.find(
       (response) => response.ResponseCaption === group.colorSource,
@@ -874,7 +877,11 @@ function DetailPanel({
       {!loading && !error && data?.data.length ? (
         <div className="mt-5 divide-y divide-violet-100">
           {data.data.map((question) => {
-            const responses = groupedDetailResponses(question.responses);
+            const responses = question.responses.some(
+              (response) => response.agreementGroup,
+            )
+              ? question.responses
+              : groupedDetailResponses(question.responses);
             return (
               <div
                 className="py-4 first:pt-0 last:pb-0"
