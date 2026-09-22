@@ -266,6 +266,7 @@ function ResponseDetailDownloadMenu({
   const [downloading, setDownloading] = useState<"full" | "filtered" | null>(
     null,
   );
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -287,9 +288,14 @@ function ResponseDetailDownloadMenu({
     action: () => Promise<void> | void,
   ) => {
     setDownloading(type);
+    setDownloadError(null);
     try {
       await action();
       setOpen(false);
+    } catch (error) {
+      setDownloadError(
+        error instanceof Error ? error.message : "The report could not be downloaded.",
+      );
     } finally {
       setDownloading(null);
     }
@@ -336,6 +342,11 @@ function ResponseDetailDownloadMenu({
               : "Download filtered report"}
           </button>
         </div>
+      ) : null}
+      {downloadError ? (
+        <p className="mt-2 max-w-64 text-xs text-red-600" role="alert">
+          {downloadError}
+        </p>
       ) : null}
     </div>
   );

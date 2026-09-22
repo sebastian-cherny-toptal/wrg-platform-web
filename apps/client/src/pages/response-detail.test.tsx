@@ -113,5 +113,14 @@ describe("Response Detail page", () => {
     await waitFor(() =>
       expect(download).toHaveBeenCalledWith("program-2026", "filter-location"),
     );
+
+    download.mockRejectedValueOnce(new Error("The workbook could not be generated"));
+    fireEvent.click(screen.getByRole("button", { name: /Download Report/u }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Download filtered report" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The workbook could not be generated",
+    );
   });
 });
