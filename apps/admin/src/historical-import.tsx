@@ -33,7 +33,7 @@ import { Modal, PageHeader, State } from "./admin";
 import { CatalogEditor, MoneyInput } from "./catalog-editor";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 
-type WizardStep = 1 | 2 | 3 | 4 | 5;
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 type DraftState = {
   metadata: HistoricalImportMetadata;
@@ -45,6 +45,7 @@ type DraftState = {
     Record<"EA" | "EFS", HistoricalImportValidationSummary>
   >;
   uploadsConfigured?: boolean;
+  surveyDefinitionConfigured?: boolean;
   winnersConfigured?: boolean;
 };
 
@@ -224,9 +225,10 @@ function StepIndicator({
   const steps = [
     { number: 1, label: "Project & Program" },
     { number: 2, label: "Upload EA/EFS" },
-    { number: 3, label: "Organization Status" },
-    { number: 4, label: "Report Store" },
-    { number: 5, label: "Review & Create" },
+    { number: 3, label: "Survey Definition" },
+    { number: 4, label: "Organization Status" },
+    { number: 5, label: "Report Store" },
+    { number: 6, label: "Review & Create" },
   ] as const;
   return (
     <ol className="wizard-steps">
@@ -1240,10 +1242,7 @@ export function UploadStep({
 }) {
   const [eaFile, setEaFile] = useState<File | null>(draft.eaFile ?? null);
   const [efsFile, setEfsFile] = useState<File | null>(draft.efsFile ?? null);
-  const [surveyDefinitionFile, setSurveyDefinitionFile] = useState<File | null>(
-    draft.surveyDefinitionFile ?? null,
-  );
-  const surveyDefinitionFileRef = useRef(surveyDefinitionFile);
+  const surveyDefinitionFileRef = useRef(draft.surveyDefinitionFile ?? null);
   const eaFileRef = useRef(eaFile);
   const efsFileRef = useRef(efsFile);
   const previewRef = useRef<
@@ -1264,7 +1263,6 @@ export function UploadStep({
   const [validation, setValidation] = useState(draft.validation);
   const [error, setError] = useState("");
   const [continuing, setContinuing] = useState(false);
-  const [definitionError, setDefinitionError] = useState(false);
   const working = pendingAnalyses > 0 || continuing;
 
   const workbookChanged = async (
@@ -1272,6 +1270,9 @@ export function UploadStep({
     setFile: (file: File | null) => void,
     file: File | null,
   ) => {
+    if (kind === "EFS" && file !== efsFileRef.current) {
+      surveyDefinitionFileRef.current = null;
+    }
     setFile(file);
     if (kind === "EA") eaFileRef.current = file;
     else efsFileRef.current = file;
@@ -1287,12 +1288,12 @@ export function UploadStep({
       efsFile: efsFileRef.current ?? undefined,
       surveyDefinitionFile: surveyDefinitionFileRef.current ?? undefined,
       uploadsConfigured: false,
+      surveyDefinitionConfigured: false,
       validation: previewWithoutChangedFile,
       workbookPreviews: previewRef.current,
     };
     onDraftChange?.(nextDraft);
     const requestId = ++analysisRequests.current[kind];
-    if (kind === "EFS") setDefinitionError(false);
     if (!file) return;
 
     setPendingAnalyses((count) => count + 1);
@@ -1316,6 +1317,7 @@ export function UploadStep({
         efsFile: efsFileRef.current ?? undefined,
         surveyDefinitionFile: surveyDefinitionFileRef.current ?? undefined,
         uploadsConfigured: false,
+        surveyDefinitionConfigured: false,
         validation: combinedValidation,
         workbookPreviews: previewRef.current,
       });
@@ -1329,54 +1331,7 @@ export function UploadStep({
     }
   };
 
-  const definitionChanged = async (file: File | null) => {
-    setDefinitionError(false);
-    setError("");
-    setSurveyDefinitionFile(file);
-    surveyDefinitionFileRef.current = file;
-    const next = {
-      ...draft,
-      eaFile: eaFileRef.current ?? undefined,
-      efsFile: efsFileRef.current ?? undefined,
-      surveyDefinitionFile: file ?? undefined,
-      uploadsConfigured: false,
-      workbookPreviews: previewRef.current,
-    };
-    onDraftChange?.(next);
-    // Re-preview EFS with the definition; EA is unaffected.
-    if (efsFileRef.current) {
-      await workbookChanged("EFS", setEfsFile, efsFileRef.current);
-    } else if (file && draft.metadata.programId) {
-      const requestId = ++analysisRequests.current.EFS;
-      setPendingAnalyses((count) => count + 1);
-      setError("");
-      try {
-        const prepared = await api.prepareHistoricalImport(draft.metadata, {
-          surveyDefinitionFile: file,
-        });
-        if (requestId !== analysisRequests.current.EFS) return;
-        setValidation(prepared.validation);
-        onDraftChange?.({ ...next, validation: prepared.validation });
-      } catch (caught) {
-        if (requestId !== analysisRequests.current.EFS) return;
-        setDefinitionError(true);
-        setError(
-          caught instanceof Error
-            ? caught.message
-            : "Unable to analyze survey definition",
-        );
-      } finally {
-        setPendingAnalyses((count) => Math.max(0, count - 1));
-      }
-    } else if (!file) {
-      ++analysisRequests.current.EFS;
-      setValidation(undefined);
-      onDraftChange?.({ ...next, validation: undefined });
-    }
-  };
-
   const continueToOrganizations = async () => {
-    if (definitionError) return;
     if (Boolean(eaFile) !== Boolean(efsFile)) {
       setError("Upload both the EA and EFS workbooks, or leave both empty.");
       return;
@@ -1389,14 +1344,6 @@ export function UploadStep({
       setError(
         "Both workbooks must be analyzed successfully before continuing.",
       );
-      return;
-    }
-    if (
-      validation &&
-      (validation.blockingErrorCount > 0 ||
-        validation.issues.some(({ level }) => level === "error"))
-    ) {
-      setError("Resolve the workbook validation errors before continuing.");
       return;
     }
     setContinuing(true);
@@ -1445,8 +1392,9 @@ export function UploadStep({
         ...draft,
         eaFile: eaFile ?? undefined,
         efsFile: efsFile ?? undefined,
-        surveyDefinitionFile: surveyDefinitionFile ?? undefined,
+        surveyDefinitionFile: surveyDefinitionFileRef.current ?? undefined,
         uploadsConfigured: true,
+        surveyDefinitionConfigured: false,
         validation: preparedValidation,
         workbookPreviews: previewRef.current,
         metadata: {
@@ -1489,7 +1437,7 @@ export function UploadStep({
             ? "Validating and loading Zoho…"
             : !eaFile &&
                 !efsFile &&
-                !surveyDefinitionFile &&
+                !surveyDefinitionFileRef.current &&
                 draft.metadata.programId
               ? "Skip uploads"
               : "Continue"}{" "}
@@ -1506,7 +1454,7 @@ export function UploadStep({
         workbook. Each file is analyzed as soon as you select it. The browser
         compares their organization lists, and Continue loads the latest program
         organizations from Zoho. You can review and adjust the combined data in
-        Step 3 before anything is saved.{" "}
+        Step 4 before anything is saved.{" "}
         {draft.metadata.programId
           ? "Both files are optional when only editing program details or store prices."
           : "Both files are required for a new program."}
@@ -1545,27 +1493,6 @@ export function UploadStep({
           />
         </label>
       </div>
-      <label className="upload-card">
-        <FileSpreadsheet size={28} />
-        <strong>Survey definition (optional, EFS)</strong>
-        <span>{surveyDefinitionFile?.name ?? "Use current defaults"}</span>
-        <input
-          type="file"
-          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          disabled={working}
-          onChange={(event) =>
-            void definitionChanged(event.target.files?.[0] ?? null)
-          }
-        />
-      </label>
-      <p className="wizard-copy">
-        Two sheets, headers in row 1. Questions: question_key, question_label;
-        optional question_type, category, display_order. Answers: question_key,
-        raw_answer, answer_label; optional display_order and score (1–5, or 6
-        for N/A). Use the exact EFS column as question_key. Only listed
-        questions are overridden for this program; include every answer value
-        for each overridden answer list.
-      </p>
       {validation?.workbooks.length ? (
         <div className="summary-grid">
           {validation.workbooks.map((workbook) => (
@@ -1581,6 +1508,207 @@ export function UploadStep({
           ))}
         </div>
       ) : null}
+      {validation ? <IssueList issues={validation.issues} /> : null}
+      {error ? <p className="form-error">{error}</p> : null}
+      {actions("bottom")}
+    </div>
+  );
+}
+
+export function SurveyDefinitionStep({
+  draft,
+  onComplete,
+  onDraftChange,
+  onBack,
+  onRestart,
+}: {
+  draft: DraftState;
+  onComplete: (next: DraftState) => void;
+  onDraftChange?: (next: DraftState) => void;
+  onBack: () => void;
+  onRestart: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(
+    draft.surveyDefinitionFile ?? null,
+  );
+  const [validation, setValidation] = useState(draft.validation);
+  const [working, setWorking] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState("");
+  const [definitionFailed, setDefinitionFailed] = useState(false);
+  const requestId = useRef(0);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const definitionChanged = async (nextFile: File | null) => {
+    const currentRequest = ++requestId.current;
+    setFile(nextFile);
+    setError("");
+    setDefinitionFailed(false);
+    setWorking(true);
+    const next = {
+      ...draft,
+      surveyDefinitionFile: nextFile ?? undefined,
+      surveyDefinitionConfigured: false,
+    };
+    onDraftChange?.(next);
+    try {
+      if (!draft.efsFile && !nextFile) {
+        setValidation(undefined);
+        onDraftChange?.({ ...next, validation: undefined });
+        return;
+      }
+      const prepared = await api.prepareHistoricalImport(draft.metadata, {
+        ...(draft.efsFile ? { efsFile: draft.efsFile } : {}),
+        ...(nextFile ? { surveyDefinitionFile: nextFile } : {}),
+      });
+      if (currentRequest !== requestId.current) return;
+      const workbookPreviews = draft.efsFile
+        ? { ...draft.workbookPreviews, EFS: prepared.validation }
+        : (draft.workbookPreviews ?? {});
+      const nextValidation = draft.efsFile
+        ? combineWorkbookPreviews(workbookPreviews)
+        : prepared.validation;
+      setValidation(nextValidation);
+      onDraftChange?.({
+        ...next,
+        validation: nextValidation,
+        workbookPreviews,
+      });
+    } catch (caught) {
+      if (currentRequest !== requestId.current) return;
+      setDefinitionFailed(true);
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to analyze survey definition",
+      );
+    } finally {
+      if (currentRequest === requestId.current) setWorking(false);
+    }
+  };
+
+  const downloadDefault = async () => {
+    setDownloading(true);
+    setError("");
+    try {
+      if (draft.efsFile) {
+        await api.downloadDefaultSurveyDefinition(
+          draft.metadata,
+          draft.efsFile,
+        );
+      } else if (draft.metadata.programId) {
+        await api.downloadProgramSurveyDefinition(
+          draft.metadata.programId,
+          "Survey_Definition_Default_Template.xlsx",
+        );
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to download default template",
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const continueToOrganizations = () => {
+    if (definitionFailed) return;
+    if (
+      validation &&
+      (validation.blockingErrorCount > 0 ||
+        validation.issues.some(({ level }) => level === "error"))
+    ) {
+      setError("Resolve the workbook validation errors before continuing.");
+      return;
+    }
+    onComplete({
+      ...draft,
+      surveyDefinitionFile: file ?? undefined,
+      surveyDefinitionConfigured: true,
+      validation,
+    });
+  };
+
+  const actions = (position: "top" | "bottom") => (
+    <WizardActions position={position}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={onBack}
+        disabled={working || downloading}
+      >
+        <ChevronLeft size={16} /> Back
+      </button>
+      <RestartButton disabled={working || downloading} onRestart={onRestart} />
+      <button
+        type="button"
+        className="primary-button compact"
+        disabled={working || downloading || definitionFailed}
+        onClick={continueToOrganizations}
+      >
+        Continue <ChevronRight size={16} />
+      </button>
+    </WizardActions>
+  );
+
+  return (
+    <div className="wizard-panel">
+      {actions("top")}
+      <p className="wizard-copy">
+        {draft.efsFile
+          ? "The default template contains the questions and answer options used for this EFS when no survey definition is uploaded."
+          : "The default template contains this program’s current EFS questions and answer options."}{" "}
+        Download it to review or customize them, then upload the edited workbook
+        here. This step is optional when the defaults are correct.
+      </p>
+      <button
+        type="button"
+        className="secondary-button"
+        disabled={
+          working ||
+          downloading ||
+          (!draft.efsFile && !draft.metadata.programId)
+        }
+        onClick={() => void downloadDefault()}
+      >
+        <FileSpreadsheet size={16} />
+        {downloading ? "Preparing template…" : "Download default template"}
+      </button>
+      <label className="upload-card">
+        <FileSpreadsheet size={28} />
+        <strong>Survey Definition (optional, EFS)</strong>
+        <span>{file?.name ?? "Use current defaults"}</span>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          disabled={working || downloading}
+          onChange={(event) =>
+            void definitionChanged(event.target.files?.[0] ?? null)
+          }
+        />
+      </label>
+      {file ? (
+        <button
+          type="button"
+          className="secondary-button compact"
+          disabled={working || downloading}
+          onClick={() => {
+            if (fileInput.current) fileInput.current.value = "";
+            void definitionChanged(null);
+          }}
+        >
+          Use defaults
+        </button>
+      ) : null}
+      <p className="wizard-copy">
+        The workbook has Questions and Answers sheets. Use the exact EFS column
+        name as question_key. Include every answer value for any answer list you
+        change. Questions missing approved wording must be completed before
+        continuing.
+      </p>
       {validation ? <IssueList issues={validation.issues} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
@@ -2290,8 +2418,9 @@ export function HistoricalImportPage() {
     );
   } else if (step === 3) {
     content = (
-      <WinnersStep
+      <SurveyDefinitionStep
         draft={draft as DraftState}
+        onDraftChange={(next) => setDraft(next)}
         onComplete={(next) => {
           setDraft(next);
           setStep(4);
@@ -2302,7 +2431,7 @@ export function HistoricalImportPage() {
     );
   } else if (step === 4) {
     content = (
-      <CatalogStep
+      <WinnersStep
         draft={draft as DraftState}
         onComplete={(next) => {
           setDraft(next);
@@ -2312,11 +2441,23 @@ export function HistoricalImportPage() {
         onRestart={restart}
       />
     );
+  } else if (step === 5) {
+    content = (
+      <CatalogStep
+        draft={draft as DraftState}
+        onComplete={(next) => {
+          setDraft(next);
+          setStep(6);
+        }}
+        onBack={() => setStep(4)}
+        onRestart={restart}
+      />
+    );
   } else {
     content = (
       <ReviewStep
         draft={draft as DraftState}
-        onBack={() => setStep(4)}
+        onBack={() => setStep(5)}
         onRestart={restart}
       />
     );
@@ -2338,14 +2479,16 @@ export function HistoricalImportPage() {
         step={step}
         maxStep={
           draft.metadata?.reportCatalog
-            ? 5
+            ? 6
             : draft.winnersConfigured
-              ? 4
-              : draft.uploadsConfigured
-                ? 3
-                : draft.metadata
-                  ? 2
-                  : 1
+              ? 5
+              : draft.surveyDefinitionConfigured
+                ? 4
+                : draft.uploadsConfigured
+                  ? 3
+                  : draft.metadata
+                    ? 2
+                    : 1
         }
         onStepChange={setStep}
       />

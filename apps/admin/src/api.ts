@@ -900,11 +900,60 @@ export const api = {
     );
   },
 
-  async downloadProgramSurveyDefinition(id: string): Promise<void> {
+  async downloadProgramSurveyDefinition(
+    id: string,
+    filename = "Questions_and_Answers.xlsx",
+  ): Promise<void> {
     await downloadRequest(
       `/admin/programs/${encodeURIComponent(id)}/survey-definition.xlsx`,
-      "Questions_and_Answers.xlsx",
+      filename,
     );
+  },
+
+  async downloadDefaultSurveyDefinition(
+    metadata: HistoricalImportMetadata,
+    efsFile: File,
+  ): Promise<void> {
+    const formData = new FormData();
+    formData.append("metadata", JSON.stringify(metadata));
+    formData.append("efsFile", efsFile);
+    const download = async (allowRefresh: boolean): Promise<Response> => {
+      const auth = readAuth();
+      const response = await fetch(
+        `${apiBaseUrl}/admin/historicalImports/default-survey-definition.xlsx`,
+        {
+          method: "POST",
+          headers: {
+            Accept:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ...authHeaders(auth?.accessToken),
+          },
+          body: formData,
+        },
+      );
+      if (response.status === 401 && auth?.accessToken && allowRefresh) {
+        const refreshed = await refreshAdminAuth(auth);
+        if (refreshed) return download(false);
+        persistAuth(null);
+      }
+      return response;
+    };
+    const response = await download(true);
+    if (!response.ok) {
+      const payload = object(await response.json().catch(() => null));
+      throw new ApiError(
+        stringValue(payload.message) || "Unable to download default template",
+        response.status,
+      );
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "Survey_Definition_Default_Template.xlsx";
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   },
 
   async uploadProgramSurveyDefinition(

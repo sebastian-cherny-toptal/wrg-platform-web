@@ -7,10 +7,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HistoricalImportMetadata } from "./api";
-import { UploadStep } from "./historical-import";
+import { api } from "./api";
+import { SurveyDefinitionStep, UploadStep } from "./historical-import";
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -59,7 +61,7 @@ const preparedResponse = (
 });
 
 describe("local workbook selection", () => {
-  it("blocks continuing when a restored preview contains an unresolved question key", () => {
+  it("moves unresolved questions to the survey definition step for correction", async () => {
     const onComplete = vi.fn();
     render(
       <UploadStep
@@ -106,12 +108,104 @@ describe("local workbook selection", () => {
       />,
     );
     fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    expect(onComplete.mock.calls[0]?.[0].validation.issues[0].level).toBe(
+      "error",
+    );
+  });
+
+  it("offers a default template from the selected EFS and blocks unresolved definitions", async () => {
+    const efsFile = new File(["efs"], "efs.xlsx");
+    const download = vi
+      .spyOn(api, "downloadDefaultSurveyDefinition")
+      .mockResolvedValue();
+    const onComplete = vi.fn();
+    render(
+      <SurveyDefinitionStep
+        draft={{
+          metadata: draft.metadata,
+          efsFile,
+          validation: {
+            issues: [{ level: "error", message: "Approved wording missing" }],
+            workbooks: [],
+            organizations: [],
+            blockingErrorCount: 1,
+            warningCount: 0,
+          },
+        }}
+        onComplete={onComplete}
+        onBack={vi.fn()}
+        onRestart={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Download default template" }),
+    );
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(draft.metadata, efsFile),
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
     expect(onComplete).not.toHaveBeenCalled();
     expect(
       screen.getByText(
         "Resolve the workbook validation errors before continuing.",
       ),
     ).toBeTruthy();
+  });
+
+  it("validates an uploaded definition before continuing", async () => {
+    const efsFile = new File(["efs"], "efs.xlsx");
+    const definitionFile = new File(["definition"], "definition.xlsx");
+    const prepare = vi.spyOn(api, "prepareHistoricalImport").mockResolvedValue({
+      metadata: draft.metadata,
+      validation: {
+        issues: [],
+        workbooks: [
+          {
+            kind: "EFS",
+            fileName: "efs.xlsx",
+            sha256: "efs",
+            questions: 1,
+            organizations: 0,
+            respondents: 0,
+            responses: 0,
+          },
+        ],
+        organizations: [],
+        blockingErrorCount: 0,
+        warningCount: 0,
+      },
+    });
+    const onComplete = vi.fn();
+    const { container } = render(
+      <SurveyDefinitionStep
+        draft={{ metadata: draft.metadata, efsFile }}
+        onComplete={onComplete}
+        onBack={vi.fn()}
+        onRestart={vi.fn()}
+      />,
+    );
+    fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [definitionFile] },
+    });
+    await waitFor(() =>
+      expect(prepare).toHaveBeenCalledWith(draft.metadata, {
+        efsFile,
+        surveyDefinitionFile: definitionFile,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: /Continue/u })[0],
+      ).not.toHaveProperty("disabled", true),
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surveyDefinitionFile: definitionFile,
+        surveyDefinitionConfigured: true,
+      }),
+    );
   });
 
   it("validates both workbooks without creating a database draft", async () => {
