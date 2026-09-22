@@ -35,7 +35,7 @@ import { SearchableSelect } from '@wrg/platform-ui'
 import { api, cachePurchasedReportAccess } from '../api/client'
 import { routeMap } from '../app/metadata'
 import { ImageDownloadMenu } from '../components/image-download-menu'
-import { Badge, Button, Card, PageHeader, StatePanel, cn } from '../components/ui'
+import { Badge, Button, Card, PageHeader, StatePanel, buttonClasses, cn, storeTextLinkClasses } from '../components/ui'
 import { useAppStore, useSelectedProgram } from '../store/app-store'
 
 const money = new Intl.NumberFormat('en-US', {
@@ -44,6 +44,11 @@ const money = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
+
+const promotionalStoreLinkClasses = cn(
+  buttonClasses('store'),
+  'absolute left-1/2 top-1/2 z-10 h-auto min-h-10 w-max max-w-[90%] -translate-x-1/2 -translate-y-1/2 px-4 py-2 text-center shadow',
+)
 
 const demographicIcons = {
   Gender: Users,
@@ -239,7 +244,7 @@ export function DashboardPage() {
         {isPromotional ? (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm">
             <span><strong>Sample dashboard preview</strong> — Figures and statements are from a fictional organization.</span>
-            <Link className="font-semibold text-violet-700 underline" to={routeMap.catalog}>Explore reports in the store</Link>
+            <Link className={cn(storeTextLinkClasses, 'underline')} to={routeMap.catalog}>Explore reports in the store</Link>
           </div>
         ) : null}
         {!program ? (
@@ -271,7 +276,7 @@ export function DashboardPage() {
                 <DashboardBars positive={Math.round(dashboard.data.agreement.percentage)} negative={Math.round(dashboard.data.agreement.negativePercentage)} />
               </div>
               {isPromotional ? (
-                <Link className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 rounded-md bg-red-600 px-4 py-2 text-center text-sm font-medium text-white shadow" to={routeMap.catalog}>
+                <Link className={promotionalStoreLinkClasses} to={routeMap.catalog}>
                   Click here to see your survey average
                 </Link>
               ) : null}
@@ -317,7 +322,7 @@ export function DashboardPage() {
                 ))}
               </div>
               {isPromotional ? (
-                <Link className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md bg-red-600 px-4 py-2 text-center text-sm font-medium text-white shadow" to={routeMap.catalog}>
+                <Link className={promotionalStoreLinkClasses} to={routeMap.catalog}>
                   Click here to see your survey average
                 </Link>
               ) : null}
@@ -364,7 +369,7 @@ export function DashboardPage() {
               </div>
               </div>
               {isPromotional ? (
-                <Link className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md bg-red-600 px-4 py-2 text-center text-sm font-medium text-white shadow" to={routeMap.catalog}>
+                <Link className={promotionalStoreLinkClasses} to={routeMap.catalog}>
                   Click here to see your survey average
                 </Link>
               ) : null}
@@ -412,7 +417,7 @@ export function DashboardPage() {
             <h2 className="text-xl font-semibold" id="promotional-results-title">The results are in!</h2>
             <p className="mt-8">Find out what your employees had to say.</p>
             <p className="mt-7">
-              <Link className="font-medium text-red-600" to={routeMap.catalog}>Click here</Link>{' '}
+              <Link className={storeTextLinkClasses} to={routeMap.catalog}>Click here</Link>{' '}
               to discover the various reporting options we offer!
             </p>
           </section>
@@ -583,7 +588,7 @@ export function CatalogPage() {
                   <li className="border-t border-zinc-100 pt-5 text-sm leading-6 text-zinc-600" key={report.path}>
                     <strong className="text-zinc-900">{report.title}{report.title === 'Benefits & Best Practices' ? ' Report' : ''}.</strong>{' '}
                     {report.description}{' '}
-                    <Link className="ml-2 inline-flex items-center whitespace-nowrap font-semibold text-red-600" to={report.path}>
+                    <Link className={cn(storeTextLinkClasses, 'ml-2 inline-flex items-center whitespace-nowrap')} to={report.path}>
                       View Report <ArrowRight className="ml-1 size-4" />
                     </Link>
                   </li>
@@ -637,7 +642,7 @@ export function CatalogPage() {
                 <div className="flex gap-2">
                   {!standardPackage.owned ? <Link to={routeMap.dashboard}><Button variant="secondary">View demo</Button></Link> : null}
                   <Button
-                    className="bg-violet-900 hover:bg-violet-950"
+                    variant="store"
                     disabled={standardPackage.owned || inCart(standardPackage.id) || standardPackage.priceCents === null}
                     onClick={() => addProduct(standardPackage)}
                   >
@@ -682,7 +687,8 @@ export function CatalogPage() {
                 <div className="mt-auto grid gap-2 pt-4">
                   {!product.owned ? <Link to={`${demoPath}?demo=${product.id}`}><Button className="w-full" variant="secondary">View demo</Button></Link> : null}
                   <Button
-                    className="w-full bg-violet-900 hover:bg-violet-950"
+                    className="w-full"
+                    variant="store"
                     disabled={disabled}
                     onClick={() => addProduct(
                       product,
@@ -722,7 +728,7 @@ export function CartPage() {
       <PageHeader title="Cart" description="Review optional reports before checkout." />
       <div className="p-5 lg:p-6">
         <div className="mb-4 flex items-center justify-between"><p className="text-sm text-zinc-500">{cart.length} item{cart.length === 1 ? '' : 's'}</p><Link to={routeMap.catalog}><Button variant="secondary">Go to Reports Store</Button></Link></div>
-        {cart.length === 0 ? <StatePanel kind="empty" title="Your cart is empty" message="Browse the reports store to add a report." action={<Link to={routeMap.catalog}><Button>Browse reports</Button></Link>} /> : (
+        {cart.length === 0 ? <StatePanel kind="empty" title="Your cart is empty" message="Browse the reports store to add a report." action={<Link to={routeMap.catalog} className={buttonClasses('store')}>Browse reports</Link>} /> : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
             <Card className="overflow-hidden">
               <ul className="divide-y divide-zinc-200">{cart.map((item) => <li className="flex items-center gap-4 p-5" key={item.productId}><span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700"><FileText className="size-5" /></span><div className="min-w-0 flex-1"><strong>{item.name}</strong><p className="text-sm text-zinc-500">{item.optionLabel ? `Sorting category: ${item.optionLabel}` : 'Report for selected program'}</p></div><strong>{money.format(item.priceCents * item.quantity / 100)}</strong><button className="p-2 text-zinc-400 hover:text-red-600" onClick={() => remove(item.productId)} aria-label={`Remove ${item.name}`}><Trash2 className="size-4" /></button></li>)}</ul>
@@ -732,7 +738,7 @@ export function CartPage() {
               <h2 className="text-lg font-bold">Summary</h2>
               <div className="mt-5 grid gap-3">{cart.map((item) => <div className="flex justify-between gap-3 text-sm text-slate-300" key={item.productId}><span>{item.name}{item.optionLabel ? <small className="block text-slate-400">Sorted by {item.optionLabel}</small> : null}</span><span>{money.format(item.priceCents / 100)}</span></div>)}</div>
               <div className="mt-6 flex justify-between border-t border-slate-700 pt-5 font-bold"><span>Total</span><span>{money.format(total / 100)}</span></div>
-              <Link to={routeMap.checkout}><Button className="mt-6 w-full bg-red-600 hover:bg-red-700">Go To Checkout</Button></Link>
+              <Link className={cn(buttonClasses('store'), 'mt-6 w-full')} to={routeMap.checkout}>Go To Checkout</Link>
             </aside>
           </div>
         )}
@@ -821,7 +827,7 @@ export function CheckoutPage() {
   }
 
   if (cart.length === 0) {
-    return <div className="p-6"><StatePanel kind="empty" title="Your cart is empty" message="Add a report before checking out." action={<Link to={routeMap.catalog}><Button>Browse reports</Button></Link>} /></div>
+    return <div className="p-6"><StatePanel kind="empty" title="Your cart is empty" message="Add a report before checking out." action={<Link className={buttonClasses('store')} to={routeMap.catalog}>Browse reports</Link>} /></div>
   }
   return (
     <>
@@ -845,7 +851,7 @@ export function CheckoutPage() {
             <div className="mt-6">
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">This order will be logged as pending. WRG will create the invoice and grant access after payment is recorded.</div>
               {invoiceError ? <p className="mt-4 text-sm text-red-700">{invoiceError}</p> : null}
-              <Button className="mt-5" disabled={invoiceSubmitting} onClick={() => void requestInvoice()}>{invoiceSubmitting ? 'Submitting…' : 'Request invoice'}</Button>
+              <Button className="mt-5" disabled={invoiceSubmitting} onClick={() => void requestInvoice()} variant="store">{invoiceSubmitting ? 'Submitting…' : 'Request invoice'}</Button>
             </div>
           )}
         </Card>
@@ -915,6 +921,6 @@ function StripeCheckoutForm({ onPending }: { onPending: (payment: { verification
   return <form className="mt-6" onSubmit={submit}>
     <PaymentElement />
     {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
-    <Button className="mt-6" disabled={!stripe || paying} type="submit">{paying ? 'Processing…' : 'Complete Purchase'}</Button>
+    <Button className="mt-6" disabled={!stripe || paying} type="submit" variant="store">{paying ? 'Processing…' : 'Complete Purchase'}</Button>
   </form>
 }

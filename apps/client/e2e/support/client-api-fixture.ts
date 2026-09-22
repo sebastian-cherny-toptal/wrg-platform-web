@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 const programId = 'demo-program-2026'
 export const clientFixtureUsername = process.env.VITE_TEST_USERNAME ?? 'demo-client'
 
-export async function installClientApiFixture(page: Page, options: { dashboard?: boolean; role?: 'client' | 'Promotional' } = {}) {
+export async function installClientApiFixture(page: Page, options: { dashboard?: boolean; role?: 'client' | 'Promotional'; reportAccess?: Record<string, 'yes' | 'no'> } = {}) {
   await page.route('**/user/login', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -20,7 +20,7 @@ export async function installClientApiFixture(page: Page, options: { dashboard?:
             organizationProgram: [
               {
                 programId: { id: programId, name: 'Demo Program', year: 2026 },
-                reportAccess: {
+                reportAccess: options.reportAccess ?? {
                   WFR_Access: 'yes',
                   EV_Access: 'yes',
                   WBC_Access: 'yes',

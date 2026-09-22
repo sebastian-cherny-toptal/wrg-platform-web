@@ -34,6 +34,7 @@ describe('ACH checkout', () => {
   it('removes the card fee and submits processing payments without granting access or inviting another payment', async () => {
     const { create, confirm } = setup()
     await screen.findByText('Secure payment form')
+    expect(screen.getByRole('button', { name: 'Complete Purchase' })).toHaveClass('bg-violet-900')
     expect(screen.getByText('Card fee (3%)')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: /US bank account \(ACH\)/ }))
     await waitFor(() => expect(create).toHaveBeenLastCalledWith(expect.objectContaining({ paymentMethod: 'ach', amount: 425, currency: 'USD' })))

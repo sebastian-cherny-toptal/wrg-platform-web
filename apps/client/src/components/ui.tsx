@@ -8,20 +8,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+type ButtonVariant = 'primary' | 'store' | 'secondary' | 'ghost'
+
+export function buttonClasses(variant: ButtonVariant = 'primary') {
+  return cn(
+    'inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+    variant === 'primary' && 'bg-violet-600 text-white hover:bg-violet-700 focus-visible:outline-violet-600',
+    variant === 'store' && 'bg-violet-900 text-white hover:bg-violet-950 focus-visible:outline-violet-900',
+    variant === 'secondary' && 'border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50',
+    variant === 'ghost' && 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950',
+  )
+}
+
+export const storeTextLinkClasses = 'font-semibold text-violet-900 underline-offset-2 hover:text-violet-950 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-900'
+
 export function Button({
   className,
   variant = 'primary',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
   return (
     <button
-      className={cn(
-        'inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-        variant === 'primary' && 'bg-violet-600 text-white hover:bg-violet-700 focus-visible:outline-violet-600',
-        variant === 'secondary' && 'border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50',
-        variant === 'ghost' && 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950',
-        className,
-      )}
+      className={cn(buttonClasses(variant), className)}
       {...props}
     />
   )
