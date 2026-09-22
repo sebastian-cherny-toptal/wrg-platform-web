@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -140,8 +140,8 @@ describe("client sidebar", () => {
     await user.click(screen.getByRole("link", { name: "Programs" }));
     expect(await screen.findByRole("link", { name: "Key Impact Analysis" })).toBeVisible();
     await user.click(screen.getByRole("link", { name: "Key Impact Analysis" }));
-    expect(await screen.findByRole("table", { name: "Key Impact Analysis contributions ranked from highest to lowest" })).toBeVisible();
-    expect(screen.getByRole("cell", { name: "42.00%" })).toBeVisible();
+    const reportTable = await screen.findByRole("table", { name: "Key Impact Analysis contributions ranked from highest to lowest" });
+    expect(within(reportTable).getByText("42.0%")).toBeVisible();
     expect(analysis).toHaveBeenCalledTimes(2);
     act(() => useAppStore.getState().selectProgram("program-2025"));
     await user.click(screen.getByText("My Reports", { selector: "summary span" }));
