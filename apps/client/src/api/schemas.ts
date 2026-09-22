@@ -296,7 +296,7 @@ export const comparisonQuestionsSchema = z.object({
       z.object({
         question: z.string(),
         currentOrg: z.number().min(0).max(100),
-        otherOrg: z.number().min(0).max(100),
+        otherOrg: z.union([z.number().min(0).max(100), z.literal("x")]),
       }),
     ),
   }),

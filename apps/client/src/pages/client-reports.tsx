@@ -787,7 +787,7 @@ const DETAIL_RESPONSE_GROUPS = [
   },
   {
     caption: "Neutral",
-    members: ["Neutral"],
+    members: ["Neutral", "Neither Agree nor Disagree"],
     colorSource: "Neutral",
     fallbackColor: "#ffc955",
   },
@@ -800,27 +800,48 @@ const DETAIL_RESPONSE_GROUPS = [
 ] as const;
 
 function groupedDetailResponses(responses: DetailResponse[]) {
+  const denominator = responses.reduce(
+    (total, response) => total + response.numberOfResponses,
+    0,
+  );
+  const percentOf = (count: number) =>
+    denominator === 0 ? 0 : (count * 100) / denominator;
+  const groupable = responses.every(
+    (response) =>
+      response.agreementGroup !== undefined ||
+      DETAIL_RESPONSE_GROUPS.some((group) =>
+        group.members.some(
+          (caption) =>
+            caption.toLowerCase() === response.ResponseCaption.toLowerCase(),
+        ),
+      ),
+  );
+  if (!groupable) {
+    return responses.map((response) => ({
+      ...response,
+      percent: percentOf(response.numberOfResponses),
+    }));
+  }
   return DETAIL_RESPONSE_GROUPS.map((group) => {
     const members = responses.filter((response) =>
       group.members.some(
         (caption) =>
-          caption === (response.agreementGroup ?? response.ResponseCaption),
+          caption.toLowerCase() ===
+          (response.agreementGroup ?? response.ResponseCaption).toLowerCase(),
       ),
     );
     const colorSource = responses.find(
       (response) => response.ResponseCaption === group.colorSource,
     );
 
+    const numberOfResponses = members.reduce(
+      (total, response) => total + response.numberOfResponses,
+      0,
+    );
     return {
       ResponseCaption: group.caption,
-      numberOfResponses: members.reduce(
-        (total, response) => total + response.numberOfResponses,
-        0,
-      ),
-      percent: members.reduce(
-        (total, response) => total + response.percent,
-        0,
-      ),
+      numberOfResponses,
+      percent: percentOf(numberOfResponses),
       colorCode: colorSource?.colorCode ?? group.fallbackColor,
     };
   });
@@ -869,17 +890,15 @@ function DetailPanel({
       {error ? <p className="mt-6 text-sm text-red-600">{error}</p> : null}
       {!loading && !error && data?.data.length === 0 ? (
         <p className="mt-6 text-sm text-zinc-500">
-          No question details are available.
+          {data.isConfidential
+            ? data.message
+            : "No question details are available."}
         </p>
       ) : null}
       {!loading && !error && data?.data.length ? (
         <div className="mt-5 divide-y divide-violet-100">
           {data.data.map((question) => {
-            const responses = question.responses.some(
-              (response) => response.agreementGroup,
-            )
-              ? question.responses
-              : groupedDetailResponses(question.responses);
+            const responses = groupedDetailResponses(question.responses);
             return (
               <div
                 className="py-4 first:pt-0 last:pb-0"
@@ -1906,7 +1925,11 @@ export function EmployeeVerbatimsPage() {
   const sortedVerbatims = catalog.data?.find(
     (product) => product.id === "report-verbatims-sorted",
   );
-  const selectedPurchasedFilter = sortedVerbatims?.selection ?? "";
+  const sortedReportOwned =
+    Boolean(sortedVerbatims?.owned) || program?.entitlements.SEV_Access === "yes";
+  const selectedPurchasedFilter =
+    sortedVerbatims?.selection ?? program?.reportSelections?.SEV_Filter ?? "";
+  const sortingUnavailable = sortedReportOwned && !selectedPurchasedFilter && !isDummy;
   const selectedPurchasedLabel =
     availableFilters.data?.find(
       (item) => item.questionId === selectedPurchasedFilter,
@@ -1968,7 +1991,7 @@ export function EmployeeVerbatimsPage() {
         </div>
       ) : null}
       <div className="p-6">
-        {sortedVerbatims?.owned ? (
+        {sortedReportOwned ? (
           <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-violet-200 bg-violet-50 p-5 text-violet-950">
             <div className="grid size-11 place-items-center rounded-full bg-violet-100">
               <Filter className="size-5" />
@@ -1978,17 +2001,24 @@ export function EmployeeVerbatimsPage() {
                 Purchased sorting filter
               </p>
               <strong className="mt-1 block text-lg">
-                Sorted by {selectedPurchasedLabel || "Purchased filter"}
+                {sortingUnavailable
+                  ? "Sorting filter unavailable"
+                  : `Sorted by ${selectedPurchasedLabel}`}
               </strong>
+              {sortingUnavailable ? (
+                <p className="mt-1 text-sm text-violet-700">
+                  The purchased sorting category is missing. Contact support to restore report access.
+                </p>
+              ) : null}
             </div>
-            {sortedVerbatims.selection ? (
+            {selectedPurchasedFilter ? (
               <DownloadReportButton
                 label="Download sorted report"
                 onDownload={() =>
                   api.reports.downloadVerbatimsWorkbook(
                     program?.id ?? "",
                     isDummy,
-                    sortedVerbatims.selection,
+                    selectedPurchasedFilter,
                   )
                 }
               />
@@ -2057,7 +2087,7 @@ export function EmployeeVerbatimsPage() {
         <Card className="mt-6 overflow-hidden shadow-none">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 p-5">
             <h2 className="font-semibold">Question Details</h2>
-            {sortedVerbatims?.owned ? null : (
+            {sortedReportOwned ? null : (
               <DownloadReportButton
                 onDownload={() =>
                   api.reports.downloadVerbatimsWorkbook(
@@ -2069,7 +2099,13 @@ export function EmployeeVerbatimsPage() {
             )}
           </div>
           <div className="grid gap-3 p-5">
-            {questions.isPending ? (
+            {sortingUnavailable ? (
+              <StatePanel
+                kind="error"
+                title="Employee responses unavailable"
+                message="The purchased sorting category is missing. Contact support to restore report access."
+              />
+            ) : questions.isPending ? (
               <StatePanel
                 kind="loading"
                 title="Loading questions"
@@ -2470,6 +2506,7 @@ export function BenchmarkDataPage() {
         title="Benchmark Data"
       />
       <div className="p-6">
+        {isDummy ? <p className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm font-medium text-violet-800" role="status">Viewing sample report data from a fictional organization.</p> : null}
         <div className="flex justify-end">
           <DownloadReportButton
             onDownload={() =>
@@ -2615,7 +2652,7 @@ function AgreementDonut({
         <div className="grid size-32 place-items-center rounded-full bg-white text-center shadow-inner">
           <div>
             <strong className="block text-3xl">
-              {typeof value === "number" && value > 0 ? `${value}%` : "x"}
+              {typeof value === "number" ? `${value}%` : "x"}
             </strong>
             <span className="text-[11px] text-zinc-500">Agreement</span>
           </div>
@@ -2635,7 +2672,7 @@ function ComparisonQuestionDetails({
 }: {
   title: string;
   compareLabel: string;
-  rows: { question: string; currentOrg: number; otherOrg: number }[];
+  rows: { question: string; currentOrg: number; otherOrg: number | "x" }[];
   loading: boolean;
   onClose: () => void;
 }) {
@@ -2689,14 +2726,14 @@ function ComparisonQuestionDetails({
                   [row.currentOrg, "bg-violet-900", "Your Results"],
                   [row.otherOrg, "bg-violet-400", compareLabel],
                 ].map(([value, color, label]) => {
-                  const numericValue = Math.round(Number(value));
+                  const numericValue = benchmarkValue(value);
                   return (
                     <div
-                      aria-label={`${label}: ${numericValue}%`}
+                      aria-label={`${label}: ${numericValue === "x" ? "x" : `${numericValue}%`}`}
                       className="h-9 overflow-hidden rounded-xl bg-zinc-50"
                       key={String(label)}
                     >
-                      {numericValue > 0 ? (
+                      {typeof numericValue === "number" ? (
                         <div
                           className={cn(
                             "flex h-full items-center rounded-r-xl px-3 text-[11px] font-semibold text-white",
@@ -2733,7 +2770,7 @@ function ComparisonCategoryCard({
   details,
 }: {
   title: string;
-  benchmark: number;
+  benchmark: number | "x";
   currentValue: number;
   compareLabel: string;
   selected: boolean;
@@ -2923,14 +2960,11 @@ export function ComparisonDataPage() {
               const rawBenchmark = selectedCohort
                 ? benchmarkCategory?.dataValues[selectedCohort.index]
                 : undefined;
-              const benchmark =
-                typeof rawBenchmark === "number"
-                  ? rawBenchmark
-                  : Number.parseFloat(rawBenchmark ?? "") || 0;
+              const benchmark = benchmarkValue(rawBenchmark);
               const selected = selectedCategory === category.title;
               return (
                 <ComparisonCategoryCard
-                  benchmark={Math.round(benchmark)}
+                  benchmark={benchmark}
                   compareLabel={selectedCohort?.label ?? "Comparison group"}
                   currentValue={Math.round(category.agreement)}
                   details={details}
@@ -2973,13 +3007,16 @@ export function BenefitsBestPracticesPage() {
     <>
       <ReportHeader title="Benefits & Best Practices" />
       <div className="p-6">
-        <div className="flex justify-end">
-          <DownloadReportButton
-            onDownload={() =>
-              api.reports.downloadBenefitsWorkbook(program?.id ?? "", isDummy)
-            }
-          />
-        </div>
+        {isDummy ? <p className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm font-medium text-violet-800" role="status">Viewing sample report data from a fictional organization.</p> : null}
+        {report.isSuccess && questions.length > 0 ? (
+          <div className="flex justify-end">
+            <DownloadReportButton
+              onDownload={() =>
+                api.reports.downloadBenefitsWorkbook(program?.id ?? "", isDummy)
+              }
+            />
+          </div>
+        ) : null}
         {report.isPending ? (
           <StatePanel
             kind="loading"
@@ -3306,19 +3343,6 @@ type KeyImpactBubble = {
   question: string;
 };
 
-const keyImpactBubblePositions = [
-  { x: 235, y: 195 },
-  { x: 540, y: 190 },
-  { x: 815, y: 215 },
-  { x: 370, y: 475 },
-  { x: 635, y: 465 },
-  { x: 865, y: 475 },
-  { x: 135, y: 455 },
-  { x: 225, y: 675 },
-  { x: 460, y: 670 },
-  { x: 675, y: 665 },
-] as const;
-
 const keyImpactColors = [
   "#7c3aed",
   "#8b5cf6",
@@ -3332,14 +3356,6 @@ const keyImpactColors = [
   "#f7f5ff",
 ];
 
-function bubbleLabel(category: string): string[] {
-  if (category === "Communication and Workplace Culture") {
-    return ["Communication and", "Workplace Culture"];
-  }
-  if (category === "Employee Benefits") return ["Employee", "Benefits"];
-  return [category];
-}
-
 function KeyImpactBubbleChart({
   bubbles,
   onSelect,
@@ -3348,57 +3364,43 @@ function KeyImpactBubbleChart({
   onSelect: (bubble: KeyImpactBubble) => void;
 }) {
   return (
-    <div className="overflow-x-auto" data-testid="key-impact-chart">
-      <svg
-        aria-label="Key impact contribution bubbles"
-        className="mx-auto h-auto min-w-[760px] max-w-[1080px]"
-        role="img"
-        viewBox="0 0 1000 790"
-      >
-        {bubbles.map((bubble, index) => {
-          const position = keyImpactBubblePositions[index];
-          if (!position) return null;
-          const radius = 55 + bubble.percentage * 7;
-          const lines = bubbleLabel(bubble.category);
-          return (
-            <g
-              aria-label={`${bubble.question}, ${bubble.percentage.toFixed(2)}% of contribution`}
-              className="cursor-pointer outline-none [&>circle]:transition [&>circle]:duration-200 hover:[&>circle]:brightness-95 focus-visible:[&>circle]:stroke-violet-900 focus-visible:[&>circle]:stroke-[5px]"
-              key={bubble.question}
-              onClick={() => onSelect(bubble)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelect(bubble);
-                }
+    <div
+      aria-label="Key impact contribution bubbles"
+      className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3"
+      data-testid="key-impact-chart"
+      role="group"
+    >
+      {bubbles.map((bubble, index) => {
+        const diameter =
+          56 + Math.sqrt(Math.max(0, Math.min(100, bubble.percentage))) * 12.8;
+        return (
+          <button
+            aria-label={`${bubble.question}, ${bubble.percentage.toFixed(2)}% of contribution`}
+            className="flex min-w-0 flex-col items-center gap-3 rounded-xl p-3 text-center outline-none hover:bg-violet-50 focus-visible:ring-2 focus-visible:ring-violet-700"
+            key={bubble.question}
+            onClick={() => onSelect(bubble)}
+            type="button"
+          >
+            <span
+              aria-hidden="true"
+              className="grid shrink-0 place-items-center rounded-full font-bold text-zinc-950 shadow-sm"
+              style={{
+                backgroundColor: keyImpactColors[index % keyImpactColors.length],
+                height: diameter,
+                width: diameter,
               }}
-              role="button"
-              tabIndex={0}
-              transform={`translate(${position.x} ${position.y})`}
             >
-              <circle fill={keyImpactColors[index]} r={radius} />
-              <text
-                className="pointer-events-none fill-zinc-950 text-[15px] font-bold"
-                textAnchor="middle"
-              >
-                {lines.map((line, lineIndex) => (
-                  <tspan
-                    dy={
-                      lineIndex === 0
-                        ? `${-(lines.length - 1) * 0.55}em`
-                        : "1.1em"
-                    }
-                    key={line}
-                    x="0"
-                  >
-                    {line}
-                  </tspan>
-                ))}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+              {bubble.percentage.toFixed(2)}%
+            </span>
+            <span className="max-w-full text-sm font-semibold text-zinc-800">
+              {bubble.category}
+            </span>
+            <span className="max-w-full text-sm leading-5 text-zinc-600">
+              {bubble.question}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -3473,7 +3475,7 @@ export function KeyImpactAnalysisPage() {
   const keyImpactProduct = catalog.data?.find(
     (product) => product.id === "report-kia",
   );
-  const chartRef = useRef<HTMLDivElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
   const [selectedBubble, setSelectedBubble] = useState<KeyImpactBubble | null>(
     null,
   );
@@ -3483,14 +3485,21 @@ export function KeyImpactAnalysisPage() {
     enabled: Boolean(program),
   });
   const report = analysis.data?.data.report ?? [];
-  const bubbles = Object.entries(analysis.data?.data.mapping ?? {}).map(
-    ([question, percentage]) => ({
-      question,
-      percentage,
-      category:
-        report.find((item) => item.key === question)?.label ?? "Key Impact",
-    }),
-  );
+  const labels = new Map(report.map((item) => [item.key, item.label]));
+  const bubbles = Object.entries(analysis.data?.data.mapping ?? {})
+    .map(([question, percentage]) => {
+      const label = labels.get(question)?.trim();
+      return {
+        question,
+        percentage,
+        category: label?.length ? label : "Key Impact",
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.percentage - left.percentage ||
+        left.question.localeCompare(right.question, "en"),
+    );
   return (
     <>
       <ReportHeader
@@ -3539,8 +3548,8 @@ export function KeyImpactAnalysisPage() {
                 );
                 return;
               }
-              if (!chartRef.current) return;
-              const image = await toPng(chartRef.current, {
+              if (!reportRef.current) return;
+              const image = await toPng(reportRef.current, {
                 backgroundColor: "#ffffff",
                 pixelRatio: 2,
               });
@@ -3574,11 +3583,68 @@ export function KeyImpactAnalysisPage() {
           />
         ) : (
           <Card className="mt-10 overflow-hidden p-4 shadow-none sm:p-8">
-            <div ref={chartRef}>
-              <KeyImpactBubbleChart
-                bubbles={bubbles}
-                onSelect={setSelectedBubble}
-              />
+            <div ref={reportRef}>
+              <h2 className="text-xl font-semibold text-zinc-950">
+                Ranked contributions
+              </h2>
+              <div className="mt-4">
+                <table className="w-full border-collapse text-left text-sm">
+                  <caption className="sr-only">
+                    Key Impact Analysis contributions ranked from highest to lowest
+                  </caption>
+                  <thead className="sr-only bg-violet-50 text-zinc-800 sm:not-sr-only">
+                    <tr>
+                      <th className="px-3 py-3" scope="col">
+                        Rank
+                      </th>
+                      <th className="px-3 py-3" scope="col">
+                        Category
+                      </th>
+                      <th className="px-3 py-3" scope="col">
+                        Question
+                      </th>
+                      <th className="px-3 py-3 text-right" scope="col">
+                        Contribution
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="block divide-y divide-zinc-200 sm:table-row-group">
+                    {bubbles.map((bubble, index) => (
+                      <tr
+                        className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 py-4 sm:table-row sm:py-0"
+                        key={bubble.question}
+                      >
+                        <th
+                          className="col-start-1 row-start-1 grid size-8 place-items-center rounded-full bg-violet-100 font-semibold text-violet-800 sm:table-cell sm:size-auto sm:rounded-none sm:bg-transparent sm:px-3 sm:py-3 sm:text-zinc-950"
+                          scope="row"
+                        >
+                          {index + 1}
+                        </th>
+                        <td className="col-start-2 row-start-1 self-center font-semibold text-zinc-800 sm:table-cell sm:px-3 sm:py-3 sm:font-normal">
+                          {bubble.category}
+                        </td>
+                        <td className="col-span-3 row-start-2 pt-2 leading-5 text-zinc-700 sm:table-cell sm:px-3 sm:py-3 sm:text-zinc-950">
+                          {bubble.question}
+                        </td>
+                        <td className="col-start-3 row-start-1 self-center whitespace-nowrap text-right font-semibold sm:table-cell sm:px-3 sm:py-3">
+                          {bubble.percentage.toFixed(2)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <details className="mt-8 border-t border-zinc-200 pt-6">
+                <summary className="cursor-pointer font-semibold text-violet-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700">
+                  View contribution bubble chart
+                </summary>
+                <div className="mt-5">
+                  <KeyImpactBubbleChart
+                    bubbles={bubbles}
+                    onSelect={setSelectedBubble}
+                  />
+                </div>
+              </details>
             </div>
           </Card>
         )}

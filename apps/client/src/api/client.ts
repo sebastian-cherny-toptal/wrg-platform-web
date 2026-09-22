@@ -56,6 +56,10 @@ const impersonationSessionStorageKey = "wrg-impersonation-session";
 const clientTokenStorageKey = "wrg-client-access-token";
 const clientSessionStorageKey = "wrg-client-session";
 const impersonationExchanges = new Map<string, Promise<Session>>();
+const reportStatusesSchema = z.object({
+  success: z.literal(true),
+  data: z.array(z.object({ programId: z.string(), status: z.string().nullable() })),
+});
 
 function impersonationToken(): string | null {
   return window.sessionStorage.getItem(impersonationTokenStorageKey);
@@ -181,6 +185,45 @@ function readClientSession(): Session | null {
     clearClientSession();
     return null;
   }
+}
+
+async function refreshReportStatuses(signal?: AbortSignal): Promise<string[]> {
+  const original = useAppStore.getState().session;
+  if (!original) return [];
+  const response = await request("/user/report-statuses", {
+    schema: reportStatusesSchema,
+    ...(signal ? { signal } : {}),
+  });
+  if (signal?.aborted) return [];
+  const current = useAppStore.getState().session;
+  if (current?.user.id !== original.user.id) return [];
+  const statuses = new Map(response.data.map(({ programId, status }) => [programId, status]));
+  const changedProgramIds: string[] = [];
+  const programs = current.user.programs.map((program) => {
+    if (!statuses.has(program.id)) return program;
+    const status = statuses.get(program.id) ?? null;
+    const previous = program.reportSelections?.KIA_Order_Status ?? null;
+    if (previous === status) return program;
+    changedProgramIds.push(program.id);
+    const otherSelections = { ...program.reportSelections };
+    delete otherSelections.KIA_Order_Status;
+    return {
+      ...program,
+      reportSelections: {
+        ...otherSelections,
+        ...(status === null ? {} : { KIA_Order_Status: status }),
+      },
+    };
+  });
+  if (changedProgramIds.length === 0) return [];
+  const next = { ...current, user: { ...current.user, programs } };
+  if (impersonationToken()) {
+    window.sessionStorage.setItem(impersonationSessionStorageKey, JSON.stringify(next));
+  } else {
+    window.localStorage.setItem(clientSessionStorageKey, JSON.stringify(next));
+  }
+  useAppStore.setState({ session: next });
+  return changedProgramIds;
 }
 
 function tokenExpiration(token: string): string {
@@ -544,6 +587,7 @@ async function surveyFilters(
 
 export const api = {
   session: {
+    refreshReportStatuses,
     get: (): Promise<Session | null> => {
       if (window.location.pathname === "/admin-preview") {
         clearImpersonationSession();
@@ -592,19 +636,20 @@ export const api = {
     }): Promise<LoginResult> => backendClientLogin(input),
   },
   dashboard: {
-    overview: async (programId: string) => {
+    overview: async (programId: string, isDummy = false) => {
       const selectedProgramId = encodeURIComponent(programId);
+      const previewQuery = dummyQuery(isDummy);
       const [agreement, responseRate, statements] = await Promise.all([
         request(
-          `/client/averagePercentageOfAgreement?selectedProgramId=${selectedProgramId}`,
+          `/client/averagePercentageOfAgreement?selectedProgramId=${selectedProgramId}${previewQuery}`,
           { schema: dashboardAgreementSchema },
         ),
         request(
-          `/client/surveyResponseRate?selectedProgramId=${selectedProgramId}`,
+          `/client/surveyResponseRate?selectedProgramId=${selectedProgramId}${previewQuery}`,
           { schema: dashboardResponseRateSchema },
         ),
         request(
-          `/client/dashboardTopBottomStatements?selectedProgramId=${selectedProgramId}`,
+          `/client/dashboardTopBottomStatements?selectedProgramId=${selectedProgramId}${previewQuery}`,
           { schema: dashboardStatementsSchema },
         ),
       ]);

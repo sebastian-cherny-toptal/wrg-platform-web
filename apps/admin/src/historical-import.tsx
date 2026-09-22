@@ -41,6 +41,9 @@ type DraftState = {
   efsFile?: File;
   surveyDefinitionFile?: File;
   validation?: HistoricalImportValidationSummary;
+  workbookPreviews?: Partial<
+    Record<"EA" | "EFS", HistoricalImportValidationSummary>
+  >;
   uploadsConfigured?: boolean;
   winnersConfigured?: boolean;
 };
@@ -1246,8 +1249,12 @@ export function UploadStep({
   const previewRef = useRef<
     Partial<Record<WorkbookKind, HistoricalImportValidationSummary>>
   >({
-    EA: workbookPreviewFromCombined(draft.validation, "EA"),
-    EFS: workbookPreviewFromCombined(draft.validation, "EFS"),
+    EA:
+      draft.workbookPreviews?.EA ??
+      workbookPreviewFromCombined(draft.validation, "EA"),
+    EFS:
+      draft.workbookPreviews?.EFS ??
+      workbookPreviewFromCombined(draft.validation, "EFS"),
   });
   const analysisRequests = useRef<Record<WorkbookKind, number>>({
     EA: 0,
@@ -1281,6 +1288,7 @@ export function UploadStep({
       surveyDefinitionFile: surveyDefinitionFileRef.current ?? undefined,
       uploadsConfigured: false,
       validation: previewWithoutChangedFile,
+      workbookPreviews: previewRef.current,
     };
     onDraftChange?.(nextDraft);
     const requestId = ++analysisRequests.current[kind];
@@ -1309,6 +1317,7 @@ export function UploadStep({
         surveyDefinitionFile: surveyDefinitionFileRef.current ?? undefined,
         uploadsConfigured: false,
         validation: combinedValidation,
+        workbookPreviews: previewRef.current,
       });
     } catch (caught) {
       if (requestId !== analysisRequests.current[kind]) return;
@@ -1331,6 +1340,7 @@ export function UploadStep({
       efsFile: efsFileRef.current ?? undefined,
       surveyDefinitionFile: file ?? undefined,
       uploadsConfigured: false,
+      workbookPreviews: previewRef.current,
     };
     onDraftChange?.(next);
     // Re-preview EFS with the definition; EA is unaffected.
@@ -1381,7 +1391,11 @@ export function UploadStep({
       );
       return;
     }
-    if (validation && validation.blockingErrorCount > 0) {
+    if (
+      validation &&
+      (validation.blockingErrorCount > 0 ||
+        validation.issues.some(({ level }) => level === "error"))
+    ) {
       setError("Resolve the workbook validation errors before continuing.");
       return;
     }
@@ -1434,6 +1448,7 @@ export function UploadStep({
         surveyDefinitionFile: surveyDefinitionFile ?? undefined,
         uploadsConfigured: true,
         validation: preparedValidation,
+        workbookPreviews: previewRef.current,
         metadata: {
           ...draft.metadata,
           zohoOrganizations,

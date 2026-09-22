@@ -36,6 +36,96 @@ describe("Detailed Results page", () => {
     useAppStore.getState().setSession(null);
   });
 
+  it("shows the exact API confidentiality message for a filtered category", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
+    vi.spyOn(api.reports, "responseBreakdownBySection").mockResolvedValue({
+      success: true,
+      message:
+        "The information is not visible to maintain confidentiality. The number of employee responses is fewer than 5.",
+      isConfidential: true,
+      data: [],
+    });
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <DetailedResultsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "The information is not visible to maintain confidentiality. The number of employee responses is fewer than 5.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("Results are confidential")).toBeVisible();
+  });
+
+  it("shows the API confidentiality message when question details are suppressed", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
+    vi.spyOn(api.reports, "responseBreakdownBySection").mockResolvedValue({
+      success: true,
+      message: "success",
+      isConfidential: false,
+      data: [
+        {
+          "Core Employee Experience": [
+            {
+              ResponseCaption: "Agree",
+              numberOfResponses: 5,
+              colorCode: "#00a46a",
+              percent: 1,
+              percentage: 100,
+            },
+            {
+              totalNumberOfQuestionsPerSection: 1,
+              totalNumberOfResponsePerSection: 5,
+              totalRespondents: 5,
+              questionRange: ["question-1"],
+            },
+          ],
+        },
+      ],
+    });
+    vi.spyOn(api.reports, "responseBreakdown").mockResolvedValue({
+      success: true,
+      message:
+        "The information is not visible to maintain confidentiality. The number of employee responses is fewer than 5.",
+      isConfidential: true,
+      data: [],
+    });
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <DetailedResultsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const cards = await screen.findAllByRole("button", {
+      name: /Core Employee Experience/u,
+    });
+    const card = cards.find((element) => element.tagName === "DIV");
+    expect(card).toBeDefined();
+    if (!card) throw new Error("Category card was not rendered");
+    fireEvent.click(card);
+    expect(
+      await screen.findByText(
+        "The information is not visible to maintain confidentiality. The number of employee responses is fewer than 5.",
+      ),
+    ).toBeVisible();
+  });
+
   it("shows details without inserting them among the cards and toggles them closed", async () => {
     useAppStore.getState().setSession(session);
     vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
@@ -148,9 +238,7 @@ describe("Detailed Results page", () => {
       await screen.findByText("Agreement: 70% (7 responses)"),
     ).toBeVisible();
     expect(screen.getByText("Neutral: 10% (1 responses)")).toBeVisible();
-    expect(
-      screen.getByText("Disagreement: 20% (2 responses)"),
-    ).toBeVisible();
+    expect(screen.getByText("Disagreement: 20% (2 responses)")).toBeVisible();
     expect(screen.queryByText(/Strongly Agree:/u)).not.toBeInTheDocument();
 
     const distribution = screen.getByRole("img", {
@@ -168,5 +256,234 @@ describe("Detailed Results page", () => {
       screen.queryByText("Question-level response details"),
     ).not.toBeInTheDocument();
     expect(card).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("uses response counts for a question with two disagreement answers", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
+    vi.spyOn(api.reports, "responseBreakdownBySection").mockResolvedValue({
+      success: true,
+      message: "success",
+      isConfidential: false,
+      data: [
+        {
+          "Core Employee Experience": [
+            {
+              ResponseCaption: "Agree",
+              numberOfResponses: 192,
+              colorCode: "#00a46a",
+              percent: 0.96,
+              percentage: 96,
+            },
+            {
+              ResponseCaption: "Neutral",
+              numberOfResponses: 6,
+              colorCode: "#ffc955",
+              percent: 0.03,
+              percentage: 3,
+            },
+            {
+              ResponseCaption: "Disagree",
+              numberOfResponses: 2,
+              colorCode: "#c00000",
+              percent: 0.01,
+              percentage: 1,
+            },
+            {
+              totalNumberOfQuestionsPerSection: 1,
+              totalNumberOfResponsePerSection: 201,
+              totalRespondents: 201,
+              questionRange: ["question-1"],
+            },
+          ],
+        },
+      ],
+    });
+    vi.spyOn(api.reports, "responseBreakdown").mockResolvedValue({
+      success: true,
+      message: "success",
+      isConfidential: false,
+      data: [
+        {
+          question: "I can do my best work.",
+          questionId: "question-1",
+          responses: [
+            {
+              ResponseCaption: "Strongly Agree",
+              numberOfResponses: 192,
+              percent: 96,
+              colorCode: "#00a46a",
+            },
+            {
+              ResponseCaption: "Neutral",
+              numberOfResponses: 6,
+              percent: 3,
+              colorCode: "#ffc955",
+            },
+            {
+              ResponseCaption: "Disagree",
+              numberOfResponses: 1,
+              percent: 74,
+              colorCode: "#ed7d31",
+            },
+            {
+              ResponseCaption: "Strongly Disagree",
+              numberOfResponses: 1,
+              percent: 74,
+              colorCode: "#c00000",
+            },
+          ],
+        },
+      ],
+    });
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <DetailedResultsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const cards = await screen.findAllByRole("button", {
+      name: /Core Employee Experience/u,
+    });
+    const card = cards.find((element) => element.tagName === "DIV");
+    if (!card) throw new Error("Category card was not rendered");
+    fireEvent.click(card);
+
+    expect(
+      await screen.findByText("Agreement: 96% (192 responses)"),
+    ).toBeVisible();
+    expect(screen.getByText("Neutral: 3% (6 responses)")).toBeVisible();
+    expect(screen.getByText("Disagreement: 1% (2 responses)")).toBeVisible();
+    expect(screen.queryByText(/148%/u)).not.toBeInTheDocument();
+    const distribution = screen.getByRole("img", {
+      name: "I can do my best work. response distribution",
+    });
+    expect(distribution.children[2]).toHaveStyle({ width: "1%" });
+  });
+
+  it("groups configured five-point answers and omits excluded N/A responses", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
+    vi.spyOn(api.reports, "responseBreakdownBySection").mockResolvedValue({
+      success: true,
+      message: "success",
+      isConfidential: false,
+      data: [
+        {
+          "Core Employee Experience": [
+            {
+              ResponseCaption: "Agree",
+              numberOfResponses: 2,
+              colorCode: "#00a46a",
+              percent: 0.4,
+              percentage: 40,
+            },
+            {
+              ResponseCaption: "Neutral",
+              numberOfResponses: 1,
+              colorCode: "#ffc955",
+              percent: 0.2,
+              percentage: 20,
+            },
+            {
+              ResponseCaption: "Disagree",
+              numberOfResponses: 2,
+              colorCode: "#c00000",
+              percent: 0.4,
+              percentage: 40,
+            },
+            {
+              totalNumberOfQuestionsPerSection: 1,
+              totalNumberOfResponsePerSection: 6,
+              totalRespondents: 6,
+              questionRange: ["question-1"],
+            },
+          ],
+        },
+      ],
+    });
+    vi.spyOn(api.reports, "responseBreakdown").mockResolvedValue({
+      success: true,
+      message: "success",
+      isConfidential: false,
+      data: [
+        {
+          question: "I can do my best work.",
+          questionId: "question-1",
+          responses: [
+            {
+              ResponseCaption: "Never",
+              agreementGroup: "Disagree",
+              numberOfResponses: 1,
+              percent: 20,
+              colorCode: "#8C60F3",
+            },
+            {
+              ResponseCaption: "Rarely",
+              agreementGroup: "Disagree",
+              numberOfResponses: 1,
+              percent: 20,
+              colorCode: "#8C60F3",
+            },
+            {
+              ResponseCaption: "Sometimes",
+              agreementGroup: "Neutral",
+              numberOfResponses: 1,
+              percent: 20,
+              colorCode: "#8C60F3",
+            },
+            {
+              ResponseCaption: "Often",
+              agreementGroup: "Agree",
+              numberOfResponses: 1,
+              percent: 20,
+              colorCode: "#8C60F3",
+            },
+            {
+              ResponseCaption: "Always",
+              agreementGroup: "Agree",
+              numberOfResponses: 1,
+              percent: 20,
+              colorCode: "#8C60F3",
+            },
+          ],
+        },
+      ],
+    });
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <DetailedResultsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const cards = await screen.findAllByRole("button", {
+      name: /Core Employee Experience/u,
+    });
+    const card = cards.find((element) => element.tagName === "DIV");
+    if (!card) throw new Error("Category card was not rendered");
+    fireEvent.click(card);
+
+    expect(
+      await screen.findByText("Agreement: 40% (2 responses)"),
+    ).toBeVisible();
+    expect(screen.getByText("Neutral: 20% (1 responses)")).toBeVisible();
+    expect(screen.getByText("Disagreement: 40% (2 responses)")).toBeVisible();
+    expect(screen.queryByText(/N\/A:/u)).not.toBeInTheDocument();
+    const distribution = screen.getByRole("img", {
+      name: "I can do my best work. response distribution",
+    });
+    expect(distribution.children[0]).toHaveStyle({ width: "40%" });
+    expect(distribution.children[1]).toHaveStyle({ width: "20%" });
+    expect(distribution.children[2]).toHaveStyle({ width: "40%" });
   });
 });

@@ -47,6 +47,12 @@ test("shows sticky cohorts and expands workbook percentages", async ({
       }),
     });
   });
+  await page.route("**/client/employerBenchmarkReportExcel?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      body: "workbook fixture",
+    });
+  });
 
   await page.goto("/login");
   await page.getByLabel("Username").fill(clientFixtureUsername);
@@ -75,4 +81,34 @@ test("shows sticky cohorts and expands workbook percentages", async ({
     .click();
   await expect(page.getByText("88%").first()).toBeVisible();
   await expect(page.getByText("51%").first()).toBeVisible();
+
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download Report" }).click();
+  expect((await download).suggestedFilename()).toBe("Benefits_&_Best_Practices.xlsx");
+});
+
+test("shows the source-data error without a download when no EA report exists", async ({ page }) => {
+  await installClientApiFixture(page, { dashboard: true });
+  await page.route("**/client/employerBenchmarkReport?**", async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        message: "Benefits & Best Practices is not available for this program",
+      }),
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("Username").fill(clientFixtureUsername);
+  await page.getByRole("button", { name: "Log In" }).click();
+  await page.getByRole("button", { name: "Yes" }).click();
+  await page.getByLabel("Email").fill("client@example.invalid");
+  await page.getByRole("button", { name: "Continue Log In" }).click();
+  await page.goto("/benefits-and-best-practices");
+
+  await expect(page.getByRole("alert")).toContainText(
+    "Benefits & Best Practices is not available for this program",
+  );
+  await expect(page.getByRole("button", { name: "Download Report" })).toHaveCount(0);
 });

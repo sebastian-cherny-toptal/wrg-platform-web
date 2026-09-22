@@ -297,4 +297,42 @@ describe("Employee Verbatims page", () => {
     expect(screen.getByText("Employee response 1 · Human Resources")).toBeVisible();
     expect(answers).toHaveBeenCalledWith("program-2026", "question-1");
   });
+
+  it("does not offer ordinary access when a purchased sorting selection is missing", async () => {
+    useAppStore.getState().setSession({
+      ...session,
+      user: {
+        ...session.user,
+        programs: session.user.programs.map((program) => ({
+          ...program,
+          entitlements: { ...program.entitlements, SEV_Access: "yes" },
+        })),
+      },
+    });
+    vi.spyOn(api.reports, "openResponseQuestions").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: [{ caption: "What should we improve?", id: "question-1" }],
+    });
+    const answers = vi.spyOn(api.reports, "openResponseAnswers");
+    vi.spyOn(api.reports, "catalog").mockResolvedValue([]);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <EmployeeVerbatimsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Sorting filter unavailable")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Download Report" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Download sorted report" })).not.toBeInTheDocument();
+    expect(screen.queryByText("What should we improve?")).not.toBeInTheDocument();
+    expect(answers).not.toHaveBeenCalled();
+  });
 });

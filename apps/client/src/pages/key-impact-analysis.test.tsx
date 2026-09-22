@@ -38,16 +38,18 @@ describe("Key Impact Analysis page", () => {
     useAppStore.getState().setSession(null);
   });
 
-  it("renders contribution bubbles and opens their details", async () => {
+  it("ranks contributions with deterministic ties and shows matching chart values", async () => {
     useAppStore.getState().setSession(session);
     vi.spyOn(api.reports, "catalog").mockResolvedValue([]);
     vi.spyOn(api.reports, "keyImpactAnalysis").mockResolvedValue({
       success: true,
       message: "success",
       data: {
-        mapping: { [question]: 15.49 },
+        mapping: { "Team support": 12, [question]: 15.49, "Benefits offered": 12 },
         report: [
           { label: "Your Job", key: question, value: 0.1549 },
+          { label: "Workplace Culture", key: "Team support", value: 0.12 },
+          { label: "Employee Benefits", key: "Benefits offered", value: 0.12 },
         ],
         data: { signedUrl: null },
       },
@@ -64,9 +66,31 @@ describe("Key Impact Analysis page", () => {
       </QueryClientProvider>,
     );
 
-    const bubble = await screen.findByLabelText(
-      `${question}, 15.49% of contribution`,
-    );
+    const table = await screen.findByRole("table", {
+      name: "Key Impact Analysis contributions ranked from highest to lowest",
+    });
+    const rows = Array.from(table.querySelectorAll("tbody tr"));
+    expect(rows.map((row) => row.textContent)).toEqual([
+      `1Your Job${question}15.49%`,
+      "2Employee BenefitsBenefits offered12.00%",
+      "3Workplace CultureTeam support12.00%",
+    ]);
+    expect(screen.queryByTestId("key-impact-chart")).not.toBeVisible();
+    fireEvent.click(screen.getByText("View contribution bubble chart"));
+    const chart = screen.getByTestId("key-impact-chart");
+    expect(chart).toBeVisible();
+    for (const [label, percentage] of [
+      [question, "15.49"],
+      ["Benefits offered", "12.00"],
+      ["Team support", "12.00"],
+    ]) {
+      expect(screen.getByRole("button", {
+        name: `${label}, ${percentage}% of contribution`,
+      })).toBeVisible();
+    }
+    const bubble = screen.getByRole("button", {
+      name: `${question}, 15.49% of contribution`,
+    });
     fireEvent.click(bubble);
 
     expect(screen.getByRole("dialog")).toBeVisible();

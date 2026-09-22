@@ -1,8 +1,11 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "../api/schemas";
+import { api } from "../api/client";
+import { KeyImpactAnalysisPage } from "../pages/client-reports";
 import { useAppStore } from "../store/app-store";
 import { AppShell } from "./shell";
 
@@ -41,19 +44,26 @@ function session(): Session {
 }
 
 function renderShell() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 60_000 } } });
   return render(
-    <MemoryRouter initialEntries={["/dashboard"]}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route path="/dashboard" element={<div>Dashboard page</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/dashboard" element={<Link to="/programs">Programs</Link>} />
+            <Route path="/programs" element={<Link to="/dashboard">Return to dashboard</Link>} />
+            <Route path="/key-impact-analysis" element={<KeyImpactAnalysisPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   useAppStore.getState().setSession(null);
 });
 
@@ -63,7 +73,7 @@ describe("client sidebar", () => {
     const user = userEvent.setup();
     renderShell();
 
-    await user.click(screen.getByText("My Reports"));
+    await user.click(screen.getByText("My Reports", { selector: "summary span" }));
 
     expect(
       screen.queryByRole("link", { name: "Employee Response Breakdown" }),
@@ -83,5 +93,58 @@ describe("client sidebar", () => {
     expect(
       screen.getByRole("link", { name: "Employee Verbatims" }),
     ).toBeVisible();
+  });
+
+  it("refreshes only the uploaded program's pending KIA label on in-app navigation", async () => {
+    const pendingSession = session();
+    const baseProgram = pendingSession.user.programs[0];
+    if (!baseProgram) throw new Error("Missing test program");
+    pendingSession.user.programs = [
+      { ...baseProgram, entitlements: { KIA_Access: "yes" }, reportSelections: { KIA_Order_Status: "Processing" } },
+      { ...baseProgram, id: "program-2025", year: 2025, entitlements: { KIA_Access: "yes" }, reportSelections: { KIA_Order_Status: "Processing" } },
+    ];
+    useAppStore.getState().setSession(pendingSession);
+    let delivered = false;
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        success: true,
+        data: [
+          { programId: "program-2026", status: delivered ? "Delivered" : "Processing" },
+          { programId: "program-2025", status: "Processing" },
+        ],
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(api.reports, "catalog").mockResolvedValue([]);
+    const analysis = vi.spyOn(api.reports, "keyImpactAnalysis").mockImplementation(() => Promise.resolve({
+      success: true,
+      message: "success",
+      data: {
+        mapping: delivered ? { leadership: 42 } : {},
+        report: delivered ? [{ label: "Leadership", key: "leadership", value: 0.42 }] : [],
+        data: { signedUrl: null },
+      },
+    }));
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByText("My Reports"));
+    expect(screen.getByRole("link", { name: "Key Impact Analysis (not yet uploaded)" })).toBeVisible();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await user.click(screen.getByRole("link", { name: "Key Impact Analysis (not yet uploaded)" }));
+    expect(await screen.findByText("Key Impact Analysis not yet uploaded")).toBeVisible();
+    await user.click(screen.getByRole("link", { name: "Dashboard" }));
+
+    delivered = true;
+    await user.click(screen.getByRole("link", { name: "Programs" }));
+    expect(await screen.findByRole("link", { name: "Key Impact Analysis" })).toBeVisible();
+    await user.click(screen.getByRole("link", { name: "Key Impact Analysis" }));
+    expect(await screen.findByRole("table", { name: "Key Impact Analysis contributions ranked from highest to lowest" })).toBeVisible();
+    expect(screen.getByRole("cell", { name: "42.00%" })).toBeVisible();
+    expect(analysis).toHaveBeenCalledTimes(2);
+    act(() => useAppStore.getState().selectProgram("program-2025"));
+    await user.click(screen.getByText("My Reports", { selector: "summary span" }));
+    expect(screen.getByRole("link", { name: "Key Impact Analysis (not yet uploaded)" })).toBeVisible();
   });
 });

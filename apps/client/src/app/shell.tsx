@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { WorkforceLogoWhite } from '@wrg/platform-ui'
@@ -194,6 +195,8 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
 }
 
 export function AppShell() {
+  const location = useLocation()
+  const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
@@ -217,11 +220,25 @@ export function AppShell() {
   }, [profileOpen])
   const navigate = useNavigate()
   const session = useAppStore((state) => state.session)
+  const hasKiaAccess = session?.user.programs.some((program) => program.entitlements.KIA_Access === 'yes') ?? false
   const setSession = useAppStore((state) => state.setSession)
   const selectedProgramId = useAppStore((state) => state.selectedProgramId)
   const cartCount = useAppStore((state) => state.cart.reduce((total, item) => total + item.quantity, 0))
   const purchaseCelebration = useAppStore((state) => state.purchaseCelebration)
   const clearPurchaseCelebration = useAppStore((state) => state.clearPurchaseCelebration)
+
+  useEffect(() => {
+    if (!hasKiaAccess) return
+    const controller = new AbortController()
+    void api.session.refreshReportStatuses(controller.signal).then((changedProgramIds) => {
+      for (const programId of changedProgramIds) {
+        void queryClient.invalidateQueries({ queryKey: ['key-impact-analysis', programId] })
+      }
+    }).catch(() => {
+      // Keep the current labels if a status refresh is temporarily unavailable.
+    })
+    return () => controller.abort()
+  }, [hasKiaAccess, location.key, queryClient, session?.user.id])
 
   useEffect(() => {
     if (!purchaseCelebration) return

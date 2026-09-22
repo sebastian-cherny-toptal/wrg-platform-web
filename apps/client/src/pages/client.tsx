@@ -174,10 +174,10 @@ export function DashboardPage() {
           'alwaysVisible' in report || program?.entitlements[report.entitlement] === 'yes',
       )
   const dashboard = useQuery({
-    queryKey: ['dashboard-overview', program?.id],
+    queryKey: ['dashboard-overview', program?.id, isPromotional],
     queryFn: () => {
       if (!program) throw new Error('A program is required to load dashboard data')
-      return api.dashboard.overview(program.id)
+      return api.dashboard.overview(program.id, isPromotional)
     },
     enabled: Boolean(program),
   })
@@ -236,6 +236,12 @@ export function DashboardPage() {
       </div>
 
       <div className="mt-6 border-t border-zinc-200 bg-[#fbfbfb] px-6 pb-6 pt-3">
+        {isPromotional ? (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm">
+            <span><strong>Sample dashboard preview</strong> — Figures and statements are from a fictional organization.</span>
+            <Link className="font-semibold text-violet-700 underline" to={routeMap.catalog}>Explore reports in the store</Link>
+          </div>
+        ) : null}
         {!program ? (
           <StatePanel kind="empty" title="No program selected" message="Your account does not currently have access to a reporting program." />
         ) : dashboard.isPending ? (
@@ -459,6 +465,7 @@ export function WorkforceFeedbackPage() {
         description="Review the number of surveys completed within each demographic of your respondent population."
       />
       <div className="p-5 lg:p-6">
+        {isDummy ? <p className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm font-medium text-violet-800" role="status">Viewing sample report data from a fictional organization.</p> : null}
         {report.isPending ? (
           <StatePanel kind="loading" title="Loading response data" message="Preparing demographic categories for the selected program." />
         ) : report.isError ? (
@@ -509,20 +516,20 @@ export function WorkforceFeedbackPage() {
 
 export function CatalogPage() {
   const program = useSelectedProgram()
+  const isPromotional = useAppStore((state) => state.session?.user.role === 'promotional')
   const catalog = useQuery({
     queryKey: ['report-catalog', program?.id],
     queryFn: () => api.reports.catalog(program?.id),
     enabled: Boolean(program),
   })
   const surveyFilters = useQuery({
-    queryKey: ['survey-filters', program?.id],
-    queryFn: () => api.reports.surveyFilters(program?.id ?? ''),
+    queryKey: ['survey-filters', program?.id, isPromotional],
+    queryFn: () => api.reports.surveyFilters(program?.id ?? '', isPromotional),
     enabled: Boolean(program),
   })
   const addToCart = useAppStore((state) => state.addToCart)
   const cart = useAppStore((state) => state.cart)
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0)
-  const isPromotional = useAppStore((state) => state.session?.user.role === 'promotional')
   const [verbatimFilter, setVerbatimFilter] = useState('')
   const products = catalog.data ?? []
   const standardPackage = products.find((product) => product.id === 'report-standard-package')

@@ -59,6 +59,61 @@ const preparedResponse = (
 });
 
 describe("local workbook selection", () => {
+  it("blocks continuing when a restored preview contains an unresolved question key", () => {
+    const onComplete = vi.fn();
+    render(
+      <UploadStep
+        draft={{
+          metadata: draft.metadata,
+          eaFile: new File(["ea"], "ea.xlsx"),
+          efsFile: new File(["efs"], "efs.xlsx"),
+          validation: {
+            issues: [
+              {
+                level: "error",
+                message:
+                  "efs.xlsx: question text is unavailable for q_CoreEmployeeExperience_Test",
+              },
+            ],
+            workbooks: [
+              {
+                kind: "EA",
+                fileName: "ea.xlsx",
+                sha256: "ea",
+                questions: 1,
+                organizations: 1,
+                respondents: 1,
+                responses: 1,
+              },
+              {
+                kind: "EFS",
+                fileName: "efs.xlsx",
+                sha256: "efs",
+                questions: 1,
+                organizations: 1,
+                respondents: 1,
+                responses: 1,
+              },
+            ],
+            organizations: [],
+            blockingErrorCount: 0,
+            warningCount: 0,
+          },
+        }}
+        onBack={vi.fn()}
+        onComplete={onComplete}
+        onRestart={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "Resolve the workbook validation errors before continuing.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("validates both workbooks without creating a database draft", async () => {
     const fetchMock = vi.fn((_url: string, options: RequestInit) => {
       const body = options.body as FormData;
