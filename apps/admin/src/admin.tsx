@@ -2484,6 +2484,7 @@ const userTableColumns = [
   "Username",
   "Role",
   "Projects",
+  "Programs",
   "Organizations",
   "Date Created",
   "Last Login",
@@ -2702,6 +2703,17 @@ export function UsersManagementPage() {
                   user.projects.length
                     ? user.projects.map((project) => project.name).join(" · ")
                     : "—",
+                  user.programDetails.length ? (
+                    <div className="user-program-list">
+                      {user.programDetails.map((program) => (
+                        <div key={program.id}>
+                          {program.name} ({program.year ?? "Year unavailable"})
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    "—"
+                  ),
                   user.organization?.name ?? "—",
                   formatDate(user.createdAt),
                   formatDateTime(user.lastLogin),

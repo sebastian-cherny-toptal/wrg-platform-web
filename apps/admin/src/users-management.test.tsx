@@ -27,6 +27,7 @@ const user: UserRecord = {
     { id: "p1", name: "Workforce" },
     { id: "p2", name: "Benefits" },
   ],
+  programDetails: [],
   createdAt: null,
   lastLogin: null,
   status: "ACTIVE",
@@ -43,10 +44,10 @@ it("shows memberships and all columns by default, and toggles aligned headers an
     </MemoryRouter>,
   );
   const table = await screen.findByRole("table");
-  expect(within(table).getAllByRole("columnheader")).toHaveLength(13);
+  expect(within(table).getAllByRole("columnheader")).toHaveLength(14);
   expect(within(table).getByText("Workforce · Benefits")).toBeTruthy();
   expect(within(table).getByText("Acme")).toBeTruthy();
-  fireEvent.click(screen.getByText("Columns to show (13/13)"));
+  fireEvent.click(screen.getByText("Columns to show (14/14)"));
   expect(
     screen
       .getAllByRole("checkbox")
@@ -60,11 +61,11 @@ it("shows memberships and all columns by default, and toggles aligned headers an
   expect(
     within(table).getByRole("columnheader", { name: "Organizations" }),
   ).toBeTruthy();
-  expect(within(table).getAllByRole("cell")).toHaveLength(12);
+  expect(within(table).getAllByRole("cell")).toHaveLength(13);
   fireEvent.click(screen.getByRole("checkbox", { name: "Organizations" }));
   expect(within(table).queryByText("Acme")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Select all columns" }));
-  expect(within(table).getAllByRole("columnheader")).toHaveLength(13);
+  expect(within(table).getAllByRole("columnheader")).toHaveLength(14);
   expect(within(table).getByText("Acme")).toBeTruthy();
   fireEvent.change(screen.getByPlaceholderText("Search users"), {
     target: { value: "Benefits" },
@@ -80,7 +81,7 @@ it("allows clearing all columns and restoring them", async () => {
     </MemoryRouter>,
   );
   await screen.findByRole("table");
-  fireEvent.click(screen.getByText("Columns to show (13/13)"));
+  fireEvent.click(screen.getByText("Columns to show (14/14)"));
   screen.getAllByRole("checkbox").forEach((input) => fireEvent.click(input));
   expect(screen.queryByRole("table")).toBeNull();
   expect(
@@ -90,8 +91,58 @@ it("allows clearing all columns and restoring them", async () => {
   expect(screen.getByRole("table")).toBeTruthy();
 });
 
+it("shows zero, one, and multiple assigned programs and toggles their column", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([
+    user,
+    {
+      ...user,
+      id: "user-2",
+      fullName: "Blair Example",
+      programDetails: [{ id: "program-2025", name: "Workforce", year: 2025 }],
+    },
+    {
+      ...user,
+      id: "user-3",
+      fullName: "Casey Example",
+      programDetails: [
+        { id: "program-2025", name: "Workforce", year: 2025 },
+        { id: "program-2026", name: "Benefits", year: 2026 },
+      ],
+    },
+  ]);
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  const table = await screen.findByRole("table");
+  const rows = within(table).getAllByRole("row");
+  expect(within(rows[1]).getAllByRole("cell")[5].textContent).toBe("—");
+  expect(within(rows[2]).getAllByRole("cell")[5].textContent).toBe(
+    "Workforce (2025)",
+  );
+  expect(within(rows[3]).getAllByRole("cell")[5].textContent).toBe(
+    "Workforce (2025)Benefits (2026)",
+  );
+  fireEvent.click(screen.getByText("Columns to show (14/14)"));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Programs" }));
+  expect(within(table).queryByRole("columnheader", { name: "Programs" })).toBeNull();
+  expect(within(rows[2]).getAllByRole("cell")[5].textContent).toBe("Acme");
+});
+
 it("retains earlier programs and adds new years only within assigned projects", async () => {
-  vi.spyOn(api, "users").mockResolvedValue([{ ...user, programs: ["old"] }]);
+  vi.spyOn(api, "users")
+    .mockResolvedValueOnce([{ ...user, programs: ["old"] }])
+    .mockResolvedValue([
+      {
+        ...user,
+        programs: ["old", "new"],
+        programDetails: [
+          { id: "old", name: "Workforce", year: 2025 },
+          { id: "new", name: "Workforce", year: 2026 },
+        ],
+      },
+    ]);
   const program = (id: string, year: number) => ({
     id,
     name: "Workforce",
@@ -140,4 +191,6 @@ it("retains earlier programs and adds new years only within assigned projects", 
       programs: ["old", "new"],
     }),
   );
+  await screen.findByText("Workforce (2026)");
+  expect(screen.getByText("Workforce (2025)")).toBeTruthy();
 });

@@ -1,7 +1,7 @@
 # 15 — Show assigned program names and years in the users table
 
 **Category:** enhancement
-**State:** ready-for-agent
+**State:** implemented
 
 ## Agent Brief
 
@@ -13,10 +13,10 @@
 
 **Acceptance criteria:**
 
-- [ ] A user with multiple assigned programs displays every program with its correct year.
-- [ ] A user without programs displays an empty-state marker.
-- [ ] The column is available through the table's visibility controls and remains aligned in export if the table exports visible columns.
-- [ ] Program assignment changes appear after the existing list refresh.
+- [x] A user with multiple assigned programs displays every program with its correct year.
+- [x] A user without programs displays an empty-state marker.
+- [x] The column is available through the table's visibility controls and remains aligned in export if the table exports visible columns. (The users table has no export.)
+- [x] Program assignment changes appear after the existing list refresh.
 
 **Out of scope:** Adding new program assignments, changing annual-trends logic, or introducing a new table sort unless needed by existing table conventions.
 

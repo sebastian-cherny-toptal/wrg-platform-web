@@ -172,6 +172,7 @@ export type UserRecord = {
   organization: { id: string; name: string } | null;
   projects: Array<{ id: string; name: string }>;
   programs?: string[];
+  programDetails: Array<{ id: string; name: string; year: number | null }>;
   createdAt: string | null;
   lastLogin: string | null;
   status: string;
@@ -1038,6 +1039,14 @@ export const api = {
             }
           : null,
         programs: array(value.programs).map((id) => stringValue(id)),
+        programDetails: array(value.programDetails).map((entry) => {
+          const program = object(entry);
+          return {
+            id: stringValue(program.id),
+            name: stringValue(program.name),
+            year: typeof program.year === "number" ? program.year : null,
+          };
+        }),
         projects: array(value.projects).map((projectValue) => {
           const project = object(projectValue);
           return {

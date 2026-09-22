@@ -589,6 +589,50 @@ describe("admin API projections", () => {
     ]);
   });
 
+  it("reads assigned program identities while keeping IDs for editing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            data: [
+              { id: "none", programs: [], programDetails: [] },
+              {
+                id: "one",
+                programs: ["p1"],
+                programDetails: [{ id: "p1", name: "Workforce", year: 2025 }],
+              },
+              {
+                id: "many",
+                programs: ["p1", "p2"],
+                programDetails: [
+                  { id: "p1", name: "Workforce", year: 2025 },
+                  { id: "p2", name: "Benefits", year: 2026 },
+                ],
+              },
+            ],
+          }),
+      }),
+    );
+    const users = await api.users();
+    expect(users.map(({ programs, programDetails }) => ({ programs, programDetails }))).toEqual([
+      { programs: [], programDetails: [] },
+      {
+        programs: ["p1"],
+        programDetails: [{ id: "p1", name: "Workforce", year: 2025 }],
+      },
+      {
+        programs: ["p1", "p2"],
+        programDetails: [
+          { id: "p1", name: "Workforce", year: 2025 },
+          { id: "p2", name: "Benefits", year: 2026 },
+        ],
+      },
+    ]);
+  });
+
   it("projects the programs available to an organization", () => {
     const result = organization({
       _id: "organization-id",
