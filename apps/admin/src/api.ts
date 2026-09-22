@@ -320,7 +320,15 @@ export type PendingKeyImpactAnalysis = {
   projectId: string;
   projectName: string;
   purchasedAt: string;
+  purchasedByUsername: string | null;
   status: string;
+};
+
+export type UploadedKeyImpactAnalysis = PendingKeyImpactAnalysis & {
+  id: string;
+  uploadedByUsername: string | null;
+  uploadedAt: string;
+  sourceFileName: string | null;
 };
 
 export type ProgramZohoResyncField =
@@ -1016,9 +1024,47 @@ export const api = {
         projectId: stringValue(value.projectId),
         projectName: stringValue(value.projectName),
         purchasedAt: stringValue(value.purchasedAt),
+        purchasedByUsername: stringValue(value.purchasedByUsername) || null,
         status: stringValue(value.status, "Processing"),
       };
     });
+  },
+
+  async uploadedKeyImpactAnalyses(): Promise<UploadedKeyImpactAnalysis[]> {
+    const response = await request<unknown>(
+      "/admin/key-impact-analysis/uploaded",
+    );
+    return array(object(response).data).map((entry) => {
+      const value = object(entry);
+      return {
+        id: stringValue(value.id),
+        organizationId: stringValue(value.organizationId),
+        organizationName: stringValue(value.organizationName),
+        organizationProgramId: stringValue(value.organizationProgramId),
+        programId: stringValue(value.programId),
+        programName: stringValue(value.programName),
+        programYear: Number.isInteger(value.programYear)
+          ? Number(value.programYear)
+          : null,
+        projectId: stringValue(value.projectId),
+        projectName: stringValue(value.projectName),
+        purchasedAt: stringValue(value.purchasedAt),
+        purchasedByUsername: stringValue(value.purchasedByUsername) || null,
+        status: "Uploaded",
+        uploadedByUsername: stringValue(value.uploadedByUsername) || null,
+        uploadedAt: stringValue(value.uploadedAt),
+        sourceFileName: stringValue(value.sourceFileName) || null,
+      };
+    });
+  },
+
+  async downloadKeyImpactAnalysis(
+    item: UploadedKeyImpactAnalysis,
+  ): Promise<void> {
+    await downloadRequest(
+      `/admin/key-impact-analysis/uploaded/${encodeURIComponent(item.id)}/download`,
+      item.sourceFileName || `key-impact-analysis-${item.id}.xlsx`,
+    );
   },
 
   async uploadKeyImpactAnalysis(

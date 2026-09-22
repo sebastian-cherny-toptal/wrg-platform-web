@@ -490,6 +490,12 @@ a {
 .table-card tbody tr:hover {
   background: #fafafa;
 }
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: max-content;
+}
 .table-card tbody tr.zoho-resync-changed-row,
 .table-card tbody tr.zoho-resync-changed-row:hover {
   background: #fef9c3;

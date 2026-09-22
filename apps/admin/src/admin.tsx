@@ -47,6 +47,7 @@ import {
   type CategoryPricing,
   type OrganizationRecord,
   type PendingKeyImpactAnalysis,
+  type UploadedKeyImpactAnalysis,
   type PortalUserRecord,
   type ProgramRecord,
   type ProgramZohoResyncChange,
@@ -501,10 +502,7 @@ export function ProjectsPage() {
       );
     });
   }, [loaded.data, search, date, sort]);
-  const pageCount = Math.max(
-    1,
-    Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE),
-  );
+  const pageCount = Math.max(1, Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pagedRows = rows.slice(
     (currentPage - 1) * ADMIN_TABLE_PAGE_SIZE,
@@ -1167,12 +1165,18 @@ export function ProgramDetailPage() {
           </>
         }
       />
-      <div aria-label="Program sections" className="program-tabs" role="tablist">
-        {([
-          ["details", "Program Details"],
-          ["pricing", "Report pricing"],
-          ["store", "Store"],
-        ] as const).map(([section, label]) => (
+      <div
+        aria-label="Program sections"
+        className="program-tabs"
+        role="tablist"
+      >
+        {(
+          [
+            ["details", "Program Details"],
+            ["pricing", "Report pricing"],
+            ["store", "Store"],
+          ] as const
+        ).map(([section, label]) => (
           <button
             aria-controls={`program-${section}-panel`}
             aria-selected={activeProgramSection === section}
@@ -1767,11 +1771,19 @@ function CatalogModal({
 
 export function KeyImpactAnalysisUploadsPage() {
   const pending = useLoad("pending-kia-uploads", api.pendingKeyImpactAnalyses);
+  const uploaded = useLoad(
+    "uploaded-kia-uploads",
+    api.uploadedKeyImpactAnalyses,
+  );
   const [selected, setSelected] = useState<PendingKeyImpactAnalysis | null>(
     null,
   );
   const [notice, setNotice] = useState("");
-  if (pending.loading && !pending.data) {
+  const [downloadError, setDownloadError] = useState("");
+  if (
+    (pending.loading && !pending.data) ||
+    (uploaded.loading && !uploaded.data)
+  ) {
     return (
       <State
         loading
@@ -1780,8 +1792,13 @@ export function KeyImpactAnalysisUploadsPage() {
       />
     );
   }
-  if (pending.error) {
-    return <State title="KIA purchases unavailable" message={pending.error} />;
+  if (pending.error || uploaded.error) {
+    return (
+      <State
+        title="KIA uploads unavailable"
+        message={pending.error || uploaded.error}
+      />
+    );
   }
   const items = pending.data ?? [];
   return (
@@ -1791,10 +1808,11 @@ export function KeyImpactAnalysisUploadsPage() {
         breadcrumb="Programs | Key Impact Analysis uploads"
       />
       <p className="page-intro">
-        Programs shown here have purchased Key Impact Analysis but do not yet
-        have a report uploaded.
+        Upload purchased Key Impact Analysis reports and review previous
+        uploads.
       </p>
       {notice ? <div className="notice">{notice}</div> : null}
+      <h2>Awaiting Upload</h2>
       {items.length ? (
         <DataTable
           headers={[
@@ -1825,6 +1843,61 @@ export function KeyImpactAnalysisUploadsPage() {
           message="There are no purchased Key Impact Analysis reports waiting for a file."
         />
       )}
+      <h2>Already Uploaded</h2>
+      {downloadError ? (
+        <p className="form-error" role="alert">
+          {downloadError}
+        </p>
+      ) : null}
+      <DataTable
+        headers={[
+          "Organization",
+          "Program",
+          "Project",
+          "Purchased",
+          "Status",
+          "Purchased by (username)",
+          "Actions",
+          "Uploaded by (admin username)",
+          "Uploaded on (datetime)",
+        ]}
+        rows={(uploaded.data ?? []).map((item: UploadedKeyImpactAnalysis) => [
+          item.organizationName,
+          `${item.programName}${item.programYear ? ` (${item.programYear})` : ""}`,
+          item.projectName,
+          formatDate(item.purchasedAt),
+          "Uploaded",
+          item.purchasedByUsername ?? "—",
+          <div className="table-actions">
+            <button
+              className="secondary-button compact"
+              onClick={() => {
+                setDownloadError("");
+                void api
+                  .downloadKeyImpactAnalysis(item)
+                  .catch((error: unknown) =>
+                    setDownloadError(
+                      error instanceof Error
+                        ? error.message
+                        : "Download failed",
+                    ),
+                  );
+              }}
+            >
+              Download report <Download size={16} />
+            </button>
+            <button
+              className="primary-button compact"
+              onClick={() => setSelected(item)}
+            >
+              Re-upload <FileUp size={16} />
+            </button>
+          </div>,
+          item.uploadedByUsername ?? "—",
+          formatDateTime(item.uploadedAt),
+        ])}
+        empty="No KIA reports have been uploaded yet."
+      />
       {selected ? (
         <KeyImpactAnalysisUploadModal
           item={selected}
@@ -1835,6 +1908,7 @@ export function KeyImpactAnalysisUploadsPage() {
             );
             setSelected(null);
             void pending.reload();
+            void uploaded.reload();
           }}
         />
       ) : null}
@@ -2875,10 +2949,7 @@ function GenericLogPage({
   const rows = (loaded.data ?? []).filter((row) =>
     JSON.stringify(row).toLowerCase().includes(search.toLowerCase()),
   );
-  const pageCount = Math.max(
-    1,
-    Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE),
-  );
+  const pageCount = Math.max(1, Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pagedRows = rows.slice(
     (currentPage - 1) * ADMIN_TABLE_PAGE_SIZE,
