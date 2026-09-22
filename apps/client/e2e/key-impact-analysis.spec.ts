@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 const contributions = {
   "How clearly do I understand our goals?": 18.4,
@@ -13,7 +14,7 @@ const contributions = {
   "I know what is expected of me": 1.6,
 };
 
-test("shows a ranked table and unclipped secondary bubbles", async ({ page }) => {
+test("shows PDF-style motivator cells and downloads the report as PDF", async ({ page }) => {
   const session = {
     user: {
       id: "client-1",
@@ -74,46 +75,26 @@ test("shows a ranked table and unclipped secondary bubbles", async ({ page }) =>
     name: "Key Impact Analysis contributions ranked from highest to lowest",
   });
   await expect(table).toBeVisible();
-  await expect(table.locator("tbody tr")).toHaveCount(10);
-  await expect(table.locator("tbody tr").first()).toContainText("18.40%");
-  const firstRow = table.locator("tbody tr").first();
-  const rowBounds = await firstRow.boundingBox();
-  const questionBounds = await firstRow.getByText("How clearly do I understand our goals?").boundingBox();
-  const percentageBounds = await firstRow.getByText("18.40%").boundingBox();
-  expect(rowBounds).not.toBeNull();
-  expect(questionBounds).not.toBeNull();
-  expect(percentageBounds).not.toBeNull();
-  if (!rowBounds || !questionBounds || !percentageBounds) {
-    throw new Error("The first ranked row must be visible");
+  await expect(table.locator("tbody td")).toHaveCount(10);
+  const firstCell = table.locator("tbody td").first();
+  await expect(firstCell).toContainText("18.4%");
+  await expect(firstCell).toContainText("How clearly do I understand our goals?");
+  await expect(firstCell.locator("span.rounded-full")).toHaveText("18.4%");
+  await expect(page.getByText("View contribution bubble chart")).toHaveCount(0);
+  if ((page.viewportSize()?.width ?? 0) >= 640) {
+    const first = await firstCell.boundingBox();
+    const second = await table.locator("tbody td").nth(1).boundingBox();
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    if (first && second) {
+      expect(second.y).toBe(first.y);
+      expect(second.x).toBeGreaterThan(first.x);
+    }
   }
-  expect(questionBounds.x + questionBounds.width).toBeLessThanOrEqual(
-    rowBounds.x + rowBounds.width,
-  );
-  expect(percentageBounds.x + percentageBounds.width).toBeLessThanOrEqual(
-    rowBounds.x + rowBounds.width,
-  );
-  await page.getByText("View contribution bubble chart").click();
-  const chart = page.getByTestId("key-impact-chart");
-  await expect(chart.getByRole("button")).toHaveCount(10);
-
-  const chartBounds = await chart.boundingBox();
-  expect(chartBounds).not.toBeNull();
-  if (!chartBounds) throw new Error("The chart must be visible");
-  for (const bubble of await chart.getByRole("button").all()) {
-    const bounds = await bubble.boundingBox();
-    expect(bounds).not.toBeNull();
-    if (!bounds) throw new Error("Every bubble must be visible");
-    expect(bounds.x).toBeGreaterThanOrEqual(chartBounds.x);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(
-      chartBounds.x + chartBounds.width,
-    );
-  }
-  await chart.getByRole("button", {
-    name: "I know what is expected of me, 1.60% of contribution",
-  }).click();
-  await expect(page.getByRole("dialog")).toContainText("1.60% of contribution");
-  await page.getByRole("button", { name: "Close contribution details" }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download Report" }).click();
-  expect((await download).suggestedFilename()).toBe("Key_Impact_Analysis_2026.png");
+  const file = await download;
+  expect(file.suggestedFilename()).toBe("Key_Impact_Analysis_2026.pdf");
+  const bytes = await readFile(await file.path());
+  expect(bytes.toString("ascii", 0, 5)).toBe("%PDF-");
 });

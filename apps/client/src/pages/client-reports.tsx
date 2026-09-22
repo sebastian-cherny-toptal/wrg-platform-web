@@ -11,7 +11,6 @@ import {
   XCircle,
 } from "lucide-react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { toPng } from "html-to-image";
 import {
   useEffect,
   useMemo,
@@ -34,6 +33,12 @@ import { ImageDownloadMenu } from "../components/image-download-menu";
 import { Button, Card, PageHeader, StatePanel, cn } from "../components/ui";
 import { useAppStore, useSelectedProgram } from "../store/app-store";
 import { pairedWorkforceCohorts, workforceCohorts } from "./workforce-cohorts";
+import {
+  downloadKeyImpactPdf,
+  keyImpactColors,
+  keyImpactDescription,
+  type KeyImpactEntry,
+} from "./key-impact-report";
 
 const OPEN_REPORT_CART_EVENT = "wrg:open-report-cart";
 const reportMoney = new Intl.NumberFormat("en-US", {
@@ -3348,128 +3353,6 @@ export function ResponseDetailPage() {
   );
 }
 
-type KeyImpactBubble = {
-  category: string;
-  percentage: number;
-  question: string;
-};
-
-const keyImpactColors = [
-  "#7c3aed",
-  "#8b5cf6",
-  "#a78bfa",
-  "#c4b5fd",
-  "#ddd6fe",
-  "#ede9fe",
-  "#f0edff",
-  "#f3f0ff",
-  "#f5f3ff",
-  "#f7f5ff",
-];
-
-function KeyImpactBubbleChart({
-  bubbles,
-  onSelect,
-}: {
-  bubbles: KeyImpactBubble[];
-  onSelect: (bubble: KeyImpactBubble) => void;
-}) {
-  return (
-    <div
-      aria-label="Key impact contribution bubbles"
-      className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3"
-      data-testid="key-impact-chart"
-      role="group"
-    >
-      {bubbles.map((bubble, index) => {
-        const diameter =
-          56 + Math.sqrt(Math.max(0, Math.min(100, bubble.percentage))) * 12.8;
-        return (
-          <button
-            aria-label={`${bubble.question}, ${bubble.percentage.toFixed(2)}% of contribution`}
-            className="flex min-w-0 flex-col items-center gap-3 rounded-xl p-3 text-center outline-none hover:bg-violet-50 focus-visible:ring-2 focus-visible:ring-violet-700"
-            key={bubble.question}
-            onClick={() => onSelect(bubble)}
-            type="button"
-          >
-            <span
-              aria-hidden="true"
-              className="grid shrink-0 place-items-center rounded-full font-bold text-zinc-950 shadow-sm"
-              style={{
-                backgroundColor: keyImpactColors[index % keyImpactColors.length],
-                height: diameter,
-                width: diameter,
-              }}
-            >
-              {bubble.percentage.toFixed(2)}%
-            </span>
-            <span className="max-w-full text-sm font-semibold text-zinc-800">
-              {bubble.category}
-            </span>
-            <span className="max-w-full text-sm leading-5 text-zinc-600">
-              {bubble.question}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function KeyImpactDialog({
-  bubble,
-  onClose,
-}: {
-  bubble: KeyImpactBubble;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/75 p-6"
-      onClick={onClose}
-      role="presentation"
-    >
-      <section
-        aria-labelledby="key-impact-dialog-title"
-        aria-modal="true"
-        className="relative w-full max-w-md animate-fade-in rounded-2xl bg-white px-8 py-10 text-center shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-      >
-        <button
-          aria-label="Close contribution details"
-          className="absolute right-4 top-4 grid size-8 place-items-center rounded-full text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-          onClick={onClose}
-        >
-          <X className="size-4" />
-        </button>
-        <h2
-          className="text-xl font-semibold text-zinc-950"
-          id="key-impact-dialog-title"
-        >
-          {bubble.category}
-        </h2>
-        <p className="mt-4 text-base leading-6 text-zinc-500">
-          {bubble.question} –{" "}
-          <strong className="font-semibold text-violet-600">
-            {bubble.percentage.toFixed(2)}% of contribution
-          </strong>
-          .
-        </p>
-      </section>
-    </div>,
-    document.body,
-  );
-}
-
 export function KeyImpactAnalysisPage() {
   const program = useSelectedProgram();
   const [searchParams] = useSearchParams();
@@ -3486,10 +3369,6 @@ export function KeyImpactAnalysisPage() {
   const keyImpactProduct = catalog.data?.find(
     (product) => product.id === "report-kia",
   );
-  const reportRef = useRef<HTMLDivElement>(null);
-  const [selectedBubble, setSelectedBubble] = useState<KeyImpactBubble | null>(
-    null,
-  );
   const analysis = useQuery({
     queryKey: ["key-impact-analysis", program?.id, isDemo],
     queryFn: () => api.reports.keyImpactAnalysis(program?.id ?? "", isDemo),
@@ -3497,7 +3376,7 @@ export function KeyImpactAnalysisPage() {
   });
   const report = analysis.data?.data.report ?? [];
   const labels = new Map(report.map((item) => [item.key, item.label]));
-  const bubbles = Object.entries(analysis.data?.data.mapping ?? {})
+  const entries: KeyImpactEntry[] = Object.entries(analysis.data?.data.mapping ?? {})
     .map(([question, percentage]) => {
       const label = labels.get(question)?.trim();
       return {
@@ -3514,7 +3393,7 @@ export function KeyImpactAnalysisPage() {
   return (
     <>
       <ReportHeader
-        description="This report identifies key motivators of employee engagement within your unique population. This information is vital to knowing what workplace attributes are most important to retain your top talent and drive high productivity among all staff."
+        description={keyImpactDescription}
         title="Key Impact Analysis"
       />
       {isDemo && keyImpactProduct ? (
@@ -3548,27 +3427,15 @@ export function KeyImpactAnalysisPage() {
         </div>
       ) : null}
       <div className="p-6">
-        {analysis.data && !isDemo && bubbles.length > 0 ? (
+        {analysis.data && !isDemo && entries.length > 0 ? (
           <DownloadReportButton
-            onDownload={async () => {
-              const signedUrl = analysis.data.data.data.signedUrl;
-              if (signedUrl) {
-                await api.reports.downloadCustomReport(
-                  signedUrl,
-                  analysis.data.data.fileName ?? "Key_Impact_Analysis.pdf",
-                );
-                return;
-              }
-              if (!reportRef.current) return;
-              const image = await toPng(reportRef.current, {
-                backgroundColor: "#ffffff",
-                pixelRatio: 2,
-              });
-              const link = document.createElement("a");
-              link.download = `Key_Impact_Analysis_${program?.year ?? "report"}.png`;
-              link.href = image;
-              link.click();
-            }}
+            onDownload={() =>
+              downloadKeyImpactPdf(
+                entries,
+                program?.organizationName ?? "",
+                program?.year,
+              )
+            }
           />
         ) : null}
         {analysis.isPending ? (
@@ -3586,86 +3453,61 @@ export function KeyImpactAnalysisPage() {
               <Button onClick={() => void analysis.refetch()}>Try again</Button>
             }
           />
-        ) : bubbles.length === 0 ? (
+        ) : entries.length === 0 ? (
           <StatePanel
             kind="empty"
             title="Key Impact Analysis not yet uploaded"
             message="Your report has been purchased and is being prepared. It will appear here after an administrator uploads it."
           />
         ) : (
-          <Card className="mt-10 overflow-hidden p-4 shadow-none sm:p-8">
-            <div ref={reportRef}>
-              <h2 className="text-xl font-semibold text-zinc-950">
-                Ranked contributions
-              </h2>
-              <div className="mt-4">
-                <table className="w-full border-collapse text-left text-sm">
-                  <caption className="sr-only">
-                    Key Impact Analysis contributions ranked from highest to lowest
-                  </caption>
-                  <thead className="sr-only bg-violet-50 text-zinc-800 sm:not-sr-only">
-                    <tr>
-                      <th className="px-3 py-3" scope="col">
-                        Rank
-                      </th>
-                      <th className="px-3 py-3" scope="col">
-                        Category
-                      </th>
-                      <th className="px-3 py-3" scope="col">
-                        Question
-                      </th>
-                      <th className="px-3 py-3 text-right" scope="col">
-                        Contribution
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="block divide-y divide-zinc-200 sm:table-row-group">
-                    {bubbles.map((bubble, index) => (
-                      <tr
-                        className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 py-4 sm:table-row sm:py-0"
-                        key={bubble.question}
+          <section className="mt-10 bg-zinc-100 p-4 sm:p-8">
+            <h2 className="mb-5 text-xl font-bold uppercase text-zinc-950">
+              Key motivators
+            </h2>
+            <table className="w-full border-separate border-spacing-0 text-left">
+              <caption className="sr-only">
+                Key Impact Analysis contributions ranked from highest to lowest
+              </caption>
+              <tbody className="block sm:table-row-group">
+                {Array.from({ length: Math.ceil(entries.length / 2) }, (_, row) => (
+                  <tr className="block sm:table-row" key={row}>
+                    {entries.slice(row * 2, row * 2 + 2).map((entry, column) => (
+                      <td
+                        className="block align-top sm:table-cell sm:w-1/2 sm:p-1"
+                        key={entry.question}
                       >
-                        <th
-                          className="col-start-1 row-start-1 grid size-8 place-items-center rounded-full bg-violet-100 font-semibold text-violet-800 sm:table-cell sm:size-auto sm:rounded-none sm:bg-transparent sm:px-3 sm:py-3 sm:text-zinc-950"
-                          scope="row"
-                        >
-                          {index + 1}
-                        </th>
-                        <td className="col-start-2 row-start-1 self-center font-semibold text-zinc-800 sm:table-cell sm:px-3 sm:py-3 sm:font-normal">
-                          {bubble.category}
-                        </td>
-                        <td className="col-span-3 row-start-2 pt-2 leading-5 text-zinc-700 sm:table-cell sm:px-3 sm:py-3 sm:text-zinc-950">
-                          {bubble.question}
-                        </td>
-                        <td className="col-start-3 row-start-1 self-center whitespace-nowrap text-right font-semibold sm:table-cell sm:px-3 sm:py-3">
-                          {bubble.percentage.toFixed(2)}%
-                        </td>
-                      </tr>
+                        <div className="mb-3 min-h-44 bg-white p-4 sm:mb-0">
+                          <span
+                            className="grid size-16 place-items-center rounded-full text-sm font-bold text-zinc-950"
+                            style={{
+                              backgroundColor:
+                                keyImpactColors[(row * 2 + column) % keyImpactColors.length],
+                            }}
+                          >
+                            {entry.percentage.toFixed(1)}%
+                          </span>
+                          <h3 className="mt-3 font-bold text-zinc-950">
+                            {entry.category}
+                          </h3>
+                          <p className="mt-1 break-words text-sm leading-5 text-zinc-700">
+                            {entry.question}
+                          </p>
+                        </div>
+                      </td>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-              <details className="mt-8 border-t border-zinc-200 pt-6">
-                <summary className="cursor-pointer font-semibold text-violet-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700">
-                  View contribution bubble chart
-                </summary>
-                <div className="mt-5">
-                  <KeyImpactBubbleChart
-                    bubbles={bubbles}
-                    onSelect={setSelectedBubble}
-                  />
-                </div>
-              </details>
-            </div>
-          </Card>
+                    {entries.length % 2 === 1 && row === Math.floor(entries.length / 2) ? (
+                      <td className="hidden sm:table-cell" />
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-5 text-xs italic text-zinc-600">
+              Note: all points have a significant impact on the results
+            </p>
+          </section>
         )}
       </div>
-      {selectedBubble ? (
-        <KeyImpactDialog
-          bubble={selectedBubble}
-          onClose={() => setSelectedBubble(null)}
-        />
-      ) : null}
     </>
   );
 }

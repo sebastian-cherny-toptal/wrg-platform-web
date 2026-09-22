@@ -38,7 +38,7 @@ describe("Key Impact Analysis page", () => {
     useAppStore.getState().setSession(null);
   });
 
-  it("ranks contributions with deterministic ties and shows matching chart values", async () => {
+  it("shows ranked motivators as PDF-style cells with percentages above labels", async () => {
     useAppStore.getState().setSession(session);
     vi.spyOn(api.reports, "catalog").mockResolvedValue([]);
     vi.spyOn(api.reports, "keyImpactAnalysis").mockResolvedValue({
@@ -69,33 +69,14 @@ describe("Key Impact Analysis page", () => {
     const table = await screen.findByRole("table", {
       name: "Key Impact Analysis contributions ranked from highest to lowest",
     });
-    const rows = Array.from(table.querySelectorAll("tbody tr"));
-    expect(rows.map((row) => row.textContent)).toEqual([
-      `1Your Job${question}15.49%`,
-      "2Employee BenefitsBenefits offered12.00%",
-      "3Workplace CultureTeam support12.00%",
+    const cells = Array.from(table.querySelectorAll("tbody td"));
+    expect(cells.slice(0, 3).map((cell) => cell.textContent)).toEqual([
+      `15.5%Your Job${question}`,
+      "12.0%Employee BenefitsBenefits offered",
+      "12.0%Workplace CultureTeam support",
     ]);
-    expect(screen.queryByTestId("key-impact-chart")).not.toBeVisible();
-    fireEvent.click(screen.getByText("View contribution bubble chart"));
-    const chart = screen.getByTestId("key-impact-chart");
-    expect(chart).toBeVisible();
-    for (const [label, percentage] of [
-      [question, "15.49"],
-      ["Benefits offered", "12.00"],
-      ["Team support", "12.00"],
-    ]) {
-      expect(screen.getByRole("button", {
-        name: `${label}, ${percentage}% of contribution`,
-      })).toBeVisible();
-    }
-    const bubble = screen.getByRole("button", {
-      name: `${question}, 15.49% of contribution`,
-    });
-    fireEvent.click(bubble);
-
-    expect(screen.getByRole("dialog")).toBeVisible();
-    expect(screen.getByText("15.49% of contribution")).toBeVisible();
-    expect(screen.getAllByText("Your Job").length).toBeGreaterThan(0);
+    expect(cells[0]?.querySelector("span")?.className).toContain("rounded-full");
+    expect(screen.queryByText("View contribution bubble chart")).not.toBeInTheDocument();
   });
 
   it("requests fake data and shows the purchase banner in demo mode", async () => {
