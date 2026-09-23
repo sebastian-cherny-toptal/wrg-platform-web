@@ -835,6 +835,11 @@ a {
   align-items: center;
   gap: 8px;
 }
+.user-management-actions {
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .notice {
   margin: 0 0 16px;
   border-left: 4px solid #7c3aed;
@@ -1025,72 +1030,18 @@ a {
   margin: 0 0 24px;
   font-size: 22px;
 }
-.modal:has(.bulk-user-creation) {
-  width: min(1000px, 94vw);
-}
-.user-column-selector {
-  margin: 0 0 20px;
-}
-.user-column-selector summary {
-  cursor: pointer;
-  width: fit-content;
-  padding: 10px 14px;
-  border: 1px solid #d9dee5;
-  border-radius: 6px;
-  background: white;
-}
-.user-column-selector fieldset {
-  margin-top: 10px;
-  border: 1px solid #d9dee5;
-  border-radius: 6px;
-  padding: 16px;
-  background: white;
-}
-.user-column-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.user-column-options label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.bulk-upload-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.bulk-upload-actions .upload-card {
-  flex: 1;
-  min-width: 240px;
-}
-.bulk-user-row {
-  border: 1px solid #d9dee5;
-  border-radius: 8px;
-  margin: 16px 0;
-  padding: 16px;
-}
-.bulk-user-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 12px;
-}
-.bulk-user-fields label {
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-}
-.bulk-user-fields input,
-.bulk-user-fields select {
-  width: 100%;
-  min-width: 0;
-  padding: 9px;
-  border: 1px solid #d9dee5;
-  border-radius: 5px;
-}
+.modal:has(.bulk-user-creation) { width: min(1000px, 94vw); }
+.user-column-selector { margin: 0 0 20px; }
+.user-column-selector summary { cursor: pointer; width: fit-content; padding: 10px 14px; border: 1px solid #d9dee5; border-radius: 6px; background: white; }
+.user-column-selector fieldset { margin-top: 10px; border: 1px solid #d9dee5; border-radius: 6px; padding: 16px; background: white; }
+.user-column-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.user-column-options label { display: flex; align-items: center; gap: 8px; }
+.bulk-upload-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.bulk-upload-actions .upload-card { flex: 1; min-width: 240px; }
+.bulk-user-row { border: 1px solid #d9dee5; border-radius: 8px; margin: 16px 0; padding: 16px; }
+.bulk-user-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.bulk-user-fields label { display: grid; gap: 6px; font-size: 13px; }
+.bulk-user-fields input, .bulk-user-fields select { width: 100%; min-width: 0; padding: 9px; border: 1px solid #d9dee5; border-radius: 5px; }
 .modal-description {
   margin: -12px 0 20px;
   color: #52525b;
