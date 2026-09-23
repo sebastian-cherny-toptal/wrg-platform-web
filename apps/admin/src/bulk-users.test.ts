@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  bulkUsersCsv,
   bulkUserColumns,
   parseCsv,
   resolveBulkUser,
   spreadsheetRows,
 } from "./bulk-users";
-import type { ProjectRecord, OrganizationRecord } from "./api";
+import type { ProjectRecord, OrganizationRecord, UserRecord } from "./api";
 
 const roles = [
   { _id: "admin", name: "Admin", role: "admin" },
@@ -52,7 +53,7 @@ describe("bulk user spreadsheet validation", () => {
       resolveBulkUser(input, roles, projects, [], [input], []).errors.join(" "),
     ).toContain("no match");
   });
-  it("restricts client programs to the selected organization and project", () => {
+  it("matches client programs from the selected Project independently of organization Program data", () => {
     const input = row([
       "Alex",
       "a@example.com",
@@ -93,27 +94,83 @@ describe("bulk user spreadsheet validation", () => {
       benchmarkCategory: null,
       organizationProgramId: "e1",
     };
+    const workforce = project("p1", "Workforce");
+    workforce.programs = [
+      {
+        id: "a1",
+        name: "AWARDS",
+        year: 2026,
+        createdAt: null,
+        organizationCount: 1,
+        winnersCount: 0,
+        categorySummaries: [],
+        latestZohoSync: null,
+      },
+    ];
     const result = resolveBulkUser(
       input,
       roles,
-      [project("p1", "Workforce")],
+      [workforce],
       [organization],
       [input],
       [],
     );
     expect(result.errors).toEqual([]);
     expect(result.selected.Program).toBe("a1");
-    organization.programs[0].projectId = "p2";
+    organization.programs = [];
+    expect(
+      resolveBulkUser(input, roles, [workforce], [organization], [input], [])
+        .selected.Program,
+    ).toBe("a1");
+  });
+  it("resolves every comma-separated Program and rejects partial matches", () => {
+    const input = row([
+      "Alex",
+      "a@example.com",
+      "alex",
+      "Client",
+      "Workforce",
+      "Awards 2025, Awards 2026",
+      "Acme",
+    ]);
+    const workforce = project("p1", "Workforce");
+    workforce.programs = ["2025", "2026"].map((year) => ({
+      id: `program-${year}`,
+      name: `Awards ${year}`,
+      year: Number(year),
+      createdAt: null,
+      organizationCount: 1,
+      winnersCount: 0,
+      categorySummaries: [],
+      latestZohoSync: null,
+    }));
+    const organization = {
+      id: "org-1",
+      selectionId: "org-1",
+      name: "Acme",
+      programs: [],
+    } as unknown as OrganizationRecord;
+    const resolved = resolveBulkUser(
+      input,
+      roles,
+      [workforce],
+      [organization],
+      [input],
+      [],
+    );
+    expect(resolved.errors).toEqual([]);
+    expect(resolved.programIds).toEqual(["program-2025", "program-2026"]);
+    input.input.Program = "Awards 2025, Missing";
     expect(
       resolveBulkUser(
         input,
         roles,
-        [project("p1", "Workforce")],
+        [workforce],
         [organization],
         [input],
         [],
       ).errors.join(" "),
-    ).toContain("Program: no match");
+    ).toContain("no match for “Missing”");
   });
   it("rejects duplicate identities and programs for non-client roles", () => {
     const a = row(["Alex", "a@example.com", "alex", "Admin", "", "Awards"]);
@@ -124,5 +181,93 @@ describe("bulk user spreadsheet validation", () => {
     expect(errors).toContain("Email already exists");
     expect(errors).toContain("Username already exists");
     expect(errors).toContain("only supported for Client");
+  });
+
+  it("treats a matching username as an update but preserves other identity conflicts", () => {
+    const input = row(["Alex Updated", "alex@example.com", "ALEX", "Admin"]);
+    const existing = {
+      id: "user-1",
+      fullName: "Alex",
+      email: "alex@example.com",
+      username: "alex",
+      mobile: null,
+      role: "admin",
+      roleId: "admin",
+      organization: null,
+      projects: [],
+      programDetails: [],
+      createdAt: null,
+      lastLogin: null,
+      status: "ACTIVE",
+      payments: [],
+      totalPaid: [],
+      lastPaymentDatetime: null,
+    } satisfies UserRecord;
+    const resolved = resolveBulkUser(input, roles, [], [], [input], [existing]);
+    expect(resolved.existingUser?.id).toBe("user-1");
+    expect(resolved.errors).toEqual([]);
+    const other = {
+      ...existing,
+      id: "user-2",
+      username: "other",
+      email: "other@example.com",
+    };
+    expect(
+      resolveBulkUser(input, roles, [], [], [input], [existing, other]).errors,
+    ).toEqual([]);
+    other.email = "alex@example.com";
+    expect(
+      resolveBulkUser(
+        input,
+        roles,
+        [],
+        [],
+        [input],
+        [existing, other],
+      ).errors.join(" "),
+    ).toContain("Email already exists");
+  });
+
+  it("exports all Bulk Creation columns with safe multi-value CSV cells", () => {
+    const csv = bulkUsersCsv([
+      {
+        id: "user-1",
+        fullName: "=Alex, Example",
+        email: "alex@example.com",
+        username: "alex",
+        mobile: "123",
+        role: "client",
+        roleId: "client",
+        organization: { id: "org-1", name: 'Acme "North"' },
+        projects: [
+          { id: "project-1", name: "Workforce" },
+          { id: "project-2", name: "Benefits" },
+        ],
+        programDetails: [
+          { id: "program-1", name: "Awards 2025", year: 2025 },
+          { id: "program-2", name: "Awards 2026", year: 2026 },
+        ],
+        createdAt: null,
+        lastLogin: null,
+        status: "ACTIVE",
+        payments: [],
+        totalPaid: [],
+        lastPaymentDatetime: null,
+      },
+    ]);
+    const parsed = parseCsv(csv);
+    expect(parsed[0]?.map((value) => value.replace(/^\uFEFF/u, ""))).toEqual([
+      ...bulkUserColumns,
+    ]);
+    expect(parsed[1]).toEqual([
+      "'=Alex, Example",
+      "alex@example.com",
+      "alex",
+      "client",
+      "Workforce, Benefits",
+      "Awards 2025, Awards 2026",
+      'Acme "North"',
+      "123",
+    ]);
   });
 });

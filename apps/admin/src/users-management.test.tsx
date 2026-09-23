@@ -20,6 +20,7 @@ const user: UserRecord = {
   fullName: "Alex Example",
   email: "alex@example.com",
   username: "alex",
+  mobile: null,
   role: "admin",
   roleId: "admin",
   organization: { id: "org-1", name: "Acme" },
@@ -71,6 +72,38 @@ it("shows memberships and all columns by default, and toggles aligned headers an
     target: { value: "Benefits" },
   });
   expect(within(table).getByText("Alex Example")).toBeTruthy();
+});
+
+it("shows the three primary actions in order and downloads the complete user set", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([user]);
+  const createObjectUrl = vi.fn(() => "blob:users");
+  const revokeObjectUrl = vi.fn();
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: createObjectUrl,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: revokeObjectUrl,
+  });
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  await screen.findByRole("table");
+  const add = screen.getByRole("button", { name: "+ Add User" });
+  const bulk = screen.getByRole("button", { name: "Bulk Creation" });
+  const download = screen.getByRole("button", { name: /Download All Users/ });
+  expect(
+    add.compareDocumentPosition(bulk) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(
+    bulk.compareDocumentPosition(download) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  fireEvent.click(download);
+  expect(createObjectUrl).toHaveBeenCalledTimes(1);
+  expect(revokeObjectUrl).toHaveBeenCalledWith("blob:users");
 });
 
 it("allows clearing all columns and restoring them", async () => {
@@ -126,7 +159,9 @@ it("shows zero, one, and multiple assigned programs and toggles their column", a
   );
   fireEvent.click(screen.getByText("Columns to show (14/14)"));
   fireEvent.click(screen.getByRole("checkbox", { name: "Programs" }));
-  expect(within(table).queryByRole("columnheader", { name: "Programs" })).toBeNull();
+  expect(
+    within(table).queryByRole("columnheader", { name: "Programs" }),
+  ).toBeNull();
   expect(within(rows[2]).getAllByRole("cell")[5].textContent).toBe("Acme");
 });
 

@@ -10,14 +10,16 @@ export const bulkUserColumns = [
   "Program",
   "Organization",
   "Mobile",
-];
-export type BulkUserInput = Record<(typeof bulkUserColumns)[number], string>;
+] as const;
+export type BulkUserColumn = (typeof bulkUserColumns)[number];
+export type BulkUserInput = Record<BulkUserColumn, string>;
 export type MatchOption = { id: string; label: string; key?: string };
 export type BulkUserRow = {
   rowNumber: number;
   input: BulkUserInput;
   selected: Record<string, string>;
   created?: boolean;
+  outcome?: "created" | "updated" | "unchanged";
   error?: string;
 };
 const normalize = (value: string) => value.trim().toLowerCase();
@@ -50,7 +52,9 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-export function spreadsheetRows(data: unknown[][]): BulkUserRow[] {
+export function spreadsheetRows(
+  data: readonly (readonly unknown[])[],
+): BulkUserRow[] {
   const headers = (data[0] ?? []).map((value) =>
     normalize(String(value ?? "").replace(/^\uFEFF/, "")),
   );
@@ -78,6 +82,33 @@ export function spreadsheetRows(data: unknown[][]): BulkUserRow[] {
   return rows;
 }
 
+function csvCell(value: string): string {
+  const spreadsheetSafe = /^[=+\-@]/u.test(value) ? `'${value}` : value;
+  return /[",\r\n]/u.test(spreadsheetSafe)
+    ? `"${spreadsheetSafe.replaceAll('"', '""')}"`
+    : spreadsheetSafe;
+}
+
+export function bulkUsersCsv(users: UserRecord[]): string {
+  const rows = users.map((user) => [
+    user.fullName,
+    user.email,
+    user.username ?? "",
+    user.role ?? "",
+    user.projects.map((project) => project.name).join(", "),
+    user.programDetails.map((program) => program.name).join(", "),
+    user.organization?.name ?? "",
+    user.mobile ?? "",
+  ]);
+  return (
+    "\uFEFF" +
+    [bulkUserColumns, ...rows]
+      .map((values) => values.map((value) => csvCell(value)).join(","))
+      .join("\r\n") +
+    "\r\n"
+  );
+}
+
 export function resolveBulkUser(
   row: BulkUserRow,
   roles: Record<string, unknown>[],
@@ -90,7 +121,7 @@ export function resolveBulkUser(
   const options: Record<string, MatchOption[]> = {};
   const selected: Record<string, string> = {};
   const match = (
-    column: string,
+    column: BulkUserColumn,
     candidates: MatchOption[],
     required = false,
   ) => {
@@ -114,24 +145,25 @@ export function resolveBulkUser(
     else if (matches.length > 1 && !selected[column])
       errors.push(`${column}: select one of ${matches.length} matches.`);
   };
-  for (const column of ["Full Name", "Email", "Username"])
+  for (const column of ["Full Name", "Email", "Username"] as const)
     if (!row.input[column].trim()) errors.push(`${column} is required.`);
   if (row.input.Email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.input.Email))
     errors.push("Email is invalid.");
+  const existingUser = users.find(
+    (user) => normalize(user.username ?? "") === normalize(row.input.Username),
+  );
   for (const column of ["Email", "Username"] as const) {
     const value = normalize(row.input[column]);
-    if (
-      value &&
-      (rows.some(
-        (other) => other !== row && normalize(other.input[column]) === value,
-      ) ||
-        users.some(
-          (user) =>
-            normalize(
-              (column === "Email" ? user.email : user.username) ?? "",
-            ) === value,
-        ))
-    )
+    const duplicatedInUpload = rows.some(
+      (other) => other !== row && normalize(other.input[column]) === value,
+    );
+    const conflictingUser = users.some(
+      (user) =>
+        user.id !== existingUser?.id &&
+        normalize((column === "Email" ? user.email : user.username) ?? "") ===
+          value,
+    );
+    if (value && (duplicatedInUpload || conflictingUser))
       errors.push(`${column} already exists or is duplicated in this upload.`);
   }
   match(
@@ -157,30 +189,71 @@ export function resolveBulkUser(
     })),
     isClient,
   );
-  const organization = organizations.find(
-    (item) => item.selectionId === selected.Organization,
+  const programs = projects.flatMap((project) =>
+    project.programs.map((program) => ({
+      ...program,
+      projectId: project.id,
+      projectName: project.name,
+    })),
   );
-  const programs = isClient
-    ? (organization?.programs ?? [])
-    : projects.flatMap((project) =>
-        project.programs.map((program) => ({
-          ...program,
-          projectId: project.id,
-        })),
-      );
-  match(
-    "Program",
-    programs
+  const programTokens = row.input.Program.split(",").map((value) =>
+    value.trim(),
+  );
+  const nonEmptyProgramTokens = programTokens.filter(Boolean);
+  if (isClient && !nonEmptyProgramTokens.length) {
+    errors.push("Program is required.");
+  }
+  if (programTokens.some((value) => !value) && row.input.Program.trim()) {
+    errors.push("Program contains an empty comma-separated value.");
+  }
+  if (
+    new Set(nonEmptyProgramTokens.map(normalize)).size !==
+    nonEmptyProgramTokens.length
+  ) {
+    errors.push("Program contains a duplicate value.");
+  }
+  const programIds = nonEmptyProgramTokens.flatMap((token, index) => {
+    const key = `Program:${index}`;
+    const matches = programs
       .filter(
         (program) =>
-          !selected.Project || program.projectId === selected.Project,
+          (!selected.Project || program.projectId === selected.Project) &&
+          normalize(program.name) === normalize(token),
       )
-      .map((program) => ({ id: program.id, label: program.name })),
-    isClient,
-  );
+      .map((program) => ({
+        id: program.id,
+        label: program.name,
+        key: `${program.projectName} · ${program.year ?? "No year"}`,
+      }));
+    options[key] = matches;
+    const chosen = matches.some((item) => item.id === row.selected[key])
+      ? row.selected[key]
+      : matches.length === 1
+        ? matches[0].id
+        : "";
+    selected[key] = chosen;
+    if (index === 0) {
+      options.Program = matches;
+      selected.Program = chosen;
+    }
+    if (!matches.length) errors.push(`Program: no match for “${token}”.`);
+    else if (matches.length > 1 && !chosen)
+      errors.push(
+        `Program “${token}”: select one of ${matches.length} matches.`,
+      );
+    return chosen ? [chosen] : [];
+  });
   if (role && !isClient && (row.input.Organization || row.input.Program))
     errors.push(
       "Organization and Program are only supported for Client and Promotional roles.",
     );
-  return { errors, options, selected, isClient };
+  return {
+    errors,
+    options,
+    selected,
+    isClient,
+    existingUser,
+    programTokens: nonEmptyProgramTokens,
+    programIds,
+  };
 }

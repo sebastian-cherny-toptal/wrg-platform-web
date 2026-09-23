@@ -1,4 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OrderLogPage } from "./admin";
@@ -39,12 +45,11 @@ describe("order log", () => {
     expect(
       screen.queryByRole("columnheader", { name: "Sorting Filter" }),
     ).toBeNull();
-    expect(screen.getAllByRole("columnheader")).toHaveLength(8);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(9);
   });
 
   it("uses the resolved demographic label for internal question references", async () => {
-    const sortingQuestionReference =
-      "seed-br-question-2026-efs-0dbcf364a57f";
+    const sortingQuestionReference = "seed-br-question-2026-efs-0dbcf364a57f";
     vi.spyOn(api, "orders").mockResolvedValue([
       {
         createdAt: "2026-09-12T10:00:00.000Z",
@@ -75,9 +80,7 @@ describe("order log", () => {
             "Key Impact Analysis, Sorted Employee Verbatims (Age Generation)",
       ),
     ).toBeTruthy();
-    expect(
-      screen.queryByText(/Seed Br Question 2026 Efs/),
-    ).toBeNull();
+    expect(screen.queryByText(/Seed Br Question 2026 Efs/)).toBeNull();
   });
 
   it("places the sorting filter immediately after Sorted Employee Verbatims", async () => {
@@ -108,5 +111,44 @@ describe("order log", () => {
     expect(filter.parentElement?.innerHTML).toBe(
       "Sorted Employee Verbatims <strong>(Department)</strong>, Key Impact Analysis, Response Detail Report",
     );
+  });
+
+  it("validates only ACH orders that require payment", async () => {
+    vi.spyOn(api, "orders").mockResolvedValue([
+      {
+        id: "ach-order",
+        createdAt: "2026-09-12T10:00:00.000Z",
+        purchaserUsername: "admin@example.com",
+        organizationName: "Acme",
+        productName: "Response Detail Report",
+        amountMinor: 42_500,
+        currency: "USD",
+        paymentMethod: "Paid via ACH",
+        programName: "Program 2026",
+        status: "REQUIRES_PAYMENT",
+      },
+      {
+        id: "card-order",
+        paymentMethod: "Paid via Credit Card",
+        status: "REQUIRES_PAYMENT",
+      },
+    ]);
+    const validate = vi.spyOn(api, "validateAchOrder").mockResolvedValue();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <MemoryRouter>
+        <OrderLogPage />
+      </MemoryRouter>,
+    );
+
+    const button = await screen.findByRole("button", {
+      name: "Validate ACH payment",
+    });
+    expect(
+      screen.getAllByRole("button", { name: "Validate ACH payment" }),
+    ).toHaveLength(1);
+    fireEvent.click(button);
+    await waitFor(() => expect(validate).toHaveBeenCalledWith("ach-order"));
+    expect(await screen.findByText("ACH payment validated.")).toBeTruthy();
   });
 });

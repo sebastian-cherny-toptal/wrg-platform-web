@@ -63,6 +63,7 @@ import { CatalogEditor, MoneyInput } from "./catalog-editor";
 import { filterAndSortOrganizations } from "./organization-options";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 import { BulkUserCreation } from "./bulk-user-creation";
+import { bulkUsersCsv } from "./bulk-users";
 
 const permissionLabels: Record<string, string> = {
   clientsProjectsProgramsAccess: "Access Shared Projects, Programs & Clients",
@@ -2668,6 +2669,18 @@ export function UsersManagementPage() {
       setResetting("");
     }
   };
+  const downloadAllUsers = () => {
+    const url = URL.createObjectURL(
+      new Blob([bulkUsersCsv(loaded.data ?? [])], {
+        type: "text/csv;charset=utf-8",
+      }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "all-users-bulk-creation.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   return (
     <>
       <PageHeader
@@ -2675,16 +2688,23 @@ export function UsersManagementPage() {
         actions={
           <>
             <button
+              className="primary-button compact"
+              onClick={() => setModal(true)}
+            >
+              + Add User
+            </button>
+            <button
               className="secondary-button compact"
               onClick={() => setBulkCreation(true)}
             >
               Bulk Creation
             </button>
             <button
-              className="primary-button compact"
-              onClick={() => setModal(true)}
+              className="secondary-button compact"
+              disabled={loaded.loading || Boolean(loaded.error)}
+              onClick={downloadAllUsers}
             >
-              + Add User
+              <Download size={16} /> Download All Users
             </button>
           </>
         }
@@ -2946,6 +2966,8 @@ function GenericLogPage({
   const loaded = useLoad(kind, loader);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [notice, setNotice] = useState("");
+  const [validatingOrder, setValidatingOrder] = useState("");
   const rows = (loaded.data ?? []).filter((row) =>
     JSON.stringify(row).toLowerCase().includes(search.toLowerCase()),
   );
@@ -2966,7 +2988,8 @@ function GenericLogPage({
           "Amount Paid",
           "Payment Method",
           "Program",
-          "Stripe Status",
+          "Payment Status",
+          "Actions",
         ]
       : ["Date", "Event", "Metadata"];
   const cells = (row: Record<string, unknown>) =>
@@ -2989,6 +3012,52 @@ function GenericLogPage({
           <span className="status-pill">
             {field(row, "status", "stripeStatus")}
           </span>,
+          (() => {
+            const orderId = field(row, "id", "_id");
+            const isAch =
+              field(row, "paymentMethod").toLocaleLowerCase("en") ===
+              "paid via ach";
+            const requiresPayment =
+              field(row, "status", "stripeStatus").toLocaleUpperCase() ===
+              "REQUIRES_PAYMENT";
+            return isAch && requiresPayment ? (
+              <button
+                className="secondary-button compact"
+                disabled={validatingOrder === orderId}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      "Validate that this ACH payment was received and grant the purchased access?",
+                    )
+                  ) {
+                    return;
+                  }
+                  setNotice("");
+                  setValidatingOrder(orderId);
+                  void api
+                    .validateAchOrder(orderId)
+                    .then(async () => {
+                      setNotice("ACH payment validated.");
+                      await loaded.reload();
+                    })
+                    .catch((caught: unknown) =>
+                      setNotice(
+                        caught instanceof Error
+                          ? caught.message
+                          : "ACH payment could not be validated.",
+                      ),
+                    )
+                    .finally(() => setValidatingOrder(""));
+                }}
+              >
+                {validatingOrder === orderId
+                  ? "Validating…"
+                  : "Validate ACH payment"}
+              </button>
+            ) : (
+              "—"
+            );
+          })(),
         ]
       : [
           formatDateTime(row.createdAt ?? row.createAt),
@@ -3006,6 +3075,7 @@ function GenericLogPage({
         setSearch={setSearch}
         placeholder={kind === "orders" ? "Product Search" : "Search Activity"}
       />
+      {notice ? <div className="notice">{notice}</div> : null}
       {loaded.loading ? (
         <State
           loading

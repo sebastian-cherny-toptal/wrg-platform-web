@@ -10,8 +10,25 @@ import {
   parseCsv,
   resolveBulkUser,
   spreadsheetRows,
+  type BulkUserInput,
   type BulkUserRow,
 } from "./bulk-users";
+
+const normalized = (value: string) => value.trim().toLocaleLowerCase("en");
+
+function comparableList(value: string): string[] {
+  return value.split(",").map(normalized).filter(Boolean).sort();
+}
+
+function sameBulkValue(column: string, previous: string, next: string) {
+  if (column === "Project" || column === "Program") {
+    return (
+      JSON.stringify(comparableList(previous)) ===
+      JSON.stringify(comparableList(next))
+    );
+  }
+  return normalized(previous) === normalized(next);
+}
 
 export function BulkUserCreation({
   onCreated,
@@ -62,7 +79,7 @@ export function BulkUserCreation({
       rows,
       catalog!.users,
     );
-  const pending = rows.filter((row) => !row.created);
+  const pending = rows.filter((row) => !row.outcome);
   const blocked =
     !catalog ||
     !pending.length ||
@@ -78,6 +95,73 @@ export function BulkUserCreation({
     link.download = "users-bulk-creation-template.csv";
     link.click();
     URL.revokeObjectURL(url);
+  };
+  const desiredValues = (
+    row: BulkUserRow,
+    result: ReturnType<typeof resolve>,
+  ): BulkUserInput => {
+    const selectedPrograms = result.programIds.map((id) => {
+      for (const project of catalog!.projects) {
+        const program = project.programs.find((item) => item.id === id);
+        if (program) return { name: program.name, projectName: project.name };
+      }
+      return { name: id, projectName: "" };
+    });
+    const programNames = selectedPrograms.map(({ name }) => name);
+    const inferredProjectNames = [
+      ...new Set(
+        selectedPrograms.flatMap(({ projectName }) =>
+          projectName ? [projectName] : [],
+        ),
+      ),
+    ];
+    return {
+      ...row.input,
+      Role:
+        result.options.Role.find((option) => option.id === result.selected.Role)
+          ?.label ?? row.input.Role,
+      Project:
+        result.options.Project.find(
+          (option) => option.id === result.selected.Project,
+        )?.label ??
+        (result.isClient && inferredProjectNames.length
+          ? inferredProjectNames.join(", ")
+          : row.input.Project),
+      Program: programNames.join(", "),
+      Organization:
+        result.options.Organization.find(
+          (option) => option.id === result.selected.Organization,
+        )?.label ?? row.input.Organization,
+    };
+  };
+  const previousValues = (row: BulkUserRow): BulkUserInput | null => {
+    const existing = resolve(row).existingUser;
+    if (!existing) return null;
+    return {
+      "Full Name": existing.fullName,
+      Email: existing.email,
+      Username: existing.username ?? "",
+      Role: existing.role ?? "",
+      Project: existing.projects.map((project) => project.name).join(", "),
+      Program: existing.programDetails
+        .map((program) => program.name)
+        .join(", "),
+      Organization: existing.organization?.name ?? "",
+      Mobile: existing.mobile ?? "",
+    };
+  };
+  const changedColumns = (
+    row: BulkUserRow,
+    result: ReturnType<typeof resolve>,
+  ) => {
+    const previous = previousValues(row);
+    if (!previous) return [];
+    const desired = desiredValues(row, result);
+    return bulkUserColumns.filter(
+      (column) =>
+        column !== "Username" &&
+        !sameBulkValue(column, previous[column], desired[column]),
+    );
   };
   const upload = async (file: File) => {
     setBusy(true);
@@ -104,32 +188,67 @@ export function BulkUserCreation({
       setBusy(false);
     }
   };
-  const create = async () => {
+  const processRows = async () => {
     if (blocked || busy) return;
     setBusy(true);
     setError("");
-    let createdCount = 0;
+    let completedCount = 0;
     for (const row of pending) {
       const result = resolve(row);
       try {
-        await api.createUser({
-          fullName: row.input["Full Name"],
-          email: row.input.Email,
-          username: row.input.Username,
-          mobile: row.input.Mobile,
-          roleId: result.selected.Role,
-          projects: result.selected.Project ? [result.selected.Project] : [],
-          ...(result.isClient
-            ? {
-                organizationId: result.selected.Organization,
-                programs: [result.selected.Program],
-              }
-            : {}),
-        });
-        createdCount++;
+        let outcome: BulkUserRow["outcome"];
+        if (result.existingUser) {
+          if (!changedColumns(row, result).length) {
+            outcome = "unchanged";
+          } else {
+            await api.updateUser(result.existingUser.id, {
+              fullName: row.input["Full Name"],
+              email: row.input.Email,
+              username: row.input.Username,
+              mobile: row.input.Mobile,
+              roleId: result.selected.Role,
+              ...(result.isClient
+                ? {
+                    organizationId: result.selected.Organization,
+                    programs: result.programIds,
+                  }
+                : {
+                    projects: result.selected.Project
+                      ? [result.selected.Project]
+                      : [],
+                    programs: [],
+                  }),
+            });
+            outcome = "updated";
+          }
+        } else {
+          await api.createUser({
+            fullName: row.input["Full Name"],
+            email: row.input.Email,
+            username: row.input.Username,
+            mobile: row.input.Mobile,
+            roleId: result.selected.Role,
+            projects: result.selected.Project ? [result.selected.Project] : [],
+            ...(result.isClient
+              ? {
+                  organizationId: result.selected.Organization,
+                  programs: result.programIds,
+                }
+              : {}),
+          });
+          outcome = "created";
+        }
+        completedCount++;
         setRows((current) =>
           current.map((item) =>
-            item === row ? { ...item, created: true, error: undefined } : item,
+            item === row
+              ? {
+                  ...item,
+                  created: outcome === "created",
+                  outcome,
+                  error: undefined,
+                }
+              : item,
           ),
         );
       } catch (caught) {
@@ -148,7 +267,7 @@ export function BulkUserCreation({
         );
       }
     }
-    if (createdCount) onCreated();
+    if (completedCount) onCreated();
     setBusy(false);
   };
   const edit = (
@@ -175,8 +294,10 @@ export function BulkUserCreation({
       <p>
         Upload an XLSX or CSV with one user per row. XLSX uploads use the first
         sheet. Full Name, Email, Username and Role are required. Use one Project
-        and Program name per row. Client and Promotional users also require
-        Organization and an enrolled Program. Mobile is optional.
+        per row and separate multiple Program names with commas. In CSV files,
+        quote a Program cell containing commas. Client and Promotional users
+        also require Organization and at least one enrolled Program. An existing
+        Username updates that user. Mobile is optional.
       </p>
       <div className="bulk-upload-actions">
         <label className="upload-card">
@@ -186,7 +307,7 @@ export function BulkUserCreation({
             aria-label="Upload users spreadsheet"
             type="file"
             accept=".xlsx,.csv"
-            disabled={busy || !catalog || rows.some((row) => row.created)}
+            disabled={busy || !catalog || rows.some((row) => row.outcome)}
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) void upload(file);
@@ -215,21 +336,34 @@ export function BulkUserCreation({
       {catalog && rows.length ? (
         <>
           <p role="status">
-            {rows.filter((row) => row.created).length} created ·{" "}
+            {rows.filter((row) => row.outcome).length} completed ·{" "}
             {pending.length} remaining. Resolve all flagged rows before
-            creation. Created rows will be skipped when retrying.
+            processing. Completed rows will be skipped when retrying.
           </p>
           {rows.map((row) => {
             const result = resolve(row);
+            const previous = previousValues(row);
+            const desired = desiredValues(row, result);
+            const changes = new Set(changedColumns(row, result));
             return (
               <fieldset
                 key={row.rowNumber}
-                disabled={busy || row.created}
+                disabled={busy || Boolean(row.outcome)}
                 className="bulk-user-row"
               >
                 <legend>
                   Row {row.rowNumber}
-                  {row.created ? " · Created" : ""}
+                  {row.outcome
+                    ? ` · ${
+                        row.outcome === "created"
+                          ? "Created"
+                          : row.outcome === "updated"
+                            ? "Updated"
+                            : "No changes"
+                      }`
+                    : result.existingUser
+                      ? " · Existing user"
+                      : " · New user"}
                 </legend>
                 <div className="bulk-user-fields">
                   {bulkUserColumns.map((column) => (
@@ -242,7 +376,39 @@ export function BulkUserCreation({
                           edit(row, column, event.target.value)
                         }
                       />
-                      {(result.options[column]?.length ?? 0) > 1 ? (
+                      {previous && changes.has(column) ? (
+                        <span className="zoho-resync-value bulk-user-change">
+                          <del>{previous[column] || "—"}</del>
+                          <span>{desired[column] || "—"}</span>
+                        </span>
+                      ) : null}
+                      {column === "Program"
+                        ? result.programTokens.map((token, index) => {
+                            const key = `Program:${index}`;
+                            const matches = result.options[key] ?? [];
+                            return matches.length > 1 ? (
+                              <select
+                                aria-label={`Row ${row.rowNumber} select Program ${token}`}
+                                key={key}
+                                value={result.selected[key]}
+                                onChange={(event) =>
+                                  edit(row, key, event.target.value, true)
+                                }
+                              >
+                                <option value="">
+                                  Select a match for {token}…
+                                </option>
+                                {matches.map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label} · {option.key} · {option.id}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : null;
+                          })
+                        : null}
+                      {column !== "Program" &&
+                      (result.options[column]?.length ?? 0) > 1 ? (
                         <select
                           aria-label={`Row ${row.rowNumber} select ${column}`}
                           value={result.selected[column]}
@@ -252,21 +418,9 @@ export function BulkUserCreation({
                         >
                           <option value="">Select a match…</option>
                           {result.options[column].map((option) => {
-                            const program = catalog.projects
-                              .flatMap((project) =>
-                                project.programs.map((item) => ({
-                                  ...item,
-                                  projectName: project.name,
-                                })),
-                              )
-                              .find((item) => item.id === option.id);
                             return (
                               <option key={option.id} value={option.id}>
-                                {option.label}
-                                {column === "Program" && program
-                                  ? ` · ${program.projectName} · ${program.year ?? "No year"}`
-                                  : ""}{" "}
-                                · {option.id}
+                                {option.label}· {option.id}
                               </option>
                             );
                           })}
@@ -275,7 +429,7 @@ export function BulkUserCreation({
                     </label>
                   ))}
                 </div>
-                {!row.created && result.errors.length ? (
+                {!row.outcome && result.errors.length ? (
                   <ul className="form-error">
                     {result.errors.map((message) => (
                       <li key={message}>{message}</li>
@@ -287,8 +441,14 @@ export function BulkUserCreation({
                     {row.error}
                   </p>
                 ) : null}
-                {!row.created && !row.error && !result.errors.length ? (
-                  <p>Ready to create</p>
+                {!row.outcome && !row.error && !result.errors.length ? (
+                  <p>
+                    {result.existingUser
+                      ? changes.size
+                        ? `Ready to update · ${changes.size} changed field${changes.size === 1 ? "" : "s"}`
+                        : "Ready · no changes"
+                      : "Ready to create"}
+                  </p>
                 ) : null}
               </fieldset>
             );
@@ -308,9 +468,9 @@ export function BulkUserCreation({
           type="button"
           className="primary-button"
           disabled={busy || blocked}
-          onClick={() => void create()}
+          onClick={() => void processRows()}
         >
-          {busy ? "Processing…" : `Create ${pending.length} users`}
+          {busy ? "Processing…" : `Process ${pending.length} users`}
         </button>
       </div>
     </div>

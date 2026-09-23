@@ -167,6 +167,7 @@ export type UserRecord = {
   fullName: string;
   email: string;
   username: string | null;
+  mobile: string | null;
   role: string | null;
   roleId: string | null;
   organization: { id: string; name: string } | null;
@@ -1125,6 +1126,7 @@ export const api = {
         fullName: stringValue(value.fullName) || stringValue(value.name),
         email: stringValue(value.email),
         username: stringValue(value.username) || null,
+        mobile: stringValue(value.mobile) || null,
         role: stringValue(value.role) || null,
         roleId: stringValue(value.roleId) || null,
         organization: stringValue(organizationValue.id)
@@ -1215,9 +1217,11 @@ export const api = {
       fullName: string;
       email: string;
       username: string;
+      mobile?: string;
       roleId?: string;
       projects?: string[];
       programs?: string[];
+      organizationId?: string;
     },
   ): Promise<void> {
     await request(`/user/update/${encodeURIComponent(userId)}`, {
@@ -1257,6 +1261,12 @@ export const api = {
       "/admin/order/log?page=1&per_page=100&sortBy=createdAt",
     );
     return array(object(response).data).map(object);
+  },
+
+  async validateAchOrder(orderId: string): Promise<void> {
+    await request(`/admin/orders/${encodeURIComponent(orderId)}/validate-ach`, {
+      method: "POST",
+    });
   },
 
   async activity(): Promise<Record<string, unknown>[]> {

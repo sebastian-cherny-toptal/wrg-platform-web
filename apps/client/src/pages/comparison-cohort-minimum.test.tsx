@@ -85,9 +85,16 @@ describe("Comparison Data cohort suppression", () => {
     );
 
     expect(await screen.findByText("Core Employee Experience")).toBeVisible();
+    const currentProgramLabel = screen.getByText("Your Results");
+    expect(currentProgramLabel.previousElementSibling).toHaveStyle({
+      background: "conic-gradient(#7c3aed 288deg, #ede9fe 0deg)",
+    });
     expect(screen.getByText("x", { selector: "strong" })).toBeVisible();
     fireEvent.click(screen.getByText("Core Employee Experience"));
     expect(await screen.findByLabelText("Small Winners: x")).toBeVisible();
+    expect(
+      (await screen.findByLabelText("Your Results: 80%")).firstElementChild,
+    ).toHaveClass("bg-violet-600");
 
     fireEvent.click(screen.getByRole("button", { name: "Small Non-Winners" }));
     expect(await screen.findByText("0%", { selector: "strong" })).toBeVisible();

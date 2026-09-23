@@ -2698,7 +2698,7 @@ function ComparisonQuestionDetails({
       <div className="flex items-center justify-between gap-4 px-5 py-5">
         <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-zinc-700">
           <span className="flex items-center gap-2">
-            <i className="size-2.5 rounded-sm bg-violet-900" />
+            <i className="size-2.5 rounded-sm bg-violet-600" />
             Your Results
           </span>
           <span className="flex items-center gap-2">
@@ -2739,7 +2739,7 @@ function ComparisonQuestionDetails({
               </p>
               <div className="grid gap-3 p-5 md:px-10 md:py-6">
                 {[
-                  [row.currentOrg, "bg-violet-900", "Your Results"],
+                  [row.currentOrg, "bg-violet-600", "Your Results"],
                   [row.otherOrg, "bg-violet-400", compareLabel],
                 ].map(([value, color, label]) => {
                   const numericValue = benchmarkValue(value);
@@ -2825,7 +2825,7 @@ function ComparisonCategoryCard({
             <ImageDownloadMenu iconOnly name={title} targetRef={cardRef} />
           </div>
           <div className="grid gap-8 p-7 md:grid-cols-2 md:divide-x md:divide-zinc-200">
-            <AgreementDonut color="#4c1d95" label="Your Results" value={currentValue} />
+            <AgreementDonut color="#7c3aed" label="Your Results" value={currentValue} />
             <div className="md:pl-8">
               <AgreementDonut color="#a78bfa" label={compareLabel} value={benchmark} />
             </div>
