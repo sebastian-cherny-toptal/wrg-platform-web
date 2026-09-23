@@ -53,7 +53,7 @@ describe('Annual Trends page', () => {
 
     const currentAverage = await screen.findByText('93%')
     const currentAverageDonut = currentAverage.parentElement?.parentElement?.parentElement
-    expect(currentAverageDonut).toHaveStyle({ '--donut-color': '#4c1d95' })
+    expect(currentAverageDonut).toHaveStyle({ '--donut-color': '#7c3aed' })
     expect(screen.getByText('2% vs last year')).toHaveClass(
       'bg-emerald-100',
       'text-emerald-800',
