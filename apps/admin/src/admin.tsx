@@ -2182,6 +2182,8 @@ function AddUserModal({
     mobile: "",
     roleId: "",
     projects: [] as string[],
+    clientProjectId: "",
+    organizationId: "",
     programs: [] as string[],
   });
   const selectedRole = (roles.data ?? []).find(
@@ -2192,12 +2194,31 @@ function AddUserModal({
     organizations.data ?? [],
     "",
   );
+  const availableOrganizations = mergedOrganizations.filter((organization) =>
+    organization.programs.some(
+      (program) => program.projectId === form.clientProjectId,
+    ),
+  );
+  const selectedOrganization = availableOrganizations.find(
+    (organization) => organization.selectionId === form.organizationId,
+  );
+  const availablePrograms = (selectedOrganization?.programs ?? []).filter(
+    (program) => program.projectId === form.clientProjectId,
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (isClient && !form.clientProjectId) {
+      setError("Select a project for the client user.");
+      return;
+    }
+    if (isClient && !form.organizationId) {
+      setError("Select an organization for the client user.");
+      return;
+    }
     if (isClient && form.programs.length === 0) {
-      setError("Select at least one organization program for the client user.");
+      setError("Select at least one program for the client user.");
       return;
     }
     setSaving(true);
@@ -2212,6 +2233,7 @@ function AddUserModal({
         projects: isClient ? [] : form.projects,
         ...(isClient
           ? {
+              organizationId: form.organizationId,
               programs: form.programs,
             }
           : {}),
@@ -2270,6 +2292,8 @@ function AddUserModal({
               ...form,
               roleId,
               projects: [],
+              clientProjectId: "",
+              organizationId: "",
               programs: [],
             })
           }
@@ -2290,39 +2314,69 @@ function AddUserModal({
         {roles.error ? <p className="form-error">{roles.error}</p> : null}
         {isClient ? (
           <>
+            <SearchableSelect
+              ariaLabel="Project"
+              value={form.clientProjectId}
+              onChange={(clientProjectId) =>
+                setForm({
+                  ...form,
+                  clientProjectId,
+                  organizationId: "",
+                  programs: [],
+                })
+              }
+              options={(projects.data ?? []).map((project) => ({
+                value: project.id,
+                label: project.name,
+              }))}
+              placeholder="Choose a project…"
+              searchPlaceholder="Search projects…"
+              required
+            />
+            {projects.error ? (
+              <p className="form-error">{projects.error}</p>
+            ) : null}
             {organizations.error ? (
               <p className="form-error">{organizations.error}</p>
             ) : null}
-            <fieldset>
-              <legend>Set organization programs for Client</legend>
-              <small>
-                The organization is assigned automatically from each program.
-              </small>
-              {mergedOrganizations.some(
-                (organization) => organization.programs.length,
-              ) ? (
-                mergedOrganizations.flatMap((organization) =>
-                  organization.programs.map((program) => {
-                    const enrollmentId =
-                      program.organizationProgramId ??
-                      (organization.programs.length === 1
-                        ? organization.organizationProgramId
-                        : "");
-                    const label = `${organization.name} — ${program.name}${program.year ? ` (${program.year})` : ""}${program.projectName ? ` — ${program.projectName}` : ""}`;
-                    if (!enrollmentId) return null;
+            {form.clientProjectId ? (
+              <div className="organization-picker">
+                <label>Select an organization</label>
+                <SearchableSelect
+                  ariaLabel="Organization"
+                  value={form.organizationId}
+                  onChange={(organizationId) =>
+                    setForm({ ...form, organizationId, programs: [] })
+                  }
+                  options={availableOrganizations.map((organization) => ({
+                    value: organization.selectionId,
+                    label: organization.name,
+                  }))}
+                  placeholder="Choose an organization…"
+                  searchPlaceholder="Search organizations…"
+                  required
+                />
+              </div>
+            ) : null}
+            {form.organizationId ? (
+              <fieldset>
+                <legend>Set programs for Client</legend>
+                {availablePrograms.length ? (
+                  availablePrograms.map((program) => {
+                    const label = `${program.name}${program.year ? ` (${program.year})` : ""}`;
                     return (
-                      <label key={enrollmentId}>
+                      <label key={program.id}>
                         <input
                           aria-label={label}
                           type="checkbox"
-                          checked={form.programs.includes(enrollmentId)}
+                          checked={form.programs.includes(program.id)}
                           onChange={(event) =>
                             setForm({
                               ...form,
                               programs: event.target.checked
-                                ? [...form.programs, enrollmentId]
+                                ? [...form.programs, program.id]
                                 : form.programs.filter(
-                                    (id) => id !== enrollmentId,
+                                    (id) => id !== program.id,
                                   ),
                             })
                           }
@@ -2330,12 +2384,12 @@ function AddUserModal({
                         {label}
                       </label>
                     );
-                  }),
-                )
-              ) : (
-                <span>No organization programs are available.</span>
-              )}
-            </fieldset>
+                  })
+                ) : (
+                  <span>No programs are assigned to this organization.</span>
+                )}
+              </fieldset>
+            ) : null}
           </>
         ) : form.roleId ? (
           <fieldset>

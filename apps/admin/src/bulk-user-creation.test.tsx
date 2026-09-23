@@ -86,7 +86,22 @@ it("previews and applies changes to an existing user with multiple Programs", as
       id: "org-1",
       selectionId: "org-1",
       name: "Acme",
-      programs: [],
+      programs: [
+        {
+          id: "program-1",
+          name: "Awards 2025",
+          year: 2025,
+          projectId: "project-1",
+          projectName: "Workforce",
+        },
+        {
+          id: "program-2",
+          name: "Awards 2026",
+          year: 2026,
+          projectId: "project-1",
+          projectName: "Workforce",
+        },
+      ],
       users: [],
       sourceId: "org-1",
       sourceName: null,

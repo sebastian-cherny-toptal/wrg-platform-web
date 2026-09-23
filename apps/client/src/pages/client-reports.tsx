@@ -1632,8 +1632,8 @@ function DistributionDonut({
     ? { Agree: PREVIOUS_YEAR_AGREEMENT_COLOR, Neutral: "#b4a5ef", Disagree: "#ddd6fe" }
     : {
         Agree: CURRENT_YEAR_AGREEMENT_COLOR,
-        Neutral: "#7c3aed",
-        Disagree: "#b5a7ef",
+        Neutral: "#9c5afd",
+        Disagree: "#e567cf",
       };
   const values = (["Agree", "Neutral", "Disagree"] as const).map((caption) => ({
     caption,

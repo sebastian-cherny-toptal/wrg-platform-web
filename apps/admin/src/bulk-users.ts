@@ -1,5 +1,6 @@
 import type { OrganizationRecord, ProjectRecord, UserRecord } from "./api";
 import { field } from "./api";
+import { mergeOrganizations } from "./organization-options";
 
 export const bulkUserColumns = [
   "Full Name",
@@ -181,14 +182,6 @@ export function resolveBulkUser(
     "Project",
     projects.map((project) => ({ id: project.id, label: project.name })),
   );
-  match(
-    "Organization",
-    organizations.map((organization) => ({
-      id: organization.selectionId,
-      label: organization.name,
-    })),
-    isClient,
-  );
   const programs = projects.flatMap((project) =>
     project.programs.map((program) => ({
       ...program,
@@ -243,6 +236,24 @@ export function resolveBulkUser(
       );
     return chosen ? [chosen] : [];
   });
+  const programsResolved = programIds.length === nonEmptyProgramTokens.length;
+  match(
+    "Organization",
+    mergeOrganizations(organizations)
+      .filter(
+        (organization) =>
+          !isClient ||
+          !programsResolved ||
+          programIds.every((programId) =>
+            organization.programs.some((program) => program.id === programId),
+          ),
+      )
+      .map((organization) => ({
+        id: organization.selectionId,
+        label: organization.name,
+      })),
+    isClient,
+  );
   if (role && !isClient && (row.input.Organization || row.input.Program))
     errors.push(
       "Organization and Program are only supported for Client and Promotional roles.",

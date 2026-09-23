@@ -112,12 +112,19 @@ it("shows the three primary actions in order and downloads the complete user set
   expect(revokeObjectUrl).toHaveBeenCalledWith("blob:users");
 });
 
-it("creates clients from organization-program choices without an organization select", async () => {
+it("creates clients by selecting a project, searchable organization, and its programs", async () => {
   vi.spyOn(api, "users").mockResolvedValue([]);
   vi.spyOn(api, "roles").mockResolvedValue([
     { _id: "client-role", name: "Client", role: "client" },
   ]);
-  vi.spyOn(api, "projects").mockResolvedValue([]);
+  vi.spyOn(api, "projects").mockResolvedValue([
+    {
+      id: "project-1",
+      name: "Workforce",
+      createdAt: null,
+      programs: [],
+    },
+  ]);
   vi.spyOn(api, "organizations").mockResolvedValue([
     {
       id: "artemis",
@@ -149,6 +156,31 @@ it("creates clients from organization-program choices without an organization se
           projectName: "Workforce",
           organizationProgramId: "artemis-2025",
         },
+      ],
+      users: [],
+    },
+    {
+      id: "artemis-duplicate",
+      selectionId: "artemis-2026",
+      sourceId: "artemis",
+      sourceName: "Artemis",
+      name: "Artemis",
+      createdAt: null,
+      stage: null,
+      lastSyncedAt: null,
+      surveysSent: 0,
+      isWinner: null,
+      isIncluded: true,
+      companySize: null,
+      employeesCount: null,
+      overallRank: null,
+      categoryRank: null,
+      currentZohoCategory: null,
+      reportCategory: null,
+      benchmarkCategory: null,
+      purchasedEvSortingFilter: null,
+      organizationProgramId: "artemis-2026",
+      programs: [
         {
           id: "program-2026",
           name: "Awards",
@@ -182,15 +214,26 @@ it("creates clients from organization-program choices without an organization se
     within(dialog).getByRole("button", { name: "Set role of User" }),
   );
   fireEvent.click(await screen.findByRole("option", { name: "Client" }));
-  expect(screen.queryByRole("button", { name: "Organization" })).toBeNull();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Project" }));
+  fireEvent.click(await screen.findByRole("option", { name: "Workforce" }));
+  const organizationSelect = within(dialog).getByRole("button", {
+    name: "Organization",
+  });
+  fireEvent.click(organizationSelect);
+  fireEvent.change(
+    await screen.findByPlaceholderText("Search organizations…"),
+    { target: { value: "Arte" } },
+  );
+  expect(screen.getAllByRole("option", { name: "Artemis" })).toHaveLength(1);
+  fireEvent.click(screen.getByRole("option", { name: "Artemis" }));
   fireEvent.click(
     await screen.findByRole("checkbox", {
-      name: "Artemis — Awards (2025) — Workforce",
+      name: "Awards (2025)",
     }),
   );
   fireEvent.click(
     screen.getByRole("checkbox", {
-      name: "Artemis — Awards (2026) — Workforce",
+      name: "Awards (2026)",
     }),
   );
   fireEvent.click(within(dialog).getByRole("button", { name: "Create User" }));
@@ -202,7 +245,8 @@ it("creates clients from organization-program choices without an organization se
       mobile: "",
       roleId: "client-role",
       projects: [],
-      programs: ["artemis-2025", "artemis-2026"],
+      organizationId: "artemis-2025",
+      programs: ["program-2025", "program-2026"],
     }),
   );
 });

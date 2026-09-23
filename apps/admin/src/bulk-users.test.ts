@@ -150,7 +150,14 @@ describe("bulk user spreadsheet validation", () => {
       id: "org-1",
       selectionId: "org-1",
       name: "Acme",
-      programs: [],
+      programs: workforce.programs.map((program) => ({
+        id: program.id,
+        name: program.name,
+        year: program.year,
+        projectId: "p1",
+        projectName: "Workforce",
+      })),
+      users: [],
     } as unknown as OrganizationRecord;
     const resolved = resolveBulkUser(
       input,
@@ -173,6 +180,81 @@ describe("bulk user spreadsheet validation", () => {
         [],
       ).errors.join(" "),
     ).toContain("no match for “Missing”");
+  });
+
+  it("groups duplicate organization matches when their programs cover every assignment", () => {
+    const input = row([
+      "Alex",
+      "a@example.com",
+      "alex",
+      "Client",
+      "Workforce",
+      "Awards 2025, Awards 2026",
+      "Artemis",
+    ]);
+    const workforce = project("p1", "Workforce");
+    workforce.programs = [2025, 2026].map((year) => ({
+      id: `program-${year}`,
+      name: `Awards ${year}`,
+      year,
+      createdAt: null,
+      organizationCount: 2,
+      winnersCount: 0,
+      categorySummaries: [],
+      latestZohoSync: null,
+    }));
+    const organizations = [
+      ["enrollment-2025-a", "program-2025"],
+      ["enrollment-2025-b", "program-2025"],
+      ["enrollment-2026-a", "program-2026"],
+      ["enrollment-2026-b", "program-2026"],
+    ].map(([selectionId, programId]) => {
+      const organization = {
+        id: selectionId,
+        selectionId,
+        name: "Artemis",
+        programs: [
+          {
+            id: programId,
+            name: programId,
+            year: Number(programId.slice(-4)),
+            projectId: "p1",
+            projectName: "Workforce",
+            organizationProgramId: selectionId,
+          },
+        ],
+        users: [],
+      };
+      return organization as unknown as OrganizationRecord;
+    });
+
+    const resolved = resolveBulkUser(
+      input,
+      roles,
+      [workforce],
+      organizations,
+      [input],
+      [],
+    );
+    expect(resolved.errors).toEqual([]);
+    expect(resolved.selected.Organization).toBe("enrollment-2025-a");
+    expect(resolved.programIds).toEqual(["program-2025", "program-2026"]);
+
+    for (const organization of organizations) {
+      organization.programs = organization.programs.filter(
+        (program) => program.id !== "program-2026",
+      );
+    }
+    expect(
+      resolveBulkUser(
+        input,
+        roles,
+        [workforce],
+        organizations,
+        [input],
+        [],
+      ).errors.join(" "),
+    ).toContain("Organization: no match for “Artemis”");
   });
   it("rejects duplicate identities and programs for non-client roles", () => {
     const a = row(["Alex", "a@example.com", "alex", "Admin", "", "Awards"]);
