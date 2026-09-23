@@ -1218,6 +1218,10 @@ function parsePercentageRange(value: string): [number, number] | null {
   return [minimum, maximum];
 }
 
+function formatResponsePatternPercentage(value: number): string {
+  return `${Math.round((value + Number.EPSILON) * 100) / 100}%`;
+}
+
 export function ResponsePatternsPage() {
   const report = useCategoryResults();
   const [enabled, setEnabled] = useState<boolean[]>([false, false, false]);
@@ -1394,7 +1398,7 @@ export function ResponsePatternsPage() {
                   >
                     <span className="block text-zinc-600">{config.title}</span>
                     <strong className="mt-1 block text-xl">
-                      {Math.round(percentage)}%
+                      {formatResponsePatternPercentage(percentage)}
                     </strong>
                   </div>
                 );
