@@ -2194,16 +2194,27 @@ function AddUserModal({
     organizations.data ?? [],
     "",
   );
+  const selectedClientProject = (projects.data ?? []).find(
+    (project) => project.id === form.clientProjectId,
+  );
+  const selectedProjectProgramIds = new Set(
+    selectedClientProject?.programs.map((program) => program.id) ?? [],
+  );
+  const belongsToSelectedProject = (program: {
+    id: string;
+    projectId: string;
+  }) =>
+    selectedProjectProgramIds.size > 0
+      ? selectedProjectProgramIds.has(program.id)
+      : program.projectId === form.clientProjectId;
   const availableOrganizations = mergedOrganizations.filter((organization) =>
-    organization.programs.some(
-      (program) => program.projectId === form.clientProjectId,
-    ),
+    organization.programs.some(belongsToSelectedProject),
   );
   const selectedOrganization = availableOrganizations.find(
     (organization) => organization.selectionId === form.organizationId,
   );
   const availablePrograms = (selectedOrganization?.programs ?? []).filter(
-    (program) => program.projectId === form.clientProjectId,
+    belongsToSelectedProject,
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
