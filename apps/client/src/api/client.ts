@@ -510,6 +510,7 @@ export function responsePatternsPath(
   programId: string,
   ranges: ResponsePatternRanges,
   isPreview = false,
+  isDummy = false,
 ): string {
   const params = new URLSearchParams({
     selectedProgramId: programId,
@@ -529,6 +530,7 @@ export function responsePatternsPath(
     params.set(`${name}Max`, String(range[1]));
   }
   if (isPreview) params.set("isPreview", "true");
+  if (isDummy) params.set("isDummy", "true");
   return `/client/generateHeatMap?${params.toString()}`;
 }
 
@@ -841,16 +843,18 @@ export const api = {
     previewResponsePatterns: (
       programId: string,
       ranges: ResponsePatternRanges,
+      isDummy = false,
     ) =>
-      request(responsePatternsPath(programId, ranges, true), {
+      request(responsePatternsPath(programId, ranges, true, isDummy), {
         schema: heatMapPreviewResponseSchema,
       }),
     downloadResponsePatternsWorkbook: (
       programId: string,
       ranges: ResponsePatternRanges,
+      isDummy = false,
     ) =>
       downloadRequest(
-        responsePatternsPath(programId, ranges),
+        responsePatternsPath(programId, ranges, false, isDummy),
         "Response_Patterns.xlsx",
       ),
     downloadAnnualWorkbook: (programId: string) =>

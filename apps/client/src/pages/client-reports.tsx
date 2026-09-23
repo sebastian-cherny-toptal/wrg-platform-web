@@ -1183,6 +1183,7 @@ const patternConfigs = [
     placeholder: "e.g., 80–100%",
     defaultRange: "80-100%",
     rangeKey: "positive" as const,
+    color: "#22c55e",
   },
   {
     title: "Moderate % Agreement",
@@ -1191,6 +1192,7 @@ const patternConfigs = [
     placeholder: "e.g., 60–79%",
     defaultRange: "60-79%",
     rangeKey: "neutral" as const,
+    color: "#f59e0b",
   },
   {
     title: "High % Disagreement",
@@ -1199,16 +1201,17 @@ const patternConfigs = [
     placeholder: "e.g., 10–20%",
     defaultRange: "10-20%",
     rangeKey: "negative" as const,
+    color: "#ef4444",
   },
 ];
 
 function parsePercentageRange(value: string): [number, number] | null {
-  const matches = value.match(/\d+(?:\.\d+)?/gu)?.map(Number) ?? [];
-  if (matches.length !== 2) return null;
-  const [minimum, maximum] = matches;
+  const normalized = value.trim().replaceAll("–", "-").replaceAll(/\s+/gu, "");
+  const match = /^(\d{1,3})-(\d{1,3})%?$/u.exec(normalized);
+  if (!match) return null;
+  const minimum = Number(match[1]);
+  const maximum = Number(match[2]);
   if (
-    minimum === undefined ||
-    maximum === undefined ||
     minimum < 0 ||
     maximum > 100 ||
     minimum > maximum
@@ -1223,18 +1226,30 @@ function formatResponsePatternPercentage(value: number): string {
 }
 
 export function ResponsePatternsPage() {
-  const report = useCategoryResults();
+  const program = useSelectedProgram();
+  const programId = program?.id;
+  const isDummy = useAppStore(
+    (state) => state.session?.user.role === "promotional",
+  );
   const [enabled, setEnabled] = useState<boolean[]>([false, false, false]);
-  const [ranges, setRanges] = useState(["", "", ""]);
+  const [ranges, setRanges] = useState(() =>
+    patternConfigs.map(({ defaultRange }) => defaultRange),
+  );
   const [preview, setPreview] = useState<Awaited<
     ReturnType<typeof api.reports.previewResponsePatterns>
   > | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const previewRevision = useRef(0);
+  const previousProgramId = useRef(programId);
   const parsedRanges = ranges.map(parsePercentageRange);
   const valid =
     enabled.some(Boolean) &&
     enabled.every((value, index) => !value || parsedRanges[index] !== null);
+  const selectedCount = enabled.filter(Boolean).length;
   const selectedRanges = enabled.reduce<ResponsePatternRanges>(
     (selection, isEnabled, index) => {
       const range = parsedRanges[index];
@@ -1245,29 +1260,84 @@ export function ResponsePatternsPage() {
     {},
   );
   const resetPreview = () => {
+    previewRevision.current += 1;
     setPreview(null);
+    setPreviewing(false);
     setPreviewError(null);
+    setDownloadError(null);
   };
+  useEffect(() => {
+    if (previousProgramId.current !== programId) {
+      previousProgramId.current = programId;
+      resetPreview();
+    }
+  }, [programId]);
   const previewReport = async () => {
-    if (!valid || !report.programId) return;
+    if (!valid || !programId) return;
+    const requestRevision = previewRevision.current + 1;
+    previewRevision.current = requestRevision;
+    setPreview(null);
     setPreviewing(true);
     setPreviewError(null);
     try {
-      setPreview(
-        await api.reports.previewResponsePatterns(
-          report.programId,
-          selectedRanges,
-        ),
+      const result = await api.reports.previewResponsePatterns(
+        programId,
+        selectedRanges,
+        isDummy,
       );
+      if (previewRevision.current === requestRevision) setPreview(result);
     } catch (error) {
-      setPreview(null);
-      setPreviewError(
-        error instanceof Error ? error.message : "Unable to preview the report",
-      );
+      if (previewRevision.current === requestRevision) {
+        setPreview(null);
+        setPreviewError(
+          error instanceof Error
+            ? error.message
+            : "Unable to preview the report",
+        );
+      }
     } finally {
-      setPreviewing(false);
+      if (previewRevision.current === requestRevision) setPreviewing(false);
     }
   };
+  const downloadReport = async () => {
+    if (!preview || !valid || !programId) return;
+    setDownloading(true);
+    setDownloadProgress(0);
+    setDownloadError(null);
+    const interval = window.setInterval(() => {
+      setDownloadProgress((value) => Math.min(value + 8, 92));
+    }, 500);
+    try {
+      await api.reports.downloadResponsePatternsWorkbook(
+        programId,
+        selectedRanges,
+        isDummy,
+      );
+      setDownloadProgress(100);
+    } catch (error) {
+      setDownloadError(
+        error instanceof Error ? error.message : "Unable to download the report",
+      );
+    } finally {
+      window.clearInterval(interval);
+      setDownloading(false);
+    }
+  };
+  const previewSegments = patternConfigs.flatMap((config, index) => {
+    if (!enabled[index] || !preview) return [];
+    const percentages = preview.data.percentage;
+    const value =
+      config.rangeKey === "positive"
+        ? (percentages.positivePercentage ?? percentages.greenPercentage ?? 0)
+        : config.rangeKey === "neutral"
+          ? (percentages.neutralPercentage ?? percentages.bluePercentage ?? 0)
+          : (percentages.negativePercentage ?? percentages.redPercentage ?? 0);
+    return [{ ...config, value }];
+  });
+  const previewTotal = previewSegments.reduce(
+    (total, segment) => total + segment.value,
+    0,
+  );
   return (
     <>
       <ReportHeader
@@ -1275,6 +1345,14 @@ export function ResponsePatternsPage() {
         title="Response Patterns"
       />
       <div className="p-6">
+        {isDummy ? (
+          <p
+            className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm font-medium text-violet-800"
+            role="status"
+          >
+            Viewing sample report data from a fictional organization.
+          </p>
+        ) : null}
         <Card className="p-5 shadow-none">
           <div className="grid gap-5 lg:grid-cols-3">
             {patternConfigs.map((config, index) => (
@@ -1302,13 +1380,9 @@ export function ResponsePatternsPage() {
                       if (nextEnabled) {
                         setRanges((currentRanges) =>
                           currentRanges.map((range, itemIndex) =>
-                            itemIndex === index ? config.defaultRange : range,
-                          ),
-                        );
-                      } else {
-                        setRanges((currentRanges) =>
-                          currentRanges.map((range, itemIndex) =>
-                            itemIndex === index ? "" : range,
+                            itemIndex === index && !range
+                              ? config.defaultRange
+                              : range,
                           ),
                         );
                       }
@@ -1328,10 +1402,33 @@ export function ResponsePatternsPage() {
                 <label className="border-t border-zinc-300 pt-4 text-xs font-medium text-zinc-500">
                   Percentage
                   <input
-                    className="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-violet-500"
-                    disabled={!enabled[index]}
+                    aria-invalid={enabled[index] && parsedRanges[index] === null}
+                    className={cn(
+                      "mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-zinc-900 outline-none focus:border-violet-500",
+                      enabled[index] && parsedRanges[index] === null
+                        ? "border-red-500"
+                        : "border-zinc-300",
+                    )}
+                    disabled={previewing || downloading}
+                    onFocus={() => {
+                      if (!enabled[index]) {
+                        resetPreview();
+                        setEnabled((values) =>
+                          values.map((value, itemIndex) =>
+                            itemIndex === index ? true : value,
+                          ),
+                        );
+                      }
+                    }}
                     onChange={(event) => {
                       resetPreview();
+                      if (!enabled[index]) {
+                        setEnabled((values) =>
+                          values.map((value, itemIndex) =>
+                            itemIndex === index ? true : value,
+                          ),
+                        );
+                      }
                       setRanges((values) =>
                         values.map((value, itemIndex) =>
                           itemIndex === index ? event.target.value : value,
@@ -1341,6 +1438,11 @@ export function ResponsePatternsPage() {
                     placeholder={config.placeholder}
                     value={ranges[index]}
                   />
+                  {enabled[index] && parsedRanges[index] === null ? (
+                    <span className="mt-2 block text-xs text-red-600">
+                      Enter a complete integer range like 60-79%.
+                    </span>
+                  ) : null}
                 </label>
               </div>
             ))}
@@ -1348,22 +1450,19 @@ export function ResponsePatternsPage() {
           <div className="mt-5 flex justify-end gap-3">
             <Button
               className="gap-2"
-              disabled={!preview || !valid || !report.programId}
-              onClick={() =>
-                void api.reports.downloadResponsePatternsWorkbook(
-                  report.programId ?? "",
-                  selectedRanges,
-                )
+              disabled={
+                !preview || !valid || !programId || downloading || previewing
               }
+              onClick={() => void downloadReport()}
               variant="secondary"
             >
               <Download className="size-4" /> Download Report
             </Button>
             <Button
-              disabled={!valid || previewing}
+              disabled={!valid || previewing || downloading}
               onClick={() => void previewReport()}
             >
-              Preview the Report
+              {previewing ? "Generating preview…" : "Preview the Report"}
             </Button>
           </div>
           {previewError ? (
@@ -1371,10 +1470,54 @@ export function ResponsePatternsPage() {
               {previewError}
             </p>
           ) : null}
+          {downloading ? (
+            <div className="mt-4" role="status">
+              <p className="text-sm font-medium text-zinc-700">
+                Compiling report…
+              </p>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-violet-100">
+                <div
+                  className="h-full rounded-full bg-violet-600 transition-all"
+                  style={{ width: `${downloadProgress}%` }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">
+                {downloadProgress}% complete
+              </p>
+            </div>
+          ) : null}
+          {downloadError ? (
+            <p className="mt-4 text-right text-sm text-red-600" role="alert">
+              {downloadError}. Please try again.
+            </p>
+          ) : null}
         </Card>
         {preview ? (
           <Card className="mt-5 p-5 shadow-none">
             <h2 className="font-semibold">Response Patterns Report</h2>
+            <div
+              aria-label="Response pattern distribution"
+              className="mt-4 flex h-4 overflow-hidden rounded-full bg-zinc-200"
+              role="img"
+            >
+              {previewTotal > 0
+                ? previewSegments.map((segment) => (
+                    <span
+                      aria-label={`${segment.title}: ${formatResponsePatternPercentage(segment.value)}`}
+                      key={segment.rangeKey}
+                      style={{
+                        backgroundColor: segment.color,
+                        width: `${(segment.value / previewTotal) * 100}%`,
+                      }}
+                    />
+                  ))
+                : null}
+            </div>
+            {previewTotal === 0 ? (
+              <p className="mt-3 text-sm text-zinc-500">
+                No cells match the selected range. Try widening the range.
+              </p>
+            ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               {patternConfigs.map((config, index) => {
                 if (!enabled[index]) return null;
@@ -1404,6 +1547,12 @@ export function ResponsePatternsPage() {
                 );
               })}
             </div>
+            {selectedCount > 1 ? (
+              <p className="mt-4 rounded-lg bg-violet-50 p-3 text-sm text-violet-800">
+                All selected patterns will appear together in a single color-coded
+                document.
+              </p>
+            ) : null}
           </Card>
         ) : null}
       </div>
@@ -1411,7 +1560,8 @@ export function ResponsePatternsPage() {
   );
 }
 
-const CURRENT_YEAR_AGREEMENT_COLOR = "#4c1d95";
+const CURRENT_YEAR_AGREEMENT_COLOR = "#7c3aed";
+const PREVIOUS_YEAR_AGREEMENT_COLOR = "#9b87e5";
 
 function DonutScore({
   value,
@@ -1479,7 +1629,7 @@ function DistributionDonut({
   previous?: boolean;
 }) {
   const palette = previous
-    ? { Agree: "#9278e8", Neutral: "#b4a5ef", Disagree: "#ddd6fe" }
+    ? { Agree: PREVIOUS_YEAR_AGREEMENT_COLOR, Neutral: "#b4a5ef", Disagree: "#ddd6fe" }
     : {
         Agree: CURRENT_YEAR_AGREEMENT_COLOR,
         Neutral: "#7c3aed",
@@ -1613,7 +1763,7 @@ function QuestionTrendBars({
               className="h-full rounded-md"
               style={{
                 backgroundColor: previous
-                  ? "#9b87e5"
+                  ? PREVIOUS_YEAR_AGREEMENT_COLOR
                   : CURRENT_YEAR_AGREEMENT_COLOR,
                 width: `${width}%`,
               }}
@@ -1746,6 +1896,7 @@ export function AnnualTrendsPage() {
                   year={Number(currentYear)}
                 />
                 <DonutScore
+                  color={PREVIOUS_YEAR_AGREEMENT_COLOR}
                   value={Math.round(previousAverage)}
                   year={Number(previousYear)}
                 />
