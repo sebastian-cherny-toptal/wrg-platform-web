@@ -1610,6 +1610,7 @@ function DonutScore({
 
 type AnnualDistribution = {
   ResponseCaption: string;
+  numberOfResponses?: number;
   percentage: number;
 };
 
@@ -1618,6 +1619,111 @@ const annualDistributionLabels = {
   Neutral: "Neutral",
   Disagree: "Disagreement",
 } as const;
+
+const DONUT_CENTER_X = 120;
+const DONUT_CENTER_Y = 105;
+const DONUT_OUTER_RADIUS = 86;
+const DONUT_INNER_RADIUS = 54;
+
+function annualDistributionValues(distribution: AnnualDistribution[]) {
+  const items = (["Agree", "Neutral", "Disagree"] as const).map(
+    (caption) => {
+      const item = distribution.find(
+        (candidate) => candidate.ResponseCaption === caption,
+      );
+      return {
+        caption,
+        responses:
+          typeof item?.numberOfResponses === "number" &&
+          Number.isFinite(item.numberOfResponses)
+            ? Math.max(0, item.numberOfResponses)
+            : null,
+        percentage:
+          typeof item?.percentage === "number" &&
+          Number.isFinite(item.percentage)
+            ? Math.max(0, item.percentage)
+            : 0,
+      };
+    },
+  );
+  const responseTotal = items.reduce(
+    (total, item) => total + (item.responses ?? 0),
+    0,
+  );
+  const hasCompleteResponseCounts = items.every(
+    (item) => item.responses !== null,
+  );
+  const percentageTotal = items.reduce(
+    (total, item) => total + item.percentage,
+    0,
+  );
+  const values = items.map((item) =>
+    hasCompleteResponseCounts && responseTotal > 0 && item.responses !== null
+      ? (item.responses / responseTotal) * 100
+      : percentageTotal > 0
+        ? (item.percentage / percentageTotal) * 100
+        : 0,
+  );
+  const rounded = values.map(Math.floor);
+  const remaining = values.some((value) => value > 0)
+    ? 100 - rounded.reduce((total, value) => total + value, 0)
+    : 0;
+  const remainderOrder = values
+    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+    .sort(
+      (left, right) =>
+        right.remainder - left.remainder || left.index - right.index,
+    );
+  for (let index = 0; index < remaining; index += 1) {
+    const target = remainderOrder[index];
+    if (target) {
+      rounded[target.index] = (rounded[target.index] ?? 0) + 1;
+    }
+  }
+  return items.map((item, index) => ({
+    caption: item.caption,
+    value: values[index] ?? 0,
+    roundedValue: rounded[index] ?? 0,
+  }));
+}
+
+function donutPoint(percentage: number, radius: number) {
+  const angle = (percentage / 100) * Math.PI * 2 - Math.PI / 2;
+  return {
+    x: DONUT_CENTER_X + Math.cos(angle) * radius,
+    y: DONUT_CENTER_Y + Math.sin(angle) * radius,
+  };
+}
+
+function donutSegmentPath(start: number, value: number) {
+  if (value <= 0) return "";
+  const end = start + Math.min(value, 100);
+  const outerStart = donutPoint(start, DONUT_OUTER_RADIUS);
+  const innerStart = donutPoint(start, DONUT_INNER_RADIUS);
+  if (value >= 100) {
+    const outerMiddle = donutPoint(start + 50, DONUT_OUTER_RADIUS);
+    const innerMiddle = donutPoint(start + 50, DONUT_INNER_RADIUS);
+    return [
+      `M ${outerStart.x} ${outerStart.y}`,
+      `A ${DONUT_OUTER_RADIUS} ${DONUT_OUTER_RADIUS} 0 1 1 ${outerMiddle.x} ${outerMiddle.y}`,
+      `A ${DONUT_OUTER_RADIUS} ${DONUT_OUTER_RADIUS} 0 1 1 ${outerStart.x} ${outerStart.y}`,
+      `L ${innerStart.x} ${innerStart.y}`,
+      `A ${DONUT_INNER_RADIUS} ${DONUT_INNER_RADIUS} 0 1 0 ${innerMiddle.x} ${innerMiddle.y}`,
+      `A ${DONUT_INNER_RADIUS} ${DONUT_INNER_RADIUS} 0 1 0 ${innerStart.x} ${innerStart.y}`,
+      "Z",
+    ].join(" ");
+  }
+  const outerEnd = donutPoint(end, DONUT_OUTER_RADIUS);
+  const innerEnd = donutPoint(end, DONUT_INNER_RADIUS);
+  const largeArc = value > 50 ? 1 : 0;
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${DONUT_OUTER_RADIUS} ${DONUT_OUTER_RADIUS} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${DONUT_INNER_RADIUS} ${DONUT_INNER_RADIUS} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
+    "Z",
+  ].join(" ");
+}
 
 function DistributionDonut({
   year,
@@ -1635,22 +1741,17 @@ function DistributionDonut({
         Neutral: "#9c5afd",
         Disagree: "#e567cf",
       };
-  const values = (["Agree", "Neutral", "Disagree"] as const).map((caption) => ({
-    caption,
-    value:
-      distribution.find((item) => item.ResponseCaption === caption)
-        ?.percentage ?? 0,
-  }));
-  let cumulative = 0;
-  const segments = values.map((item) => {
-    const offset = cumulative;
-    cumulative += item.value;
-    const angle = ((offset + item.value / 2) / 100) * Math.PI * 2 - Math.PI / 2;
+  const values = annualDistributionValues(distribution);
+  const segments = values.map((item, index) => {
+    const offset = values
+      .slice(0, index)
+      .reduce((total, value) => total + value.value, 0);
+    const label = donutPoint(offset + item.value / 2, 98);
     return {
       ...item,
       offset,
-      labelX: 120 + Math.cos(angle) * 98,
-      labelY: 105 + Math.sin(angle) * 98,
+      labelX: label.x,
+      labelY: label.y,
     };
   });
 
@@ -1659,35 +1760,24 @@ function DistributionDonut({
       <svg
         aria-label={`${year}: ${values
           .map(
-            ({ caption, value }) =>
-              `${Math.round(value)}% ${annualDistributionLabels[caption]}`,
+            ({ caption, roundedValue }) =>
+              `${roundedValue}% ${annualDistributionLabels[caption]}`,
           )
           .join(", ")}`}
         className="h-[260px] w-full max-w-[360px] overflow-visible"
         role="img"
         viewBox="0 0 240 220"
       >
-        <circle
-          cx="120"
-          cy="105"
-          fill="none"
-          r="70"
-          stroke="#f4f4f5"
-          strokeWidth="32"
-        />
+        <circle cx="120" cy="105" fill="#f4f4f5" r={DONUT_OUTER_RADIUS} />
+        <circle cx="120" cy="105" fill="white" r={DONUT_INNER_RADIUS} />
         {segments.map(({ caption, value, offset }) => (
-          <circle
-            cx="120"
-            cy="105"
-            fill="none"
+          <path
+            d={donutSegmentPath(offset, value)}
+            data-donut-offset={offset}
+            data-donut-segment={caption}
+            data-donut-value={value}
+            fill={palette[caption]}
             key={caption}
-            pathLength="100"
-            r="70"
-            stroke={palette[caption]}
-            strokeDasharray={`${value} ${100 - value}`}
-            strokeDashoffset={-offset}
-            strokeWidth="32"
-            transform="rotate(-90 120 105)"
           />
         ))}
         <text
@@ -1700,7 +1790,7 @@ function DistributionDonut({
         >
           {year}
         </text>
-        {segments.map(({ caption, value, labelX, labelY }) =>
+        {segments.map(({ caption, value, roundedValue, labelX, labelY }) =>
           value > 0 ? (
             <text
               fill="#18181b"
@@ -1713,7 +1803,7 @@ function DistributionDonut({
               x={labelX}
               y={labelY}
             >
-              {Math.round(value)}%
+              {roundedValue}%
             </text>
           ) : null,
         )}

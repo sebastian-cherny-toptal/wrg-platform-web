@@ -82,4 +82,74 @@ describe('Annual Trends page', () => {
       'text-red-500',
     )
   })
+
+  it('normalizes annual distributions and renders contiguous filled sectors', async () => {
+    useAppStore.getState().setSession(session)
+    vi.spyOn(api.reports, 'annualResponseRate').mockResolvedValue({
+      success: true,
+      message: 'success',
+      data: [{ '2026': '89', '2025': '90' }],
+    })
+    vi.spyOn(api.reports, 'annualCategories').mockResolvedValue({
+      success: true,
+      data: [
+        {
+          category: { category: 'Core Employee Experience' },
+          '2026': {
+            data: [
+              { ResponseCaption: 'Agree', numberOfResponses: 894, percent: 0.894, percentage: 90, colorCode: '' },
+              { ResponseCaption: 'Neutral', numberOfResponses: 91, percent: 0.091, percentage: 9, colorCode: '' },
+              { ResponseCaption: 'Disagree', numberOfResponses: 15, percent: 0.015, percentage: 2, colorCode: '' },
+            ],
+            questionIds: [],
+          },
+          '2025': {
+            data: [
+              { ResponseCaption: 'Agree', numberOfResponses: 900, percent: 0.9, percentage: 90, colorCode: '' },
+              { ResponseCaption: 'Neutral', numberOfResponses: 90, percent: 0.09, percentage: 9, colorCode: '' },
+              { ResponseCaption: 'Disagree', numberOfResponses: 10, percent: 0.01, percentage: 1, colorCode: '' },
+            ],
+            questionIds: [],
+          },
+        },
+      ],
+    })
+    vi.spyOn(api.reports, 'annualDetails').mockResolvedValue({
+      success: true,
+      message: 'success',
+      category: 'Core Employee Experience',
+      data: [],
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <AnnualTrendsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    const distribution = await screen.findByRole('img', {
+      name: '2026: 89% Agreement, 9% Neutral, 2% Disagreement',
+    })
+    const segments = Array.from(
+      distribution.querySelectorAll<SVGPathElement>('path[data-donut-segment]'),
+    )
+    expect(segments).toHaveLength(3)
+    const angles = segments.map((segment) => ({
+      offset: Number(segment.dataset.donutOffset),
+      value: Number(segment.dataset.donutValue),
+    }))
+    expect(angles[0]?.offset).toBe(0)
+    expect(angles[1]?.offset).toBeCloseTo(angles[0]?.value ?? 0, 10)
+    expect(angles[2]?.offset).toBeCloseTo(
+      (angles[0]?.value ?? 0) + (angles[1]?.value ?? 0),
+      10,
+    )
+    expect(
+      (angles[2]?.offset ?? 0) + (angles[2]?.value ?? 0),
+    ).toBeCloseTo(100, 10)
+    expect(segments.every((segment) => !segment.getAttribute('d')?.includes('NaN'))).toBe(true)
+    expect(distribution.querySelector('circle[stroke-dasharray]')).toBeNull()
+  })
 })
