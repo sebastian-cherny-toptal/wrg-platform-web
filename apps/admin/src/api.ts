@@ -110,6 +110,7 @@ export type ZohoOrganizationInfo = {
   reportCategory: string | null;
   overallRank: string | null;
   categoryRank: string | null;
+  purchasedEvSortingFilter: string | null;
 };
 
 export type ZohoWinnerOrganization = {
@@ -219,6 +220,7 @@ export type HistoricalImportMetadata = {
     benchmarkCategory?: string;
     overallRank?: string;
     categoryRank?: string;
+    purchasedEvSortingFilter?: string;
   }>;
   reportCatalog?: ReportProduct[];
   benchmarkCategories?: string[];
@@ -300,6 +302,7 @@ export type OrganizationRecord = {
   currentZohoCategory: string | null;
   reportCategory: string | null;
   benchmarkCategory: string | null;
+  purchasedEvSortingFilter: string | null;
   organizationProgramId: string;
   programs: Array<{
     id: string;
@@ -341,7 +344,8 @@ export type ProgramZohoResyncField =
   | "overallRank"
   | "categoryRank"
   | "reportCategory"
-  | "currentZohoCategory";
+  | "currentZohoCategory"
+  | "purchasedEvSortingFilter";
 
 export type ProgramZohoResyncValue = string | number | null;
 
@@ -717,6 +721,8 @@ export function organization(raw: unknown): OrganizationRecord {
       stringValue(enrollment.report_category) ||
       null,
     benchmarkCategory: stringValue(enrollment.benchmark_category) || null,
+    purchasedEvSortingFilter:
+      stringValue(enrollment.purchased_ev_sorting_filter) || null,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||
@@ -1367,6 +1373,8 @@ export const api = {
             reportCategory: stringValue(organization.reportCategory) || null,
             overallRank: stringValue(organization.overallRank) || null,
             categoryRank: stringValue(organization.categoryRank) || null,
+            purchasedEvSortingFilter:
+              stringValue(organization.purchasedEvSortingFilter) || null,
           };
         }),
         ...(Array.isArray(value.benchmarkCategories)
@@ -1416,6 +1424,8 @@ export const api = {
         reportCategory: stringValue(organization.reportCategory) || null,
         overallRank: stringValue(organization.overallRank) || null,
         categoryRank: stringValue(organization.categoryRank) || null,
+        purchasedEvSortingFilter:
+          stringValue(organization.purchasedEvSortingFilter) || null,
       };
     });
   },

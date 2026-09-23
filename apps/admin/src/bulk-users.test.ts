@@ -92,6 +92,7 @@ describe("bulk user spreadsheet validation", () => {
       currentZohoCategory: null,
       reportCategory: null,
       benchmarkCategory: null,
+      purchasedEvSortingFilter: null,
       organizationProgramId: "e1",
     };
     const workforce = project("p1", "Workforce");

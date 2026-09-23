@@ -103,6 +103,7 @@ it("previews and applies changes to an existing user with multiple Programs", as
       currentZohoCategory: null,
       reportCategory: null,
       benchmarkCategory: null,
+      purchasedEvSortingFilter: null,
       organizationProgramId: "enrollment-1",
     },
   ]);

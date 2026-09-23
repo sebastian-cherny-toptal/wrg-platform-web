@@ -99,6 +99,7 @@ describe("program Zoho resync changes", () => {
         currentZohoCategory: "Small",
         reportCategory: "25-99",
         benchmarkCategory: null,
+        purchasedEvSortingFilter: null,
         organizationProgramId: "unchanged-enrollment-id",
         programs: [],
         users: [],
@@ -122,6 +123,7 @@ describe("program Zoho resync changes", () => {
         currentZohoCategory: "Small",
         reportCategory: "25-99",
         benchmarkCategory: null,
+        purchasedEvSortingFilter: "Department",
         organizationProgramId: "enrollment-id",
         programs: [],
         users: [],
@@ -146,6 +148,11 @@ describe("program Zoho resync changes", () => {
               field: "currentZohoCategory",
               previous: "Small",
               next: "Community",
+            },
+            {
+              field: "purchasedEvSortingFilter",
+              previous: "Department",
+              next: "Job Level",
             },
           ],
         },
@@ -204,9 +211,11 @@ describe("program Zoho resync changes", () => {
 
     expect(await screen.findByText("Closed")).toBeTruthy();
     expect(
-      (screen.getByRole("button", {
-        name: "Re-Sync All Deals",
-      }) as HTMLButtonElement).disabled,
+      (
+        screen.getByRole("button", {
+          name: "Re-Sync All Deals",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
     expect(screen.getByText("Zoho Only Company")).toBeTruthy();
     expect(screen.getByText("Zoho organization ID: zoho-only-id")).toBeTruthy();
@@ -216,7 +225,8 @@ describe("program Zoho resync changes", () => {
     ).toHaveLength(4);
     const changedRow = screen.getByRole("row", { name: /Acme/u });
     expect(changedRow.classList.contains("zoho-resync-changed-row")).toBe(true);
-    expect(changedRow.querySelectorAll("del")).toHaveLength(3);
+    expect(changedRow.querySelectorAll("del")).toHaveLength(4);
+    expect(changedRow.textContent).toContain("Job Level");
     expect(
       screen.getByRole("button", { name: "Sort records" }).textContent,
     ).toBe("Rows being edited first");
@@ -277,6 +287,7 @@ describe("program Zoho resync changes", () => {
         currentZohoCategory: null,
         reportCategory: null,
         benchmarkCategory: null,
+        purchasedEvSortingFilter: null,
         organizationProgramId: `enrollment-${index + 1}`,
         programs: [],
         users: [],

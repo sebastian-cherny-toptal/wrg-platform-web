@@ -732,22 +732,27 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function resyncDisplayValue(value: ProgramZohoResyncValue): string {
-  return value === null || value === "" ? "Not provided" : String(value);
+function resyncDisplayValue(
+  value: ProgramZohoResyncValue,
+  emptyLabel = "Not provided",
+): string {
+  return value === null || value === "" ? emptyLabel : String(value);
 }
 
 export function ZohoResyncValue({
   value,
   change,
+  emptyLabel,
 }: {
   value: ProgramZohoResyncValue;
   change?: ProgramZohoResyncChange;
+  emptyLabel?: string;
 }) {
-  if (!change) return <>{resyncDisplayValue(value)}</>;
+  if (!change) return <>{resyncDisplayValue(value, emptyLabel)}</>;
   return (
     <span className="zoho-resync-value">
-      <del>{resyncDisplayValue(change.previous)}</del>
-      <span>{resyncDisplayValue(change.next)}</span>
+      <del>{resyncDisplayValue(change.previous, emptyLabel)}</del>
+      <span>{resyncDisplayValue(change.next, emptyLabel)}</span>
     </span>
   );
 }
@@ -1549,6 +1554,7 @@ export function ProgramDetailPage() {
           "Winner",
           "Report Category",
           "Benchmark Category",
+          "Purchased EV Sorting Filter",
           "Actions",
         ]}
         rowClassNames={pagedOrganizations.map((item) =>
@@ -1604,6 +1610,11 @@ export function ProgramDetailPage() {
             <ZohoResyncValue
               value={item.currentZohoCategory}
               change={change("currentZohoCategory")}
+            />,
+            <ZohoResyncValue
+              value={item.purchasedEvSortingFilter}
+              change={change("purchasedEvSortingFilter")}
+              emptyLabel="-"
             />,
             <div className="row-actions">
               <button

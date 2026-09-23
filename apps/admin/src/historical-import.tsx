@@ -493,6 +493,8 @@ export function applyZohoOrganizations(
       reportCategory: organization.reportCategory ?? undefined,
       overallRank: organization.overallRank ?? undefined,
       categoryRank: organization.categoryRank ?? undefined,
+      purchasedEvSortingFilter:
+        organization.purchasedEvSortingFilter ?? undefined,
     };
   });
 }
@@ -527,6 +529,11 @@ export function organizationProgramsFromZoho(
         : {}),
       ...(organization.categoryRank
         ? { categoryRank: organization.categoryRank }
+        : {}),
+      ...(organization.purchasedEvSortingFilter
+        ? {
+            purchasedEvSortingFilter: organization.purchasedEvSortingFilter,
+          }
         : {}),
     };
   });
@@ -1920,6 +1927,7 @@ export function WinnersStep({
                   <th>EFS respondents</th>
                   <th>Surveys Sent</th>
                   <th>Pricing category (Zoho)</th>
+                  <th>Purchased EV Sorting Filter</th>
                   <th>Benchmark category (Category List)</th>
                   <th aria-label="Inclusion actions">Actions</th>
                 </tr>
@@ -2000,6 +2008,7 @@ export function WinnersStep({
                         />
                       </td>
                       <td>{entry.reportCategory ?? "Not provided"}</td>
+                      <td>{entry.purchasedEvSortingFilter ?? "-"}</td>
                       <td>
                         <div className="category-radio-group">
                           {benchmarkCategories.map((category) => (
@@ -2348,6 +2357,12 @@ export function HistoricalImportPage() {
                   : {}),
                 ...(organization.reportCategory
                   ? { reportCategory: organization.reportCategory }
+                  : {}),
+                ...(organization.purchasedEvSortingFilter
+                  ? {
+                      purchasedEvSortingFilter:
+                        organization.purchasedEvSortingFilter,
+                    }
                   : {}),
                 ...(organization.benchmarkCategory
                   ? { benchmarkCategory: organization.benchmarkCategory }

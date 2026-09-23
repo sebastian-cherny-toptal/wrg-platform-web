@@ -106,6 +106,7 @@ describe("winner organization filtering", () => {
           reportCategory: "25-99",
           overallRank: "4",
           categoryRank: "2",
+          purchasedEvSortingFilter: "Department",
         },
         {
           organizationId: "952037468",
@@ -120,6 +121,7 @@ describe("winner organization filtering", () => {
           reportCategory: "100-199",
           overallRank: null,
           categoryRank: null,
+          purchasedEvSortingFilter: null,
         },
       ]),
     ).toMatchObject([
@@ -133,6 +135,7 @@ describe("winner organization filtering", () => {
         reportCategory: "25-99",
         overallRank: "4",
         categoryRank: "2",
+        purchasedEvSortingFilter: "Department",
       },
       {
         isWinner: "N",
@@ -160,6 +163,7 @@ describe("Zoho organization initialization", () => {
           reportCategory: "25-99",
           overallRank: "4",
           categoryRank: "2",
+          purchasedEvSortingFilter: "Job Level",
         },
       ]),
     ).toEqual([
@@ -201,12 +205,15 @@ describe("organization participation status", () => {
   });
 
   it("counts only included organizations in category totals", () => {
-    const summary = summarizeOrganizationPrograms([
-      organization("Y", true),
-      organization("N", true),
-      organization("N", false),
-      organization("Y", true, "Medium"),
-    ], ["Small", "Medium"]);
+    const summary = summarizeOrganizationPrograms(
+      [
+        organization("Y", true),
+        organization("N", true),
+        organization("N", false),
+        organization("Y", true, "Medium"),
+      ],
+      ["Small", "Medium"],
+    );
 
     expect(summary.notIncluded).toBe(1);
     expect(summary.categories).toContainEqual({
@@ -373,6 +380,7 @@ describe("historical import API client", () => {
               reportCategory: "25-99",
               overallRank: "4",
               categoryRank: "2",
+              purchasedEvSortingFilter: "Department",
             },
           ],
         }),
@@ -394,6 +402,7 @@ describe("historical import API client", () => {
         reportCategory: "25-99",
         overallRank: "4",
         categoryRank: "2",
+        purchasedEvSortingFilter: "Department",
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
