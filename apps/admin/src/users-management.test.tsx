@@ -95,6 +95,12 @@ it("shows the three primary actions in order and downloads the complete user set
   const add = screen.getByRole("button", { name: "+ Add User" });
   const bulk = screen.getByRole("button", { name: "Bulk Creation" });
   const download = screen.getByRole("button", { name: /Download All Users/ });
+  expect(bulk.parentElement).toBe(download.parentElement);
+  expect(bulk.parentElement?.classList).toContain("user-management-tools");
+  expect(bulk.classList).toContain("small");
+  expect(bulk.classList).toContain("dark");
+  expect(download.classList).toContain("small");
+  expect(download.classList).toContain("dark");
   expect(
     add.compareDocumentPosition(bulk) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
@@ -104,6 +110,101 @@ it("shows the three primary actions in order and downloads the complete user set
   fireEvent.click(download);
   expect(createObjectUrl).toHaveBeenCalledTimes(1);
   expect(revokeObjectUrl).toHaveBeenCalledWith("blob:users");
+});
+
+it("creates clients from organization-program choices without an organization select", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([]);
+  vi.spyOn(api, "roles").mockResolvedValue([
+    { _id: "client-role", name: "Client", role: "client" },
+  ]);
+  vi.spyOn(api, "projects").mockResolvedValue([]);
+  vi.spyOn(api, "organizations").mockResolvedValue([
+    {
+      id: "artemis",
+      selectionId: "artemis-2025",
+      sourceId: "artemis",
+      sourceName: "Artemis",
+      name: "Artemis",
+      createdAt: null,
+      stage: null,
+      lastSyncedAt: null,
+      surveysSent: 0,
+      isWinner: null,
+      isIncluded: true,
+      companySize: null,
+      employeesCount: null,
+      overallRank: null,
+      categoryRank: null,
+      currentZohoCategory: null,
+      reportCategory: null,
+      benchmarkCategory: null,
+      purchasedEvSortingFilter: null,
+      organizationProgramId: "artemis-2025",
+      programs: [
+        {
+          id: "program-2025",
+          name: "Awards",
+          year: 2025,
+          projectId: "project-1",
+          projectName: "Workforce",
+          organizationProgramId: "artemis-2025",
+        },
+        {
+          id: "program-2026",
+          name: "Awards",
+          year: 2026,
+          projectId: "project-1",
+          projectName: "Workforce",
+          organizationProgramId: "artemis-2026",
+        },
+      ],
+      users: [],
+    },
+  ]);
+  const create = vi.spyOn(api, "createUser").mockResolvedValue();
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "+ Add User" }));
+  const dialog = screen.getByRole("dialog", { name: "Add User" });
+  fireEvent.change(within(dialog).getByLabelText("Full Name"), {
+    target: { value: "Alex Example" },
+  });
+  fireEvent.change(within(dialog).getByLabelText("Email"), {
+    target: { value: "alex@example.com" },
+  });
+  fireEvent.change(within(dialog).getByLabelText("Username"), {
+    target: { value: "alex" },
+  });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Set role of User" }),
+  );
+  fireEvent.click(await screen.findByRole("option", { name: "Client" }));
+  expect(screen.queryByRole("button", { name: "Organization" })).toBeNull();
+  fireEvent.click(
+    await screen.findByRole("checkbox", {
+      name: "Artemis — Awards (2025) — Workforce",
+    }),
+  );
+  fireEvent.click(
+    screen.getByRole("checkbox", {
+      name: "Artemis — Awards (2026) — Workforce",
+    }),
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Create User" }));
+  await vi.waitFor(() =>
+    expect(create).toHaveBeenCalledWith({
+      fullName: "Alex Example",
+      email: "alex@example.com",
+      username: "alex",
+      mobile: "",
+      roleId: "client-role",
+      projects: [],
+      programs: ["artemis-2025", "artemis-2026"],
+    }),
+  );
 });
 
 it("allows clearing all columns and restoring them", async () => {

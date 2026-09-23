@@ -11,6 +11,7 @@ import type { ProjectRecord, OrganizationRecord, UserRecord } from "./api";
 const roles = [
   { _id: "admin", name: "Admin", role: "admin" },
   { _id: "client", name: "Client", role: "client" },
+  { _id: "promotional", name: "Promotional", role: "promotional" },
 ];
 const project = (id: string, name: string): ProjectRecord => ({
   id,
@@ -182,6 +183,18 @@ describe("bulk user spreadsheet validation", () => {
     expect(errors).toContain("Email already exists");
     expect(errors).toContain("Username already exists");
     expect(errors).toContain("only supported for Client");
+  });
+
+  it("does not require Organization or Program for promotional users", () => {
+    const input = row([
+      "Promo User",
+      "promo@example.com",
+      "promo",
+      "Promotional",
+    ]);
+    const resolved = resolveBulkUser(input, roles, [], [], [input], []);
+    expect(resolved.errors).toEqual([]);
+    expect(resolved.isClient).toBe(false);
   });
 
   it("treats a matching username as an update but preserves other identity conflicts", () => {

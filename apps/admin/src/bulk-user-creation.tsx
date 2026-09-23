@@ -119,7 +119,7 @@ export function BulkUserCreation({
       ...row.input,
       Role:
         result.options.Role.find((option) => option.id === result.selected.Role)
-          ?.label ?? row.input.Role,
+          ?.key ?? row.input.Role,
       Project:
         result.options.Project.find(
           (option) => option.id === result.selected.Project,
@@ -295,9 +295,9 @@ export function BulkUserCreation({
         Upload an XLSX or CSV with one user per row. XLSX uploads use the first
         sheet. Full Name, Email, Username and Role are required. Use one Project
         per row and separate multiple Program names with commas. In CSV files,
-        quote a Program cell containing commas. Client and Promotional users
-        also require Organization and at least one enrolled Program. An existing
-        Username updates that user. Mobile is optional.
+        quote a Program cell containing commas. Client users also require
+        Organization and at least one enrolled Program. An existing Username
+        updates that user. Mobile is optional.
       </p>
       <div className="bulk-upload-actions">
         <label className="upload-card">

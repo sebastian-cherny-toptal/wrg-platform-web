@@ -163,3 +163,60 @@ it("previews and applies changes to an existing user with multiple Programs", as
   );
   expect(await screen.findByText("Row 2 · Updated")).toBeTruthy();
 });
+
+it.each([
+  ["admin", "Administrator"],
+  ["super_admin", "Super Admin"],
+])(
+  "treats exported role %s and display name %s as the same role",
+  async (roleKey, roleName) => {
+    vi.spyOn(api, "roles").mockResolvedValue([
+      { _id: `${roleKey}-id`, name: roleName, role: roleKey },
+    ]);
+    vi.spyOn(api, "projects").mockResolvedValue([]);
+    vi.spyOn(api, "organizations").mockResolvedValue([]);
+    vi.spyOn(api, "users").mockResolvedValue([
+      {
+        id: "user-1",
+        fullName: "Alex Example",
+        email: "alex@example.com",
+        username: "alex",
+        mobile: null,
+        role: roleKey,
+        roleId: `${roleKey}-id`,
+        organization: null,
+        projects: [],
+        programDetails: [],
+        createdAt: null,
+        lastLogin: null,
+        status: "ACTIVE",
+        payments: [],
+        totalPaid: [],
+        lastPaymentDatetime: null,
+      },
+    ]);
+    const update = vi.spyOn(api, "updateUser").mockResolvedValue();
+    render(
+      <BulkUserCreation
+        onCreated={vi.fn()}
+        onClose={vi.fn()}
+        onBusyChange={vi.fn()}
+      />,
+    );
+    const upload = screen.getByLabelText("Upload users spreadsheet");
+    await waitFor(() =>
+      expect((upload as HTMLInputElement).disabled).toBe(false),
+    );
+    const file = new File([], "users.csv");
+    Object.defineProperty(file, "text", {
+      value: async () =>
+        `Full Name,Email,Username,Role\nAlex Example,alex@example.com,alex,${roleKey}`,
+    });
+    fireEvent.change(upload, { target: { files: [file] } });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Process 1 users" }),
+    );
+    expect(await screen.findByText("Row 2 · No changes")).toBeTruthy();
+    expect(update).not.toHaveBeenCalled();
+  },
+);

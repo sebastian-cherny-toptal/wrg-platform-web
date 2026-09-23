@@ -176,7 +176,7 @@ export function resolveBulkUser(
     true,
   );
   const role = options.Role.find((item) => item.id === selected.Role);
-  const isClient = ["client", "promotional"].includes(role?.key ?? "");
+  const isClient = role?.key === "client";
   match(
     "Project",
     projects.map((project) => ({ id: project.id, label: project.name })),

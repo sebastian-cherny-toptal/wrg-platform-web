@@ -2182,33 +2182,22 @@ function AddUserModal({
     mobile: "",
     roleId: "",
     projects: [] as string[],
-    organizationId: "",
     programs: [] as string[],
   });
   const selectedRole = (roles.data ?? []).find(
     (role) => field(role, "_id", "id") === form.roleId,
   );
-  const isClient = ["client", "promotional"].includes(
-    field(selectedRole ?? {}, "role") as string,
-  );
+  const isClient = field(selectedRole ?? {}, "role") === "client";
   const mergedOrganizations = filterAndSortOrganizations(
     organizations.data ?? [],
     "",
   );
-  const selectedOrganization = mergedOrganizations.find(
-    (organization) => organization.selectionId === form.organizationId,
-  );
-  const availablePrograms = selectedOrganization?.programs ?? [];
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (isClient && !form.organizationId) {
-      setError("Select an organization for the client user.");
-      return;
-    }
     if (isClient && form.programs.length === 0) {
-      setError("Select at least one program for the client user.");
+      setError("Select at least one organization program for the client user.");
       return;
     }
     setSaving(true);
@@ -2223,7 +2212,6 @@ function AddUserModal({
         projects: isClient ? [] : form.projects,
         ...(isClient
           ? {
-              organizationId: form.organizationId,
               programs: form.programs,
             }
           : {}),
@@ -2282,7 +2270,6 @@ function AddUserModal({
               ...form,
               roleId,
               projects: [],
-              organizationId: "",
               programs: [],
             })
           }
@@ -2303,65 +2290,52 @@ function AddUserModal({
         {roles.error ? <p className="form-error">{roles.error}</p> : null}
         {isClient ? (
           <>
-            <div className="organization-picker">
-              <label>Search and select an organization</label>
-              <SearchableSelect
-                ariaLabel="Organization"
-                value={form.organizationId}
-                onChange={(organizationId) =>
-                  setForm({
-                    ...form,
-                    organizationId,
-                    programs: [],
-                  })
-                }
-                options={mergedOrganizations.map((organization) => ({
-                  value: organization.selectionId,
-                  label: organization.name,
-                }))}
-                placeholder="Choose an organization…"
-                searchPlaceholder="Search organizations…"
-                required
-              />
-              <small>
-                {mergedOrganizations.length} organizations available
-              </small>
-            </div>
             {organizations.error ? (
               <p className="form-error">{organizations.error}</p>
             ) : null}
-            {form.organizationId ? (
-              <fieldset>
-                <legend>Set programs for Client</legend>
-                {availablePrograms.length ? (
-                  availablePrograms.map((program) => {
+            <fieldset>
+              <legend>Set organization programs for Client</legend>
+              <small>
+                The organization is assigned automatically from each program.
+              </small>
+              {mergedOrganizations.some(
+                (organization) => organization.programs.length,
+              ) ? (
+                mergedOrganizations.flatMap((organization) =>
+                  organization.programs.map((program) => {
+                    const enrollmentId =
+                      program.organizationProgramId ??
+                      (organization.programs.length === 1
+                        ? organization.organizationProgramId
+                        : "");
+                    const label = `${organization.name} — ${program.name}${program.year ? ` (${program.year})` : ""}${program.projectName ? ` — ${program.projectName}` : ""}`;
+                    if (!enrollmentId) return null;
                     return (
-                      <label key={program.id}>
+                      <label key={enrollmentId}>
                         <input
+                          aria-label={label}
                           type="checkbox"
-                          checked={form.programs.includes(program.id)}
+                          checked={form.programs.includes(enrollmentId)}
                           onChange={(event) =>
                             setForm({
                               ...form,
                               programs: event.target.checked
-                                ? [...form.programs, program.id]
+                                ? [...form.programs, enrollmentId]
                                 : form.programs.filter(
-                                    (id) => id !== program.id,
+                                    (id) => id !== enrollmentId,
                                   ),
                             })
                           }
                         />{" "}
-                        {program.name}
-                        {program.year ? ` (${program.year})` : ""}
-                        {program.projectName ? ` — ${program.projectName}` : ""}
+                        {label}
                       </label>
                     );
-                  })
-                ) : (
-                  <span>No programs are assigned to this organization.</span>
-                )}
-              </fieldset>
-            ) : null}
+                  }),
+                )
+              ) : (
+                <span>No organization programs are available.</span>
+              )}
+            </fieldset>
           </>
         ) : form.roleId ? (
           <fieldset>
@@ -2697,27 +2671,29 @@ export function UsersManagementPage() {
       <PageHeader
         title="Users Management"
         actions={
-          <>
+          <div className="user-management-actions">
             <button
               className="primary-button compact"
               onClick={() => setModal(true)}
             >
               + Add User
             </button>
-            <button
-              className="secondary-button compact"
-              onClick={() => setBulkCreation(true)}
-            >
-              Bulk Creation
-            </button>
-            <button
-              className="secondary-button compact"
-              disabled={loaded.loading || Boolean(loaded.error)}
-              onClick={downloadAllUsers}
-            >
-              <Download size={16} /> Download All Users
-            </button>
-          </>
+            <div className="user-management-tools">
+              <button
+                className="secondary-button small dark"
+                onClick={() => setBulkCreation(true)}
+              >
+                Bulk Creation
+              </button>
+              <button
+                className="secondary-button small dark"
+                disabled={loaded.loading || Boolean(loaded.error)}
+                onClick={downloadAllUsers}
+              >
+                <Download size={14} /> Download All Users
+              </button>
+            </div>
+          </div>
         }
       />
       <Toolbar

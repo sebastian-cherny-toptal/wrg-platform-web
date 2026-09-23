@@ -306,6 +306,7 @@ export type OrganizationRecord = {
   organizationProgramId: string;
   programs: Array<{
     id: string;
+    organizationProgramId?: string;
     name: string;
     year: number | null;
     projectId: string;
@@ -732,8 +733,13 @@ export function organization(raw: unknown): OrganizationRecord {
         const access = object(object(entry).orgs);
         const reference = object(array(access.programId)[0]);
         const yearValue = reference.Program_Year ?? reference.year;
+        const organizationProgramId =
+          stringValue(access.databaseId) ||
+          stringValue(access._id) ||
+          stringValue(access.id);
         return {
           id: stringValue(reference._id) || stringValue(reference.id),
+          ...(organizationProgramId ? { organizationProgramId } : {}),
           name: stringValue(reference.Name) || stringValue(reference.name),
           year: Number.isFinite(Number(yearValue)) ? Number(yearValue) : null,
           projectId: stringValue(access.projectId),
