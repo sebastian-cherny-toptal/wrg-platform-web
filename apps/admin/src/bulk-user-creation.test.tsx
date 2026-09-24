@@ -15,12 +15,12 @@ afterEach(() => {
 });
 
 it("reviews uploaded users and retries only failed creations", async () => {
-  vi.spyOn(api, "roles").mockResolvedValue([
-    { _id: "admin", name: "Admin", role: "admin" },
-  ]);
-  vi.spyOn(api, "projects").mockResolvedValue([]);
-  vi.spyOn(api, "organizations").mockResolvedValue([]);
-  vi.spyOn(api, "users").mockResolvedValue([]);
+  vi.spyOn(api, "bulkUserCatalog").mockResolvedValue({
+    roles: [{ id: "admin", key: "admin", name: "Admin", userCount: 0 }],
+    projects: [],
+    organizations: [],
+    users: [],
+  });
   const create = vi
     .spyOn(api, "createUser")
     .mockResolvedValueOnce()
@@ -60,89 +60,40 @@ it("reviews uploaded users and retries only failed creations", async () => {
 });
 
 it("previews and applies changes to an existing user with multiple Programs", async () => {
-  vi.spyOn(api, "roles").mockResolvedValue([
-    { _id: "client", name: "Client", role: "client" },
-  ]);
-  vi.spyOn(api, "projects").mockResolvedValue([
-    {
-      id: "project-1",
-      name: "Workforce",
-      createdAt: null,
-      programs: [
-        { id: "program-1", name: "Awards 2025", year: 2025 },
-        { id: "program-2", name: "Awards 2026", year: 2026 },
-      ].map((program) => ({
-        ...program,
-        createdAt: null,
-        organizationCount: 1,
-        winnersCount: 0,
-        categorySummaries: [],
-        latestZohoSync: null,
-      })),
-    },
-  ]);
-  vi.spyOn(api, "organizations").mockResolvedValue([
-    {
-      id: "org-1",
-      selectionId: "org-1",
-      name: "Acme",
-      programs: [
-        {
-          id: "program-1",
-          name: "Awards 2025",
-          year: 2025,
-          projectId: "project-1",
-          projectName: "Workforce",
-        },
-        {
-          id: "program-2",
-          name: "Awards 2026",
-          year: 2026,
-          projectId: "project-1",
-          projectName: "Workforce",
-        },
-      ],
-      users: [],
-      sourceId: "org-1",
-      sourceName: null,
-      createdAt: null,
-      stage: null,
-      lastSyncedAt: null,
-      surveysSent: 0,
-      isWinner: null,
-      isIncluded: true,
-      companySize: null,
-      employeesCount: null,
-      overallRank: null,
-      categoryRank: null,
-      currentZohoCategory: null,
-      reportCategory: null,
-      benchmarkCategory: null,
-      purchasedEvSortingFilter: null,
-      organizationProgramId: "enrollment-1",
-    },
-  ]);
-  vi.spyOn(api, "users").mockResolvedValue([
-    {
-      id: "user-1",
-      fullName: "Alex Old",
-      email: "alex@example.com",
-      username: "alex",
-      mobile: "111",
-      role: "client",
-      roleId: "client",
-      organization: { id: "org-1", name: "Acme" },
-      projects: [{ id: "project-1", name: "Workforce" }],
-      programs: ["program-1"],
-      programDetails: [{ id: "program-1", name: "Awards 2025", year: 2025 }],
-      createdAt: null,
-      lastLogin: null,
-      status: "ACTIVE",
-      payments: [],
-      totalPaid: [],
-      lastPaymentDatetime: null,
-    },
-  ]);
+  vi.spyOn(api, "bulkUserCatalog").mockResolvedValue({
+    roles: [{ id: "client", key: "client", name: "Client", userCount: 1 }],
+    projects: [
+      {
+        id: "project-1",
+        name: "Workforce",
+        programs: [
+          { id: "program-1", name: "Awards 2025", year: 2025 },
+          { id: "program-2", name: "Awards 2026", year: 2026 },
+        ],
+      },
+    ],
+    organizations: [
+      {
+        id: "org-1",
+        name: "Acme",
+        programIds: ["program-1", "program-2"],
+      },
+    ],
+    users: [
+      {
+        id: "user-1",
+        fullName: "Alex Old",
+        email: "alex@example.com",
+        username: "alex",
+        mobile: "111",
+        role: "client",
+        roleId: "client",
+        organization: { id: "org-1", name: "Acme" },
+        projects: [{ id: "project-1", name: "Workforce" }],
+        programDetails: [{ id: "program-1", name: "Awards 2025", year: 2025 }],
+      },
+    ],
+  });
   const update = vi.spyOn(api, "updateUser").mockResolvedValue();
   render(
     <BulkUserCreation
@@ -185,31 +136,32 @@ it.each([
 ])(
   "treats exported role %s and display name %s as the same role",
   async (roleKey, roleName) => {
-    vi.spyOn(api, "roles").mockResolvedValue([
-      { _id: `${roleKey}-id`, name: roleName, role: roleKey },
-    ]);
-    vi.spyOn(api, "projects").mockResolvedValue([]);
-    vi.spyOn(api, "organizations").mockResolvedValue([]);
-    vi.spyOn(api, "users").mockResolvedValue([
-      {
-        id: "user-1",
-        fullName: "Alex Example",
-        email: "alex@example.com",
-        username: "alex",
-        mobile: null,
-        role: roleKey,
-        roleId: `${roleKey}-id`,
-        organization: null,
-        projects: [],
-        programDetails: [],
-        createdAt: null,
-        lastLogin: null,
-        status: "ACTIVE",
-        payments: [],
-        totalPaid: [],
-        lastPaymentDatetime: null,
-      },
-    ]);
+    vi.spyOn(api, "bulkUserCatalog").mockResolvedValue({
+      roles: [
+        {
+          id: `${roleKey}-id`,
+          key: roleKey,
+          name: roleName,
+          userCount: 1,
+        },
+      ],
+      projects: [],
+      organizations: [],
+      users: [
+        {
+          id: "user-1",
+          fullName: "Alex Example",
+          email: "alex@example.com",
+          username: "alex",
+          mobile: null,
+          role: roleKey,
+          roleId: `${roleKey}-id`,
+          organization: null,
+          projects: [],
+          programDetails: [],
+        },
+      ],
+    });
     const update = vi.spyOn(api, "updateUser").mockResolvedValue();
     render(
       <BulkUserCreation
@@ -235,3 +187,61 @@ it.each([
     expect(update).not.toHaveBeenCalled();
   },
 );
+
+it("revalidates only the edited row while typing Organization or Program", async () => {
+  let eligibilityReads = 0;
+  const organizations = Array.from({ length: 100 }, (_, index) => ({
+    id: `organization-${index}`,
+    name: `Organization ${index}`,
+    get programIds() {
+      eligibilityReads += 1;
+      return ["program-1"];
+    },
+  }));
+  vi.spyOn(api, "bulkUserCatalog").mockResolvedValue({
+    roles: [{ id: "client", key: "client", name: "Client", userCount: 0 }],
+    projects: [
+      {
+        id: "project-1",
+        name: "Workforce",
+        programs: [{ id: "program-1", name: "Awards", year: 2026 }],
+      },
+    ],
+    organizations,
+    users: [],
+  });
+  render(
+    <BulkUserCreation
+      onCreated={vi.fn()}
+      onClose={vi.fn()}
+      onBusyChange={vi.fn()}
+    />,
+  );
+  const upload = screen.getByLabelText("Upload users spreadsheet");
+  await waitFor(() =>
+    expect((upload as HTMLInputElement).disabled).toBe(false),
+  );
+  const lines = Array.from(
+    { length: 50 },
+    (_, index) =>
+      `User ${index},user${index}@example.com,user${index},Client,Workforce,Awards,Organization 99`,
+  );
+  const file = new File([], "users.csv");
+  Object.defineProperty(file, "text", {
+    value: async () =>
+      [
+        "Full Name,Email,Username,Role,Project,Program,Organization",
+        ...lines,
+      ].join("\n"),
+  });
+  fireEvent.change(upload, { target: { files: [file] } });
+  await screen.findByRole("button", { name: "Process 50 users" });
+
+  eligibilityReads = 0;
+  fireEvent.change(screen.getByLabelText("Row 2 Organization"), {
+    target: { value: "Organization 98" },
+  });
+
+  expect(eligibilityReads).toBeLessThanOrEqual(100);
+  expect(screen.getByRole("button", { name: "Process 50 users" })).toBeTruthy();
+});

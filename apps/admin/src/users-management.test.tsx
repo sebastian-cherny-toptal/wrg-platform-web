@@ -146,74 +146,15 @@ it("creates clients by selecting a project, searchable organization, and its pro
       ],
     },
   ]);
-  const loadOrganizations = vi.spyOn(api, "organizations").mockResolvedValue([
-    {
-      id: "artemis",
-      selectionId: "artemis-2025",
-      sourceId: "artemis",
-      sourceName: "Artemis",
-      name: "Artemis",
-      createdAt: null,
-      stage: null,
-      lastSyncedAt: null,
-      surveysSent: 0,
-      isWinner: null,
-      isIncluded: true,
-      companySize: null,
-      employeesCount: null,
-      overallRank: null,
-      categoryRank: null,
-      currentZohoCategory: null,
-      reportCategory: null,
-      benchmarkCategory: null,
-      purchasedEvSortingFilter: null,
-      organizationProgramId: "artemis-2025",
-      programs: [
-        {
-          id: "program-2025",
-          name: "Awards",
-          year: 2025,
-          projectId: "legacy-project-1",
-          projectName: "Workforce",
-          organizationProgramId: "artemis-2025",
-        },
-      ],
-      users: [],
-    },
-    {
-      id: "artemis-duplicate",
-      selectionId: "artemis-2026",
-      sourceId: "artemis",
-      sourceName: "Artemis",
-      name: "Artemis",
-      createdAt: null,
-      stage: null,
-      lastSyncedAt: null,
-      surveysSent: 0,
-      isWinner: null,
-      isIncluded: true,
-      companySize: null,
-      employeesCount: null,
-      overallRank: null,
-      categoryRank: null,
-      currentZohoCategory: null,
-      reportCategory: null,
-      benchmarkCategory: null,
-      purchasedEvSortingFilter: null,
-      organizationProgramId: "artemis-2026",
-      programs: [
-        {
-          id: "program-2026",
-          name: "Awards",
-          year: 2026,
-          projectId: "legacy-project-1",
-          projectName: "Workforce",
-          organizationProgramId: "artemis-2026",
-        },
-      ],
-      users: [],
-    },
-  ]);
+  const loadOrganizations = vi
+    .spyOn(api, "organizationOptions")
+    .mockResolvedValue([
+      {
+        id: "artemis",
+        name: "Artemis",
+        programIds: ["program-2025", "program-2026"],
+      },
+    ]);
   const create = vi.spyOn(api, "createUser").mockResolvedValue();
   render(
     <MemoryRouter>
@@ -239,9 +180,7 @@ it("creates clients by selecting a project, searchable organization, and its pro
   fireEvent.click(within(dialog).getByRole("button", { name: "Project" }));
   fireEvent.click(await screen.findByRole("option", { name: "Workforce" }));
   await vi.waitFor(() =>
-    expect(loadOrganizations).toHaveBeenCalledWith({
-      projectId: "project-1",
-    }),
+    expect(loadOrganizations).toHaveBeenCalledWith("project-1"),
   );
   const organizationSelect = within(dialog).getByRole("button", {
     name: "Organization",
@@ -275,7 +214,7 @@ it("creates clients by selecting a project, searchable organization, and its pro
       mobile: "",
       roleId: "client-role",
       projects: [],
-      organizationId: "artemis-2025",
+      organizationId: "artemis",
       programs: ["program-2025", "program-2026"],
     }),
   );

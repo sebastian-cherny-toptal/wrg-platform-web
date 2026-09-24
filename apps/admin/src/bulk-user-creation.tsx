@@ -1,10 +1,5 @@
-import { useEffect, useState } from "react";
-import {
-  api,
-  type OrganizationRecord,
-  type ProjectRecord,
-  type UserRecord,
-} from "./api";
+import { useEffect, useRef, useState } from "react";
+import { api, type BulkUserCatalog } from "./api";
 import {
   bulkUserColumns,
   parseCsv,
@@ -39,12 +34,7 @@ export function BulkUserCreation({
   onClose: () => void;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const [catalog, setCatalog] = useState<{
-    roles: Record<string, unknown>[];
-    projects: ProjectRecord[];
-    organizations: OrganizationRecord[];
-    users: UserRecord[];
-  }>();
+  const [catalog, setCatalog] = useState<BulkUserCatalog>();
   const [rows, setRows] = useState<BulkUserRow[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,9 +44,10 @@ export function BulkUserCreation({
   }, [busy, onBusyChange]);
   useEffect(() => {
     let active = true;
-    Promise.all([api.roles(), api.projects(), api.organizations(), api.users()])
-      .then(([roles, projects, organizations, users]) => {
-        if (active) setCatalog({ roles, projects, organizations, users });
+    api
+      .bulkUserCatalog()
+      .then((loaded) => {
+        if (active) setCatalog(loaded);
       })
       .catch((caught) => {
         if (active)
@@ -70,15 +61,42 @@ export function BulkUserCreation({
       active = false;
     };
   }, []);
-  const resolve = (row: BulkUserRow) =>
-    resolveBulkUser(
-      row,
-      catalog!.roles,
-      catalog!.projects,
-      catalog!.organizations,
-      rows,
-      catalog!.users,
-    );
+  const resolutionCache = useRef(
+    new WeakMap<
+      BulkUserRow,
+      {
+        identityKey: string;
+        result: ReturnType<typeof resolveBulkUser>;
+      }
+    >(),
+  );
+  const identityKey = rows
+    .map(
+      (row) =>
+        `${normalized(row.input.Email)}\u0000${normalized(row.input.Username)}`,
+    )
+    .join("\u0001");
+  const resultByRow = new Map(
+    catalog
+      ? rows.map((row) => {
+          const cached = resolutionCache.current.get(row);
+          const result =
+            cached?.identityKey === identityKey
+              ? cached.result
+              : resolveBulkUser(
+                  row,
+                  catalog.roles,
+                  catalog.projects,
+                  catalog.organizations,
+                  rows,
+                  catalog.users,
+                );
+          resolutionCache.current.set(row, { identityKey, result });
+          return [row, result] as const;
+        })
+      : [],
+  );
+  const resolve = (row: BulkUserRow) => resultByRow.get(row)!;
   const pending = rows.filter((row) => !row.outcome);
   const blocked =
     !catalog ||
@@ -134,8 +152,10 @@ export function BulkUserCreation({
         )?.label ?? row.input.Organization,
     };
   };
-  const previousValues = (row: BulkUserRow): BulkUserInput | null => {
-    const existing = resolve(row).existingUser;
+  const previousValues = (
+    result: ReturnType<typeof resolveBulkUser>,
+  ): BulkUserInput | null => {
+    const existing = result.existingUser;
     if (!existing) return null;
     return {
       "Full Name": existing.fullName,
@@ -154,7 +174,7 @@ export function BulkUserCreation({
     row: BulkUserRow,
     result: ReturnType<typeof resolve>,
   ) => {
-    const previous = previousValues(row);
+    const previous = previousValues(result);
     if (!previous) return [];
     const desired = desiredValues(row, result);
     return bulkUserColumns.filter(
@@ -342,7 +362,7 @@ export function BulkUserCreation({
           </p>
           {rows.map((row) => {
             const result = resolve(row);
-            const previous = previousValues(row);
+            const previous = previousValues(result);
             const desired = desiredValues(row, result);
             const changes = new Set(changedColumns(row, result));
             return (

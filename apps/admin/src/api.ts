@@ -315,6 +315,37 @@ export type OrganizationRecord = {
   users: PortalUserRecord[];
 };
 
+export type BulkUserCatalog = {
+  roles: Array<{
+    id: string;
+    key: string;
+    name: string;
+    userCount: number;
+  }>;
+  projects: Array<{
+    id: string;
+    name: string;
+    programs: Array<{ id: string; name: string; year: number | null }>;
+  }>;
+  organizations: Array<{
+    id: string;
+    name: string;
+    programIds: string[];
+  }>;
+  users: Array<{
+    id: string;
+    fullName: string;
+    email: string;
+    username: string | null;
+    mobile: string | null;
+    role: string | null;
+    roleId: string | null;
+    organization: { id: string; name: string } | null;
+    projects: Array<{ id: string; name: string }>;
+    programDetails: Array<{ id: string; name: string; year: number | null }>;
+  }>;
+};
+
 export type PendingKeyImpactAnalysis = {
   organizationId: string;
   organizationName: string;
@@ -1011,16 +1042,114 @@ export const api = {
     };
   },
 
-  async organizations(filters: {
-    programId?: string;
-    projectId?: string;
-  } = {}): Promise<OrganizationRecord[]> {
+  async organizations(
+    filters: {
+      programId?: string;
+      projectId?: string;
+    } = {},
+  ): Promise<OrganizationRecord[]> {
     const search = new URLSearchParams();
     if (filters.programId) search.set("programId", filters.programId);
     if (filters.projectId) search.set("projectId", filters.projectId);
     const query = search.size ? `?${search.toString()}` : "";
     const response = await request<unknown>(`/admin/getOrganizations${query}`);
     return array(object(response).data).map(organization);
+  },
+
+  async bulkUserCatalog(): Promise<BulkUserCatalog> {
+    const response = await request<unknown>("/admin/bulk-user-catalog");
+    const data = object(object(response).data);
+    return {
+      roles: array(data.roles).map((entry) => {
+        const role = object(entry);
+        return {
+          id: stringValue(role.id),
+          key: stringValue(role.key),
+          name: stringValue(role.name),
+          userCount: Number(role.userCount ?? 0),
+        };
+      }),
+      projects: array(data.projects).map((entry) => {
+        const project = object(entry);
+        return {
+          id: stringValue(project.id),
+          name: stringValue(project.name),
+          programs: array(project.programs).map((entry) => {
+            const program = object(entry);
+            return {
+              id: stringValue(program.id),
+              name: stringValue(program.name),
+              year: Number.isInteger(program.year)
+                ? Number(program.year)
+                : null,
+            };
+          }),
+        };
+      }),
+      organizations: array(data.organizations).map((entry) => {
+        const organization = object(entry);
+        return {
+          id: stringValue(organization.id),
+          name: stringValue(organization.name),
+          programIds: array(organization.programIds).map((id) =>
+            stringValue(id),
+          ),
+        };
+      }),
+      users: array(data.users).map((entry) => {
+        const user = object(entry);
+        const organization = object(user.organization);
+        return {
+          id: stringValue(user.id),
+          fullName: stringValue(user.fullName),
+          email: stringValue(user.email),
+          username: stringValue(user.username) || null,
+          mobile: stringValue(user.mobile) || null,
+          role: stringValue(user.role) || null,
+          roleId: stringValue(user.roleId) || null,
+          organization: stringValue(organization.id)
+            ? {
+                id: stringValue(organization.id),
+                name: stringValue(organization.name),
+              }
+            : null,
+          projects: array(user.projects).map((entry) => {
+            const project = object(entry);
+            return {
+              id: stringValue(project.id),
+              name: stringValue(project.name),
+            };
+          }),
+          programDetails: array(user.programDetails).map((entry) => {
+            const program = object(entry);
+            return {
+              id: stringValue(program.id),
+              name: stringValue(program.name),
+              year: Number.isInteger(program.year)
+                ? Number(program.year)
+                : null,
+            };
+          }),
+        };
+      }),
+    };
+  },
+
+  async organizationOptions(
+    projectId: string,
+  ): Promise<BulkUserCatalog["organizations"]> {
+    const query = new URLSearchParams({ projectId });
+    const response = await request<unknown>(
+      `/admin/organization-options?${query.toString()}`,
+    );
+    return array(object(response).data).map((entry) => {
+      const organization = object(entry);
+      return {
+        id: stringValue(organization.id),
+        name: stringValue(organization.name),
+        programIds: array(organization.programIds).map((id) => stringValue(id)),
+      };
+    });
   },
 
   async pendingKeyImpactAnalyses(): Promise<PendingKeyImpactAnalysis[]> {

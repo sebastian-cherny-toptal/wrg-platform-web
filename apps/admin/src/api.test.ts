@@ -228,8 +228,104 @@ describe("admin API projections", () => {
       api.organizations({ projectId: "project/id" }),
     ).resolves.toEqual([]);
     expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/getOrganizations?projectId=project%2Fid"),
+      expect.any(Object),
+    );
+  });
+
+  it("loads the minimal bulk user catalog from one endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          data: {
+            roles: [
+              {
+                id: "client-role",
+                key: "client",
+                name: "Client",
+                userCount: 2,
+              },
+            ],
+            projects: [
+              {
+                id: "project-id",
+                name: "Workforce",
+                programs: [{ id: "program-id", name: "Awards", year: 2026 }],
+              },
+            ],
+            organizations: [
+              {
+                id: "organization-id",
+                name: "Acme",
+                programIds: ["program-id"],
+              },
+            ],
+            users: [],
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      (
+        api as unknown as { bulkUserCatalog: () => Promise<unknown> }
+      ).bulkUserCatalog(),
+    ).resolves.toEqual({
+      roles: [
+        { id: "client-role", key: "client", name: "Client", userCount: 2 },
+      ],
+      projects: [
+        {
+          id: "project-id",
+          name: "Workforce",
+          programs: [{ id: "program-id", name: "Awards", year: 2026 }],
+        },
+      ],
+      organizations: [
+        {
+          id: "organization-id",
+          name: "Acme",
+          programIds: ["program-id"],
+        },
+      ],
+      users: [],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/bulk-user-catalog"),
+      expect.any(Object),
+    );
+  });
+
+  it("loads minimal project-scoped organization options for Add User", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          data: [
+            {
+              id: "organization-id",
+              name: "Acme",
+              programIds: ["program-id"],
+            },
+          ],
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.organizationOptions("project/id")).resolves.toEqual([
+      {
+        id: "organization-id",
+        name: "Acme",
+        programIds: ["program-id"],
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining(
-        "/admin/getOrganizations?projectId=project%2Fid",
+        "/admin/organization-options?projectId=project%2Fid",
       ),
       expect.any(Object),
     );
@@ -636,7 +732,12 @@ describe("admin API projections", () => {
       }),
     );
     const users = await api.users();
-    expect(users.map(({ programs, programDetails }) => ({ programs, programDetails }))).toEqual([
+    expect(
+      users.map(({ programs, programDetails }) => ({
+        programs,
+        programDetails,
+      })),
+    ).toEqual([
       { programs: [], programDetails: [] },
       {
         programs: ["p1"],

@@ -6,17 +6,24 @@ import {
   resolveBulkUser,
   spreadsheetRows,
 } from "./bulk-users";
-import type { ProjectRecord, OrganizationRecord, UserRecord } from "./api";
+import type { BulkUserCatalog, UserRecord } from "./api";
 
-const roles = [
-  { _id: "admin", name: "Admin", role: "admin" },
-  { _id: "client", name: "Client", role: "client" },
-  { _id: "promotional", name: "Promotional", role: "promotional" },
+const roles: BulkUserCatalog["roles"] = [
+  { id: "admin", key: "admin", name: "Admin", userCount: 0 },
+  { id: "client", key: "client", name: "Client", userCount: 0 },
+  {
+    id: "promotional",
+    key: "promotional",
+    name: "Promotional",
+    userCount: 0,
+  },
 ];
-const project = (id: string, name: string): ProjectRecord => ({
+const project = (
+  id: string,
+  name: string,
+): BulkUserCatalog["projects"][number] => ({
   id,
   name,
-  createdAt: null,
   programs: [],
 });
 const row = (values: string[]) => spreadsheetRows([bulkUserColumns, values])[0];
@@ -64,37 +71,10 @@ describe("bulk user spreadsheet validation", () => {
       "Awards",
       "Acme",
     ]);
-    const organization: OrganizationRecord = {
+    const organization: BulkUserCatalog["organizations"][number] = {
       id: "o1",
-      selectionId: "o1",
       name: "ACME",
-      programs: [
-        {
-          id: "a1",
-          name: "AWARDS",
-          year: 2026,
-          projectId: "p1",
-          projectName: "Workforce",
-        },
-      ],
-      users: [],
-      sourceId: "o1",
-      sourceName: null,
-      createdAt: null,
-      stage: null,
-      lastSyncedAt: null,
-      surveysSent: 0,
-      isWinner: null,
-      isIncluded: true,
-      companySize: null,
-      employeesCount: null,
-      overallRank: null,
-      categoryRank: null,
-      currentZohoCategory: null,
-      reportCategory: null,
-      benchmarkCategory: null,
-      purchasedEvSortingFilter: null,
-      organizationProgramId: "e1",
+      programIds: ["a1"],
     };
     const workforce = project("p1", "Workforce");
     workforce.programs = [
@@ -102,11 +82,6 @@ describe("bulk user spreadsheet validation", () => {
         id: "a1",
         name: "AWARDS",
         year: 2026,
-        createdAt: null,
-        organizationCount: 1,
-        winnersCount: 0,
-        categorySummaries: [],
-        latestZohoSync: null,
       },
     ];
     const result = resolveBulkUser(
@@ -119,7 +94,7 @@ describe("bulk user spreadsheet validation", () => {
     );
     expect(result.errors).toEqual([]);
     expect(result.selected.Program).toBe("a1");
-    organization.programs = [];
+    organization.programIds = [];
     expect(
       resolveBulkUser(input, roles, [workforce], [organization], [input], [])
         .selected.Program,
@@ -140,25 +115,12 @@ describe("bulk user spreadsheet validation", () => {
       id: `program-${year}`,
       name: `Awards ${year}`,
       year: Number(year),
-      createdAt: null,
-      organizationCount: 1,
-      winnersCount: 0,
-      categorySummaries: [],
-      latestZohoSync: null,
     }));
     const organization = {
       id: "org-1",
-      selectionId: "org-1",
       name: "Acme",
-      programs: workforce.programs.map((program) => ({
-        id: program.id,
-        name: program.name,
-        year: program.year,
-        projectId: "p1",
-        projectName: "Workforce",
-      })),
-      users: [],
-    } as unknown as OrganizationRecord;
+      programIds: workforce.programs.map((program) => program.id),
+    };
     const resolved = resolveBulkUser(
       input,
       roles,
@@ -182,7 +144,7 @@ describe("bulk user spreadsheet validation", () => {
     ).toContain("no match for “Missing”");
   });
 
-  it("groups duplicate organization matches when their programs cover every assignment", () => {
+  it("matches an organization when its eligibility covers every assignment", () => {
     const input = row([
       "Alex",
       "a@example.com",
@@ -197,36 +159,14 @@ describe("bulk user spreadsheet validation", () => {
       id: `program-${year}`,
       name: `Awards ${year}`,
       year,
-      createdAt: null,
-      organizationCount: 2,
-      winnersCount: 0,
-      categorySummaries: [],
-      latestZohoSync: null,
     }));
-    const organizations = [
-      ["enrollment-2025-a", "program-2025"],
-      ["enrollment-2025-b", "program-2025"],
-      ["enrollment-2026-a", "program-2026"],
-      ["enrollment-2026-b", "program-2026"],
-    ].map(([selectionId, programId]) => {
-      const organization = {
-        id: selectionId,
-        selectionId,
+    const organizations: BulkUserCatalog["organizations"] = [
+      {
+        id: "organization-id",
         name: "Artemis",
-        programs: [
-          {
-            id: programId,
-            name: programId,
-            year: Number(programId.slice(-4)),
-            projectId: "p1",
-            projectName: "Workforce",
-            organizationProgramId: selectionId,
-          },
-        ],
-        users: [],
-      };
-      return organization as unknown as OrganizationRecord;
-    });
+        programIds: ["program-2025", "program-2026"],
+      },
+    ];
 
     const resolved = resolveBulkUser(
       input,
@@ -237,14 +177,10 @@ describe("bulk user spreadsheet validation", () => {
       [],
     );
     expect(resolved.errors).toEqual([]);
-    expect(resolved.selected.Organization).toBe("enrollment-2025-a");
+    expect(resolved.selected.Organization).toBe("organization-id");
     expect(resolved.programIds).toEqual(["program-2025", "program-2026"]);
 
-    for (const organization of organizations) {
-      organization.programs = organization.programs.filter(
-        (program) => program.id !== "program-2026",
-      );
-    }
+    organizations[0].programIds = ["program-2025"];
     expect(
       resolveBulkUser(
         input,
@@ -292,13 +228,7 @@ describe("bulk user spreadsheet validation", () => {
       organization: null,
       projects: [],
       programDetails: [],
-      createdAt: null,
-      lastLogin: null,
-      status: "ACTIVE",
-      payments: [],
-      totalPaid: [],
-      lastPaymentDatetime: null,
-    } satisfies UserRecord;
+    } satisfies BulkUserCatalog["users"][number];
     const resolved = resolveBulkUser(input, roles, [], [], [input], [existing]);
     expect(resolved.existingUser?.id).toBe("user-1");
     expect(resolved.errors).toEqual([]);

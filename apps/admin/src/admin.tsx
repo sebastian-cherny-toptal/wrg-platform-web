@@ -60,7 +60,6 @@ import {
 } from "./api";
 import { useAuth } from "./auth";
 import { CatalogEditor, MoneyInput } from "./catalog-editor";
-import { filterAndSortOrganizations } from "./organization-options";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 import { BulkUserCreation } from "./bulk-user-creation";
 import { bulkUsersCsv } from "./bulk-users";
@@ -2187,38 +2186,25 @@ function AddUserModal({
     `modal-organizations:${form.clientProjectId || "none"}`,
     () =>
       form.clientProjectId
-        ? api.organizations({ projectId: form.clientProjectId })
+        ? api.organizationOptions(form.clientProjectId)
         : Promise.resolve([]),
   );
   const selectedRole = (roles.data ?? []).find(
     (role) => field(role, "_id", "id") === form.roleId,
   );
   const isClient = field(selectedRole ?? {}, "role") === "client";
-  const mergedOrganizations = filterAndSortOrganizations(
-    organizations.data ?? [],
-    "",
+  const availableOrganizations = [...(organizations.data ?? [])].sort(
+    (left, right) =>
+      left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
   );
   const selectedClientProject = (projects.data ?? []).find(
     (project) => project.id === form.clientProjectId,
   );
-  const selectedProjectProgramIds = new Set(
-    selectedClientProject?.programs.map((program) => program.id) ?? [],
-  );
-  const belongsToSelectedProject = (program: {
-    id: string;
-    projectId: string;
-  }) =>
-    selectedProjectProgramIds.size > 0
-      ? selectedProjectProgramIds.has(program.id)
-      : program.projectId === form.clientProjectId;
-  const availableOrganizations = mergedOrganizations.filter((organization) =>
-    organization.programs.some(belongsToSelectedProject),
-  );
   const selectedOrganization = availableOrganizations.find(
-    (organization) => organization.selectionId === form.organizationId,
+    (organization) => organization.id === form.organizationId,
   );
-  const availablePrograms = (selectedOrganization?.programs ?? []).filter(
-    belongsToSelectedProject,
+  const availablePrograms = (selectedClientProject?.programs ?? []).filter(
+    (program) => selectedOrganization?.programIds.includes(program.id),
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -2364,7 +2350,7 @@ function AddUserModal({
                     setForm({ ...form, organizationId, programs: [] })
                   }
                   options={availableOrganizations.map((organization) => ({
-                    value: organization.selectionId,
+                    value: organization.id,
                     label: organization.name,
                   }))}
                   placeholder={

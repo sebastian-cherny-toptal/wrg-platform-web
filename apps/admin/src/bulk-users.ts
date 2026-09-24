@@ -1,6 +1,4 @@
-import type { OrganizationRecord, ProjectRecord, UserRecord } from "./api";
-import { field } from "./api";
-import { mergeOrganizations } from "./organization-options";
+import type { BulkUserCatalog, UserRecord } from "./api";
 
 export const bulkUserColumns = [
   "Full Name",
@@ -112,11 +110,11 @@ export function bulkUsersCsv(users: UserRecord[]): string {
 
 export function resolveBulkUser(
   row: BulkUserRow,
-  roles: Record<string, unknown>[],
-  projects: ProjectRecord[],
-  organizations: OrganizationRecord[],
+  roles: BulkUserCatalog["roles"],
+  projects: BulkUserCatalog["projects"],
+  organizations: BulkUserCatalog["organizations"],
   rows: BulkUserRow[],
-  users: UserRecord[],
+  users: BulkUserCatalog["users"],
 ) {
   const errors: string[] = [];
   const options: Record<string, MatchOption[]> = {};
@@ -170,9 +168,9 @@ export function resolveBulkUser(
   match(
     "Role",
     roles.map((role) => ({
-      id: field(role, "_id", "id"),
-      label: field(role, "name", "role"),
-      key: field(role, "role"),
+      id: role.id,
+      label: role.name,
+      key: role.key,
     })),
     true,
   );
@@ -239,17 +237,17 @@ export function resolveBulkUser(
   const programsResolved = programIds.length === nonEmptyProgramTokens.length;
   match(
     "Organization",
-    mergeOrganizations(organizations)
+    organizations
       .filter(
         (organization) =>
           !isClient ||
           !programsResolved ||
           programIds.every((programId) =>
-            organization.programs.some((program) => program.id === programId),
+            organization.programIds.includes(programId),
           ),
       )
       .map((organization) => ({
-        id: organization.selectionId,
+        id: organization.id,
         label: organization.name,
       })),
     isClient,
