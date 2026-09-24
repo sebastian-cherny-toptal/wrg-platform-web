@@ -45,6 +45,8 @@ ACCEPTANCE_API_BASE_URL=https://api-candidate.up.railway.app \
 npm run test:e2e:acceptance --workspace @wrg/platform-client-web
 ```
 
+For example: `ACCEPTANCE_WEB_BASE_URL=https://wrg-platform-web-production.up.railway.app/ ACCEPTANCE_API_BASE_URL=https://wrg-platform-api-production.up.railway.app/  npm run test:e2e:acceptance`
+
 The suite logs in as `test.baton` / `test.baton@example.test` by default, calls
 the real API without Playwright request interception, verifies that browser API
 traffic stays on the configured candidate API origin, downloads a generated
