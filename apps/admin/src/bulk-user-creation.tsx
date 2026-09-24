@@ -142,7 +142,7 @@ export function BulkUserCreation({
         result.options.Project.find(
           (option) => option.id === result.selected.Project,
         )?.label ??
-        (result.isClient && inferredProjectNames.length
+        (result.supportsOrganizationPrograms && inferredProjectNames.length
           ? inferredProjectNames.join(", ")
           : row.input.Project),
       Program: programNames.join(", "),
@@ -228,16 +228,19 @@ export function BulkUserCreation({
               mobile: row.input.Mobile,
               roleId: result.selected.Role,
               ...(result.isClient
-                ? {
-                    organizationId: result.selected.Organization,
-                    programs: result.programIds,
-                  }
+                ? {}
                 : {
                     projects: result.selected.Project
                       ? [result.selected.Project]
                       : [],
-                    programs: [],
                   }),
+              programs: result.supportsOrganizationPrograms
+                ? result.programIds
+                : [],
+              ...(result.supportsOrganizationPrograms &&
+              result.selected.Organization
+                ? { organizationId: result.selected.Organization }
+                : {}),
             });
             outcome = "updated";
           }
@@ -249,10 +252,12 @@ export function BulkUserCreation({
             mobile: row.input.Mobile,
             roleId: result.selected.Role,
             projects: result.selected.Project ? [result.selected.Project] : [],
-            ...(result.isClient
+            ...(result.supportsOrganizationPrograms
               ? {
-                  organizationId: result.selected.Organization,
                   programs: result.programIds,
+                  ...(result.selected.Organization
+                    ? { organizationId: result.selected.Organization }
+                    : {}),
                 }
               : {}),
           });
@@ -316,8 +321,9 @@ export function BulkUserCreation({
         sheet. Full Name, Email, Username and Role are required. Use one Project
         per row and separate multiple Program names with commas. In CSV files,
         quote a Program cell containing commas. Client users also require
-        Organization and at least one enrolled Program. An existing Username
-        updates that user. Mobile is optional.
+        Organization and at least one enrolled Program. Organization and Program
+        are optional for Promotional users. An existing Username updates that
+        user. Mobile is optional.
       </p>
       <div className="bulk-upload-actions">
         <label className="upload-card">

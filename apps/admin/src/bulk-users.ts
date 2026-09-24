@@ -176,6 +176,7 @@ export function resolveBulkUser(
   );
   const role = options.Role.find((item) => item.id === selected.Role);
   const isClient = role?.key === "client";
+  const supportsOrganizationPrograms = isClient || role?.key === "promotional";
   match(
     "Project",
     projects.map((project) => ({ id: project.id, label: project.name })),
@@ -240,7 +241,7 @@ export function resolveBulkUser(
     organizations
       .filter(
         (organization) =>
-          !isClient ||
+          !supportsOrganizationPrograms ||
           !programsResolved ||
           programIds.every((programId) =>
             organization.programIds.includes(programId),
@@ -252,7 +253,11 @@ export function resolveBulkUser(
       })),
     isClient,
   );
-  if (role && !isClient && (row.input.Organization || row.input.Program))
+  if (
+    role &&
+    !supportsOrganizationPrograms &&
+    (row.input.Organization || row.input.Program)
+  )
     errors.push(
       "Organization and Program are only supported for Client and Promotional roles.",
     );
@@ -261,6 +266,7 @@ export function resolveBulkUser(
     options,
     selected,
     isClient,
+    supportsOrganizationPrograms,
     existingUser,
     programTokens: nonEmptyProgramTokens,
     programIds,

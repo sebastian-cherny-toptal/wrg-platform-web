@@ -130,6 +130,69 @@ it("previews and applies changes to an existing user with multiple Programs", as
   expect(await screen.findByText("Row 2 · Updated")).toBeTruthy();
 });
 
+it("creates a promotional user with optional Organization and Program assignments", async () => {
+  vi.spyOn(api, "bulkUserCatalog").mockResolvedValue({
+    roles: [
+      {
+        id: "promotional-role",
+        key: "promotional",
+        name: "Promotional",
+        userCount: 0,
+      },
+    ],
+    projects: [
+      {
+        id: "project-1",
+        name: "Ad Age",
+        programs: [
+          {
+            id: "program-1",
+            name: "Ad Age Best Places to Work 2026",
+            year: 2026,
+          },
+        ],
+      },
+    ],
+    organizations: [
+      { id: "organization-1", name: "PMG", programIds: ["program-1"] },
+    ],
+    users: [],
+  });
+  const create = vi.spyOn(api, "createUser").mockResolvedValue();
+  render(
+    <BulkUserCreation
+      onCreated={vi.fn()}
+      onClose={vi.fn()}
+      onBusyChange={vi.fn()}
+    />,
+  );
+  const upload = screen.getByLabelText("Upload users spreadsheet");
+  await waitFor(() =>
+    expect((upload as HTMLInputElement).disabled).toBe(false),
+  );
+  const file = new File([], "users.csv");
+  Object.defineProperty(file, "text", {
+    value: async () =>
+      "Full Name,Email,Username,Role,Project,Program,Organization\nPMG,david@pmg.com,PMG_107_AA_553,Promotional,Ad Age,Ad Age Best Places to Work 2026,PMG",
+  });
+  fireEvent.change(upload, { target: { files: [file] } });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Process 1 users" }),
+  );
+  await waitFor(() =>
+    expect(create).toHaveBeenCalledWith({
+      fullName: "PMG",
+      email: "david@pmg.com",
+      username: "PMG_107_AA_553",
+      mobile: "",
+      roleId: "promotional-role",
+      projects: ["project-1"],
+      organizationId: "organization-1",
+      programs: ["program-1"],
+    }),
+  );
+});
+
 it.each([
   ["admin", "Administrator"],
   ["super_admin", "Super Admin"],

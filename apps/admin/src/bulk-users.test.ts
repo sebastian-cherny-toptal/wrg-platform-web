@@ -215,6 +215,37 @@ describe("bulk user spreadsheet validation", () => {
     expect(resolved.isClient).toBe(false);
   });
 
+  it("accepts optional Organization and Program for promotional users", () => {
+    const input = row([
+      "Promo User",
+      "promo@example.com",
+      "promo",
+      "Promotional",
+      "Ad Age",
+      "Ad Age Best Places to Work 2026",
+      "PMG",
+    ]);
+    const adAge = project("project-1", "Ad Age");
+    adAge.programs = [
+      {
+        id: "program-1",
+        name: "Ad Age Best Places to Work 2026",
+        year: 2026,
+      },
+    ];
+    const resolved = resolveBulkUser(
+      input,
+      roles,
+      [adAge],
+      [{ id: "organization-1", name: "PMG", programIds: ["program-1"] }],
+      [input],
+      [],
+    );
+    expect(resolved.errors).toEqual([]);
+    expect(resolved.selected.Organization).toBe("organization-1");
+    expect(resolved.programIds).toEqual(["program-1"]);
+  });
+
   it("treats a matching username as an update but preserves other identity conflicts", () => {
     const input = row(["Alex Updated", "alex@example.com", "ALEX", "Admin"]);
     const existing = {
