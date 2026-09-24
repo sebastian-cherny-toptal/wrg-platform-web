@@ -1592,21 +1592,20 @@ function DonutScore({
             <strong className="block text-[42px] leading-none">{value}%</strong>
             <span className="mt-2 block text-sm text-zinc-500">{year}</span>
             {delta ? (
-              <span
-                className={cn(
-                  "mt-3 inline-block rounded-full px-3 py-1 text-xs font-semibold",
-                  delta > 0
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-red-50 text-red-500",
-                )}
-              >
-                {
-                  delta > 0 ?
-                    <TrendingUp size={11} className="text-[#22C55E]" /> :
-                    <TrendingDown size={11} className="text-[#EF4444]" />
-                }
-                {delta}% vs last year
-              </span>
+              <div className={cn(
+                "mt-3 flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold",
+                delta >= 0 ? "bg-emerald-100 text-emerald-800" : "bg-red-50 text-red-500",
+              )}>
+                  {delta >= 0 ? (
+                      <TrendingUp size={11} className="text-[#22C55E]" />
+                  ) : (
+                      <TrendingUp size={11} className="text-[#EF4444] rotate-180" />
+                  )}
+                  <span className={`text-xs font-medium ${delta >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                    ${delta}%
+                  </span>
+                  vs last year
+              </div>
             ) : null}
           </span>
         </div>
