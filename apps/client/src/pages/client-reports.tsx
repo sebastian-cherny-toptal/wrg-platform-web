@@ -7,6 +7,8 @@ import {
   Filter,
   ShoppingCart,
   SlidersHorizontal,
+  TrendingDown,
+  TrendingUp,
   X,
   XCircle,
 } from "lucide-react";
@@ -524,139 +526,139 @@ export function DetailedResultsFilters({
       ) : null}
       {open && mobile
         ? createPortal(
-            <div
-              aria-label="Detailed results filters"
-              aria-modal="true"
-              className="fixed inset-0 z-[100] flex flex-col bg-white"
-              role="dialog"
-            >
-              <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-5">
-                <div>
-                  <h2 className="text-xl font-semibold text-zinc-900">
-                    Filters
-                  </h2>
-                  {selectedFilters.length ? (
-                    <p className="mt-1 text-xs text-violet-600">
-                      {selectedFilters.length} selected
-                    </p>
-                  ) : null}
-                </div>
-                <button
-                  aria-label="Close filters"
-                  className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
-                  onClick={() => setOpen(false)}
-                  type="button"
-                >
-                  <X className="size-6" />
-                </button>
+          <div
+            aria-label="Detailed results filters"
+            aria-modal="true"
+            className="fixed inset-0 z-[100] flex flex-col bg-white"
+            role="dialog"
+          >
+            <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-semibold text-zinc-900">
+                  Filters
+                </h2>
+                {selectedFilters.length ? (
+                  <p className="mt-1 text-xs text-violet-600">
+                    {selectedFilters.length} selected
+                  </p>
+                ) : null}
               </div>
-              <div className="flex-1 overflow-y-auto pb-28">
-                {loading ? (
-                  <p className="px-6 py-5 text-sm text-zinc-500">
-                    Loading filters…
-                  </p>
-                ) : error ? (
-                  <p className="px-6 py-5 text-sm text-red-600" role="alert">
-                    {error}
-                  </p>
-                ) : filters.length ? (
-                  filters.map((filter) => {
-                    const expanded = openMobileCategories.includes(
-                      filter.questionId,
-                    );
-                    return (
-                      <section
-                        className="border-b border-zinc-200"
-                        key={filter.questionId}
+              <button
+                aria-label="Close filters"
+                className="rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+                onClick={() => setOpen(false)}
+                type="button"
+              >
+                <X className="size-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto pb-28">
+              {loading ? (
+                <p className="px-6 py-5 text-sm text-zinc-500">
+                  Loading filters…
+                </p>
+              ) : error ? (
+                <p className="px-6 py-5 text-sm text-red-600" role="alert">
+                  {error}
+                </p>
+              ) : filters.length ? (
+                filters.map((filter) => {
+                  const expanded = openMobileCategories.includes(
+                    filter.questionId,
+                  );
+                  return (
+                    <section
+                      className="border-b border-zinc-200"
+                      key={filter.questionId}
+                    >
+                      <button
+                        aria-expanded={expanded}
+                        className="flex w-full items-center justify-between px-6 py-5 text-left font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
+                        onClick={() =>
+                          setOpenMobileCategories((current) =>
+                            expanded
+                              ? current.filter(
+                                (questionId) =>
+                                  questionId !== filter.questionId,
+                              )
+                              : [...current, filter.questionId],
+                          )
+                        }
+                        type="button"
                       >
-                        <button
-                          aria-expanded={expanded}
-                          className="flex w-full items-center justify-between px-6 py-5 text-left font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
-                          onClick={() =>
-                            setOpenMobileCategories((current) =>
-                              expanded
-                                ? current.filter(
-                                    (questionId) =>
-                                      questionId !== filter.questionId,
-                                  )
-                                : [...current, filter.questionId],
-                            )
-                          }
-                          type="button"
-                        >
-                          <span>{filter.label}</span>
-                          {expanded ? (
-                            <ChevronDown className="size-5 rotate-180 text-zinc-500" />
-                          ) : (
-                            <ChevronDown className="size-5 text-zinc-500" />
-                          )}
-                        </button>
+                        <span>{filter.label}</span>
                         {expanded ? (
-                          <div className="grid gap-1 px-3 pb-5">
-                            {filter.options.length ? (
-                              filter.options.map((option) => {
-                                const selection = {
-                                  ...option,
-                                  questionId: filter.questionId,
-                                };
-                                const selected = selectedKeys.has(
-                                  selectedFilterKey(selection),
-                                );
-                                return (
-                                  <button
-                                    aria-pressed={selected}
+                          <ChevronDown className="size-5 rotate-180 text-zinc-500" />
+                        ) : (
+                          <ChevronDown className="size-5 text-zinc-500" />
+                        )}
+                      </button>
+                      {expanded ? (
+                        <div className="grid gap-1 px-3 pb-5">
+                          {filter.options.length ? (
+                            filter.options.map((option) => {
+                              const selection = {
+                                ...option,
+                                questionId: filter.questionId,
+                              };
+                              const selected = selectedKeys.has(
+                                selectedFilterKey(selection),
+                              );
+                              return (
+                                <button
+                                  aria-pressed={selected}
+                                  className={cn(
+                                    "flex w-full items-center gap-4 rounded-lg px-5 py-4 text-left text-sm transition-colors",
+                                    selected
+                                      ? "bg-violet-50 font-bold text-violet-600"
+                                      : "text-zinc-900 hover:bg-zinc-50",
+                                  )}
+                                  key={option.label}
+                                  onClick={() => onToggle(selection)}
+                                  type="button"
+                                >
+                                  <span
                                     className={cn(
-                                      "flex w-full items-center gap-4 rounded-lg px-5 py-4 text-left text-sm transition-colors",
-                                      selected
-                                        ? "bg-violet-50 font-bold text-violet-600"
-                                        : "text-zinc-900 hover:bg-zinc-50",
+                                      "grid size-5 shrink-0 place-items-center rounded border border-zinc-300",
+                                      selected &&
+                                      "border-violet-600 bg-violet-600",
                                     )}
-                                    key={option.label}
-                                    onClick={() => onToggle(selection)}
-                                    type="button"
                                   >
-                                    <span
-                                      className={cn(
-                                        "grid size-5 shrink-0 place-items-center rounded border border-zinc-300",
-                                        selected &&
-                                          "border-violet-600 bg-violet-600",
-                                      )}
-                                    >
-                                      {selected ? (
-                                        <Check className="size-3.5 text-white" />
-                                      ) : null}
-                                    </span>
-                                    <span>{option.label}</span>
-                                  </button>
-                                );
-                              })
-                            ) : (
-                              <p className="px-5 py-4 text-sm italic text-zinc-400">
-                                No options available
-                              </p>
-                            )}
-                          </div>
-                        ) : null}
-                      </section>
-                    );
-                  })
-                ) : (
-                  <p className="px-6 py-5 text-sm text-zinc-500">
-                    No filters available
-                  </p>
-                )}
-              </div>
-              <div className="absolute inset-x-0 bottom-0 border-t border-zinc-200 bg-white p-6 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
-                <Button
-                  className="h-14 w-full rounded-xl text-base font-bold"
-                  onClick={() => setOpen(false)}
-                >
-                  Apply filters
-                </Button>
-              </div>
-            </div>,
-            document.body,
-          )
+                                    {selected ? (
+                                      <Check className="size-3.5 text-white" />
+                                    ) : null}
+                                  </span>
+                                  <span>{option.label}</span>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <p className="px-5 py-4 text-sm italic text-zinc-400">
+                              No options available
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })
+              ) : (
+                <p className="px-6 py-5 text-sm text-zinc-500">
+                  No filters available
+                </p>
+              )}
+            </div>
+            <div className="absolute inset-x-0 bottom-0 border-t border-zinc-200 bg-white p-6 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+              <Button
+                className="h-14 w-full rounded-xl text-base font-bold"
+                onClick={() => setOpen(false)}
+              >
+                Apply filters
+              </Button>
+            </div>
+          </div>,
+          document.body,
+        )
         : null}
     </div>
   );
@@ -1018,10 +1020,10 @@ export function DetailedResultsPage() {
     selectedIndex < 0
       ? null
       : {
-          mobile: selectedIndex + 1,
-          tablet: Math.floor(selectedIndex / 2) + 1,
-          desktop: Math.floor(selectedIndex / 3) + 1,
-        };
+        mobile: selectedIndex + 1,
+        tablet: Math.floor(selectedIndex / 2) + 1,
+        desktop: Math.floor(selectedIndex / 3) + 1,
+      };
   const gridStyleForCard = (index: number) => {
     const rowWithDetail = (
       columns: number,
@@ -1502,15 +1504,15 @@ export function ResponsePatternsPage() {
             >
               {previewTotal > 0
                 ? previewSegments.map((segment) => (
-                    <span
-                      aria-label={`${segment.title}: ${formatResponsePatternPercentage(segment.value)}`}
-                      key={segment.rangeKey}
-                      style={{
-                        backgroundColor: segment.color,
-                        width: `${(segment.value / previewTotal) * 100}%`,
-                      }}
-                    />
-                  ))
+                  <span
+                    aria-label={`${segment.title}: ${formatResponsePatternPercentage(segment.value)}`}
+                    key={segment.rangeKey}
+                    style={{
+                      backgroundColor: segment.color,
+                      width: `${(segment.value / previewTotal) * 100}%`,
+                    }}
+                  />
+                ))
                 : null}
             </div>
             {previewTotal === 0 ? (
@@ -1598,6 +1600,11 @@ function DonutScore({
                     : "bg-red-50 text-red-500",
                 )}
               >
+                {
+                  delta > 0 ?
+                    <TrendingUp size={11} className="text-[#22C55E]" /> :
+                    <TrendingDown size={11} className="text-[#EF4444]" />
+                }
                 {delta}% vs last year
               </span>
             ) : null}
@@ -1635,12 +1642,12 @@ function annualDistributionValues(distribution: AnnualDistribution[]) {
         caption,
         responses:
           typeof item?.numberOfResponses === "number" &&
-          Number.isFinite(item.numberOfResponses)
+            Number.isFinite(item.numberOfResponses)
             ? Math.max(0, item.numberOfResponses)
             : null,
         percentage:
           typeof item?.percentage === "number" &&
-          Number.isFinite(item.percentage)
+            Number.isFinite(item.percentage)
             ? Math.max(0, item.percentage)
             : 0,
       };
@@ -1737,10 +1744,10 @@ function DistributionDonut({
   const palette = previous
     ? { Agree: PREVIOUS_YEAR_AGREEMENT_COLOR, Neutral: "#b4a5ef", Disagree: "#ddd6fe" }
     : {
-        Agree: CURRENT_YEAR_AGREEMENT_COLOR,
-        Neutral: "#9c5afd",
-        Disagree: "#e567cf",
-      };
+      Agree: CURRENT_YEAR_AGREEMENT_COLOR,
+      Neutral: "#9c5afd",
+      Disagree: "#e567cf",
+    };
   const values = annualDistributionValues(distribution);
   const segments = values.map((item, index) => {
     const offset = values
@@ -2428,11 +2435,11 @@ function EmployeeVerbatimQuestion({
     queryFn: () =>
       isDummy
         ? api.reports.openResponseAnswers(
-            programId,
-            String(question.id),
-            {},
-            true,
-          )
+          programId,
+          String(question.id),
+          {},
+          true,
+        )
         : api.reports.openResponseAnswers(programId, String(question.id)),
     enabled: Boolean(programId) && open,
   });
@@ -3354,7 +3361,7 @@ function ResponseDetailTable({ data }: { data: ResponseDetailData }) {
               className={cn(
                 "border-t border-zinc-100",
                 cellText(row[0]) === "Question Total" &&
-                  "border-t-2 border-zinc-200 bg-violet-50",
+                "border-t-2 border-zinc-200 bg-violet-50",
               )}
               key={`${cellText(row[0])}-${rowIndex}`}
             >
@@ -3543,8 +3550,8 @@ export function ResponseDetailPage() {
         ) : null}
         <div className="mt-5 grid gap-3">
           {paymentReconciliation.isError ||
-          filters.isError ||
-          sections.isError ? (
+            filters.isError ||
+            sections.isError ? (
             <StatePanel
               kind="error"
               title="Response detail unavailable"
@@ -3774,10 +3781,10 @@ export function CustomReportsPage() {
   const formatDate = (value: string | Date | undefined) =>
     value
       ? new Intl.DateTimeFormat("en-US", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }).format(new Date(value))
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(value))
       : "—";
   return (
     <>
