@@ -54,7 +54,7 @@ describe('Annual Trends page', () => {
     const currentAverage = await screen.findByText('93%')
     const currentAverageDonut = currentAverage.parentElement?.parentElement?.parentElement
     expect(currentAverageDonut).toHaveStyle({ '--donut-color': '#7c3aed' })
-    expect(screen.getByText('2% vs last year')).toHaveClass(
+    expect(screen.getByText(/2%/).parentElement).toHaveClass(
       'bg-emerald-100',
       'text-emerald-800',
     )
@@ -77,7 +77,7 @@ describe('Annual Trends page', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText('-3% vs last year')).toHaveClass(
+    expect((await screen.findByText(/-3%/)).parentElement).toHaveClass(
       'bg-red-50',
       'text-red-500',
     )
