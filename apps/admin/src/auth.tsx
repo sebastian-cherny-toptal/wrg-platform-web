@@ -112,7 +112,7 @@ function AuthAlert({
 export function LoginPage() {
   const { auth, setAuth } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [errorTitle, setErrorTitle] = useState("");
@@ -122,27 +122,30 @@ export function LoginPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!email.trim() || !password) return;
+    if (!username.trim() || !password) return;
     setLoading(true);
     setError("");
     setErrorTitle("");
     try {
-      const started = await api.startLogin(email.trim(), password);
+      const started = await api.startLogin(username.trim(), password);
       if (started.requiresOtp) {
         window.sessionStorage.setItem(
           pendingLoginKey,
-          JSON.stringify({ email: email.trim(), userId: started.userId }),
+          JSON.stringify({ username: username.trim(), userId: started.userId }),
         );
         await navigate("/admin/2FA");
       } else {
-        const completed = await api.completeLogin(email.trim(), started.userId);
+        const completed = await api.completeLogin(
+          username.trim(),
+          started.userId,
+        );
         setAuth(completed);
         await navigate("/admin/projects");
       }
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
         setErrorTitle("Invalid credentials");
-        setError("The email or password is incorrect.");
+        setError("The username or password is incorrect.");
       } else if (caught instanceof ApiError && caught.status === 403) {
         setErrorTitle("Access denied");
         setError(caught.message);
@@ -163,14 +166,14 @@ export function LoginPage() {
         {error ? <AuthAlert title={errorTitle} message={error} /> : null}
         <h1>Sign in</h1>
         <form onSubmit={submit}>
-          <label htmlFor="admin-email">Email</label>
+          <label htmlFor="admin-username">Username</label>
           <input
-            id="admin-email"
-            type="email"
-            placeholder="Enter your Email"
+            id="admin-username"
+            type="text"
+            placeholder="Enter your Username"
             autoComplete="username"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
           />
           <label htmlFor="admin-password">Password</label>
           <input
@@ -186,7 +189,7 @@ export function LoginPage() {
           </div>
           <button
             className="primary-button login-button"
-            disabled={loading || !email.trim() || !password}
+            disabled={loading || !username.trim() || !password}
             type="submit"
           >
             {loading ? (
@@ -213,7 +216,7 @@ export function TwoFactorPage() {
     try {
       return JSON.parse(
         window.sessionStorage.getItem(pendingLoginKey) ?? "null",
-      ) as { email: string; userId: string } | null;
+      ) as { username: string; userId: string } | null;
     } catch {
       return null;
     }
@@ -223,7 +226,7 @@ export function TwoFactorPage() {
     if (code.length !== 6 || !pending || loading) return;
     setLoading(true);
     api
-      .completeLogin(pending.email, pending.userId, code)
+      .completeLogin(pending.username, pending.userId, code)
       .then(async (completed) => {
         window.sessionStorage.removeItem(pendingLoginKey);
         setAuth(completed);
@@ -282,7 +285,7 @@ export function TwoFactorPage() {
 }
 
 export function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [recoveryKey, setRecoveryKey] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
@@ -295,7 +298,7 @@ export function ForgotPasswordPage() {
     setLoading(true);
     setError("");
     try {
-      const key = await api.requestForgotPassword(email.trim());
+      const key = await api.requestForgotPassword(username.trim());
       if (!key)
         throw new Error("The recovery request did not return a secure key");
       setRecoveryKey(key);
@@ -394,18 +397,19 @@ export function ForgotPasswordPage() {
             {error ? (
               <AuthAlert title="Recovery unavailable" message={error} />
             ) : null}
-            <label htmlFor="recovery-email">Email</label>
+            <label htmlFor="recovery-username">Username</label>
             <input
-              id="recovery-email"
-              type="email"
-              placeholder="Enter your Email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              id="recovery-username"
+              type="text"
+              placeholder="Enter your Username"
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
             />
             <button
               className="primary-button login-button"
               type="submit"
-              disabled={loading || !email.trim()}
+              disabled={loading || !username.trim()}
             >
               {loading ? "Sending…" : "Continue"}
             </button>

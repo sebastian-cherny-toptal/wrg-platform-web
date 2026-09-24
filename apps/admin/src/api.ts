@@ -596,7 +596,7 @@ async function downloadRequest(
   URL.revokeObjectURL(url);
 }
 
-function identity(raw: unknown, emailFallback: string): AdminIdentity {
+function identity(raw: unknown, usernameFallback: string): AdminIdentity {
   const value = object(raw);
   const role = object(value.roleId);
   const roles = [stringValue(value.role), stringValue(role.role)].filter(
@@ -608,9 +608,10 @@ function identity(raw: unknown, emailFallback: string): AdminIdentity {
     displayName:
       stringValue(value.fullName) ||
       stringValue(value.name) ||
-      emailFallback.split("@")[0] ||
+      stringValue(value.username) ||
+      usernameFallback ||
       "Administrator",
-    email: stringValue(value.email) || emailFallback,
+    email: stringValue(value.email),
     roles: roles.length ? roles : ["admin"],
     permissions,
   };
@@ -795,12 +796,12 @@ export function organization(raw: unknown): OrganizationRecord {
 
 export const api = {
   async startLogin(
-    email: string,
+    username: string,
     password: string,
   ): Promise<{ userId: string; requiresOtp: boolean }> {
     const response = await request<unknown>("/user/management/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     });
     const data = object(object(response).data);
     return {
@@ -810,7 +811,7 @@ export const api = {
   },
 
   async completeLogin(
-    email: string,
+    username: string,
     userId: string,
     enteredOtp?: string,
   ): Promise<AdminAuth> {
@@ -821,7 +822,7 @@ export const api = {
     const data = object(object(response).data);
     const accessToken = stringValue(data.accessToken);
     const principal = decodePrincipal(accessToken);
-    const user = identity(data.user, email);
+    const user = identity(data.user, username);
     const auth: AdminAuth = {
       accessToken,
       refreshToken: stringValue(data.refreshToken),
@@ -854,10 +855,10 @@ export const api = {
     persistAuth(null);
   },
 
-  async requestForgotPassword(email: string): Promise<string> {
+  async requestForgotPassword(username: string): Promise<string> {
     const response = await request<unknown>("/user/forgot-password", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ username }),
     });
     return stringValue(object(object(response).data).key);
   },

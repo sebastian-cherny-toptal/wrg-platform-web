@@ -905,10 +905,49 @@ describe("admin API projections", () => {
     );
 
     await expect(
-      api.completeLogin("admin@example.com", "super-admin-id"),
+      api.completeLogin("admin", "super-admin-id"),
     ).resolves.toMatchObject({
       user: { roles: ["super_admin"] },
     });
+  });
+
+  it("sends usernames for login and password recovery", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            data: { userId: "admin-id", "2faVerified": false },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: { key: "recovery-key" } }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.startLogin("admin", "Password123!");
+    await api.requestForgotPassword("admin");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/user/management/login"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ username: "admin", password: "Password123!" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/user/forgot-password"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ username: "admin" }),
+      }),
+    );
   });
 
   it("closes the admin session when an authenticated request returns 401", async () => {
