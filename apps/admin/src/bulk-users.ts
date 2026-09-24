@@ -151,20 +151,17 @@ export function resolveBulkUser(
   const existingUser = users.find(
     (user) => normalize(user.username ?? "") === normalize(row.input.Username),
   );
-  for (const column of ["Email", "Username"] as const) {
-    const value = normalize(row.input[column]);
-    const duplicatedInUpload = rows.some(
-      (other) => other !== row && normalize(other.input[column]) === value,
-    );
-    const conflictingUser = users.some(
-      (user) =>
-        user.id !== existingUser?.id &&
-        normalize((column === "Email" ? user.email : user.username) ?? "") ===
-          value,
-    );
-    if (value && (duplicatedInUpload || conflictingUser))
-      errors.push(`${column} already exists or is duplicated in this upload.`);
-  }
+  const username = normalize(row.input.Username);
+  const duplicatedUsername = rows.some(
+    (other) => other !== row && normalize(other.input.Username) === username,
+  );
+  const conflictingUser = users.some(
+    (user) =>
+      user.id !== existingUser?.id &&
+      normalize(user.username ?? "") === username,
+  );
+  if (username && (duplicatedUsername || conflictingUser))
+    errors.push("Username already exists or is duplicated in this upload.");
   match(
     "Role",
     roles.map((role) => ({

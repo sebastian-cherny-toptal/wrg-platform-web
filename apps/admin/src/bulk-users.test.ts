@@ -192,13 +192,13 @@ describe("bulk user spreadsheet validation", () => {
       ).errors.join(" "),
     ).toContain("Organization: no match for “Artemis”");
   });
-  it("rejects duplicate identities and programs for non-client roles", () => {
+  it("allows duplicate emails but rejects duplicate usernames", () => {
     const a = row(["Alex", "a@example.com", "alex", "Admin", "", "Awards"]);
     const b = row(["Other", "A@example.com", "ALEX", "Admin"]);
     const errors = resolveBulkUser(a, roles, [], [], [a, b], []).errors.join(
       " ",
     );
-    expect(errors).toContain("Email already exists");
+    expect(errors).not.toContain("Email already exists");
     expect(errors).toContain("Username already exists");
     expect(errors).toContain("only supported for Client");
   });
@@ -274,15 +274,8 @@ describe("bulk user spreadsheet validation", () => {
     ).toEqual([]);
     other.email = "alex@example.com";
     expect(
-      resolveBulkUser(
-        input,
-        roles,
-        [],
-        [],
-        [input],
-        [existing, other],
-      ).errors.join(" "),
-    ).toContain("Email already exists");
+      resolveBulkUser(input, roles, [], [], [input], [existing, other]).errors,
+    ).toEqual([]);
   });
 
   it("exports all Bulk Creation columns with safe multi-value CSV cells", () => {

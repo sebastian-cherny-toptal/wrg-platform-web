@@ -48,6 +48,11 @@ it("reviews uploaded users and retries only failed creations", async () => {
   fireEvent.click(submit);
   await screen.findByText("Server unavailable");
   await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+  fireEvent.change(screen.getByLabelText("Filter rows"), {
+    target: { value: "errors" },
+  });
+  expect(screen.queryByLabelText("Row 2 Full Name")).toBeNull();
+  expect(screen.getByLabelText("Row 3 Full Name")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Process 1 users" }));
   await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(2));
   expect(create).toHaveBeenCalledTimes(3);
@@ -57,6 +62,57 @@ it("reviews uploaded users and retries only failed creations", async () => {
     "b@example.com",
   ]);
   expect(screen.getByText(/2 completed · 0 remaining/)).toBeTruthy();
+});
+
+it("filters the review to all, erroneous, or ready rows", async () => {
+  vi.spyOn(api, "bulkUserCatalog").mockResolvedValue({
+    roles: [{ id: "admin", key: "admin", name: "Admin", userCount: 0 }],
+    projects: [],
+    organizations: [],
+    users: [],
+  });
+  render(
+    <BulkUserCreation
+      onCreated={vi.fn()}
+      onClose={vi.fn()}
+      onBusyChange={vi.fn()}
+    />,
+  );
+  const upload = screen.getByLabelText("Upload users spreadsheet");
+  await waitFor(() =>
+    expect((upload as HTMLInputElement).disabled).toBe(false),
+  );
+  const file = new File([], "users.csv");
+  Object.defineProperty(file, "text", {
+    value: async () =>
+      [
+        "Full Name,Email,Username,Role",
+        "Ready One,shared@example.com,ready-one,Admin",
+        "Broken,shared@example.com,broken,Unknown",
+        "Ready Two,shared@example.com,ready-two,Admin",
+      ].join("\n"),
+  });
+  fireEvent.change(upload, { target: { files: [file] } });
+
+  const filter = await screen.findByLabelText("Filter rows");
+  expect(screen.getByLabelText("Row 2 Full Name")).toBeTruthy();
+  expect(screen.getByLabelText("Row 3 Full Name")).toBeTruthy();
+  expect(screen.getByLabelText("Row 4 Full Name")).toBeTruthy();
+
+  fireEvent.change(filter, { target: { value: "errors" } });
+  expect(screen.queryByLabelText("Row 2 Full Name")).toBeNull();
+  expect(screen.getByLabelText("Row 3 Full Name")).toBeTruthy();
+  expect(screen.queryByLabelText("Row 4 Full Name")).toBeNull();
+
+  fireEvent.change(filter, { target: { value: "ready" } });
+  expect(screen.getByLabelText("Row 2 Full Name")).toBeTruthy();
+  expect(screen.queryByLabelText("Row 3 Full Name")).toBeNull();
+  expect(screen.getByLabelText("Row 4 Full Name")).toBeTruthy();
+
+  fireEvent.change(filter, { target: { value: "all" } });
+  expect(screen.getByLabelText("Row 2 Full Name")).toBeTruthy();
+  expect(screen.getByLabelText("Row 3 Full Name")).toBeTruthy();
+  expect(screen.getByLabelText("Row 4 Full Name")).toBeTruthy();
 });
 
 it("previews and applies changes to an existing user with multiple Programs", async () => {

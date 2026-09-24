@@ -10,6 +10,7 @@ import {
 } from "./bulk-users";
 
 const normalized = (value: string) => value.trim().toLocaleLowerCase("en");
+type RowFilter = "all" | "errors" | "ready";
 
 function comparableList(value: string): string[] {
   return value.split(",").map(normalized).filter(Boolean).sort();
@@ -39,6 +40,7 @@ export function BulkUserCreation({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [filename, setFilename] = useState("");
+  const [rowFilter, setRowFilter] = useState<RowFilter>("all");
   useEffect(() => {
     onBusyChange(busy);
   }, [busy, onBusyChange]);
@@ -71,10 +73,7 @@ export function BulkUserCreation({
     >(),
   );
   const identityKey = rows
-    .map(
-      (row) =>
-        `${normalized(row.input.Email)}\u0000${normalized(row.input.Username)}`,
-    )
+    .map((row) => normalized(row.input.Username))
     .join("\u0001");
   const resultByRow = new Map(
     catalog
@@ -98,6 +97,14 @@ export function BulkUserCreation({
   );
   const resolve = (row: BulkUserRow) => resultByRow.get(row)!;
   const pending = rows.filter((row) => !row.outcome);
+  const visibleRows = catalog
+    ? rows.filter((row) => {
+        if (rowFilter === "all") return true;
+        const hasError = Boolean(row.error || resolve(row).errors.length);
+        if (rowFilter === "errors") return hasError;
+        return !row.outcome && !hasError;
+      })
+    : [];
   const blocked =
     !catalog ||
     !pending.length ||
@@ -188,6 +195,7 @@ export function BulkUserCreation({
     setError("");
     setRows([]);
     setFilename(file.name);
+    setRowFilter("all");
     try {
       if (file.size > 5 * 1024 * 1024)
         throw new Error("Maximum file size is 5 MB.");
@@ -361,12 +369,26 @@ export function BulkUserCreation({
       ) : null}
       {catalog && rows.length ? (
         <>
+          <label className="bulk-row-filter">
+            <span>Filter rows</span>
+            <select
+              aria-label="Filter rows"
+              value={rowFilter}
+              onChange={(event) =>
+                setRowFilter(event.target.value as RowFilter)
+              }
+            >
+              <option value="all">Show all</option>
+              <option value="errors">Show only rows with error</option>
+              <option value="ready">Show only rows ready to submit</option>
+            </select>
+          </label>
           <p role="status">
             {rows.filter((row) => row.outcome).length} completed ·{" "}
             {pending.length} remaining. Resolve all flagged rows before
             processing. Completed rows will be skipped when retrying.
           </p>
-          {rows.map((row) => {
+          {visibleRows.map((row) => {
             const result = resolve(row);
             const previous = previousValues(result);
             const desired = desiredValues(row, result);
@@ -479,6 +501,7 @@ export function BulkUserCreation({
               </fieldset>
             );
           })}
+          {!visibleRows.length ? <p>No rows match this filter.</p> : null}
         </>
       ) : null}
       <div className="modal-actions">
