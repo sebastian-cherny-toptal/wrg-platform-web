@@ -2307,7 +2307,7 @@ export function HistoricalImportPage() {
         if (programId) {
           const [program, organizations, reportCatalog] = await Promise.all([
             api.program(programId),
-            api.organizations(programId),
+            api.organizations({ programId }),
             api.programCatalog(programId),
           ]);
           if (!active) return;

@@ -146,7 +146,7 @@ it("creates clients by selecting a project, searchable organization, and its pro
       ],
     },
   ]);
-  vi.spyOn(api, "organizations").mockResolvedValue([
+  const loadOrganizations = vi.spyOn(api, "organizations").mockResolvedValue([
     {
       id: "artemis",
       selectionId: "artemis-2025",
@@ -222,6 +222,7 @@ it("creates clients by selecting a project, searchable organization, and its pro
   );
   fireEvent.click(await screen.findByRole("button", { name: "+ Add User" }));
   const dialog = screen.getByRole("dialog", { name: "Add User" });
+  expect(loadOrganizations).not.toHaveBeenCalled();
   fireEvent.change(within(dialog).getByLabelText("Full Name"), {
     target: { value: "Alex Example" },
   });
@@ -237,9 +238,17 @@ it("creates clients by selecting a project, searchable organization, and its pro
   fireEvent.click(await screen.findByRole("option", { name: "Client" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "Project" }));
   fireEvent.click(await screen.findByRole("option", { name: "Workforce" }));
+  await vi.waitFor(() =>
+    expect(loadOrganizations).toHaveBeenCalledWith({
+      projectId: "project-1",
+    }),
+  );
   const organizationSelect = within(dialog).getByRole("button", {
     name: "Organization",
   });
+  await vi.waitFor(() =>
+    expect((organizationSelect as HTMLButtonElement).disabled).toBe(false),
+  );
   fireEvent.click(organizationSelect);
   fireEvent.change(
     await screen.findByPlaceholderText("Search organizations…"),

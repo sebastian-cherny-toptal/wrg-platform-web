@@ -216,6 +216,25 @@ describe("admin API projections", () => {
     );
   });
 
+  it("loads organization options for only the selected project", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      api.organizations({ projectId: "project/id" }),
+    ).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "/admin/getOrganizations?projectId=project%2Fid",
+      ),
+      expect.any(Object),
+    );
+  });
+
   it("loads the total item counts for admin navigation", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

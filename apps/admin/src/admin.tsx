@@ -868,7 +868,7 @@ export function ProgramDetailPage() {
     api.program(programId),
   );
   const organizationsLoaded = useLoad(`organizations:${programId}`, () =>
-    api.organizations(programId),
+    api.organizations({ programId }),
   );
   const catalogLoaded = useLoad(`program-catalog:${programId}`, () =>
     loadProgramCatalog(programId),
@@ -2172,9 +2172,6 @@ function AddUserModal({
 }) {
   const roles = useLoad("modal-roles", api.roles);
   const projects = useLoad("modal-projects", api.projects);
-  const organizations = useLoad("modal-organizations", () =>
-    api.organizations(),
-  );
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -2186,6 +2183,13 @@ function AddUserModal({
     organizationId: "",
     programs: [] as string[],
   });
+  const organizations = useLoad(
+    `modal-organizations:${form.clientProjectId || "none"}`,
+    () =>
+      form.clientProjectId
+        ? api.organizations({ projectId: form.clientProjectId })
+        : Promise.resolve([]),
+  );
   const selectedRole = (roles.data ?? []).find(
     (role) => field(role, "_id", "id") === form.roleId,
   );
@@ -2363,8 +2367,14 @@ function AddUserModal({
                     value: organization.selectionId,
                     label: organization.name,
                   }))}
-                  placeholder="Choose an organization…"
+                  placeholder={
+                    organizations.loading
+                      ? "Loading organizations…"
+                      : "Choose an organization…"
+                  }
                   searchPlaceholder="Search organizations…"
+                  emptyMessage="No organizations are available for this project."
+                  disabled={organizations.loading}
                   required
                 />
               </div>

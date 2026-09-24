@@ -1011,10 +1011,14 @@ export const api = {
     };
   },
 
-  async organizations(programId?: string): Promise<OrganizationRecord[]> {
-    const query = programId
-      ? `?programId=${encodeURIComponent(programId)}`
-      : "";
+  async organizations(filters: {
+    programId?: string;
+    projectId?: string;
+  } = {}): Promise<OrganizationRecord[]> {
+    const search = new URLSearchParams();
+    if (filters.programId) search.set("programId", filters.programId);
+    if (filters.projectId) search.set("projectId", filters.projectId);
+    const query = search.size ? `?${search.toString()}` : "";
     const response = await request<unknown>(`/admin/getOrganizations${query}`);
     return array(object(response).data).map(organization);
   },
