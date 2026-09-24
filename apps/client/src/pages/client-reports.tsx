@@ -7,7 +7,6 @@ import {
   Filter,
   ShoppingCart,
   SlidersHorizontal,
-  TrendingDown,
   TrendingUp,
   X,
   XCircle,
