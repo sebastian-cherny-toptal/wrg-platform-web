@@ -32,6 +32,28 @@ npm run build --workspace @wrg/platform-client-web
 npm run build --workspace @wrg/platform-admin-web
 ```
 
+The default client Playwright command is fast browser/UI coverage and may use
+request fixtures. It deliberately excludes `apps/client/e2e/acceptance`.
+
+Run the real-stack acceptance suite only after the sanitized Baton Rouge data
+has been seeded into an isolated Railway API candidate. Both URLs are required,
+and the acceptance configuration rejects the production web and API hosts:
+
+```sh
+ACCEPTANCE_WEB_BASE_URL=https://client-candidate.up.railway.app \
+ACCEPTANCE_API_BASE_URL=https://api-candidate.up.railway.app \
+npm run test:e2e:acceptance --workspace @wrg/platform-client-web
+```
+
+The suite logs in as `test.baton` / `test.baton@example.test` by default, calls
+the real API without Playwright request interception, verifies that browser API
+traffic stays on the configured candidate API origin, downloads a generated
+chart, and opens every client route. `ACCEPTANCE_USERNAME` and
+`ACCEPTANCE_EMAIL` can override the seeded identity when needed; set
+`ACCEPTANCE_PROGRAM_YEARS` to its comma-separated program years at the same
+time. The `Client candidate acceptance` GitHub workflow exposes the same check
+as a manual post-deployment gate.
+
 ## Authentication and impersonation boundaries
 
 - Client and admin login routes live in different applications and origins.

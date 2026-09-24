@@ -1,0 +1,42 @@
+name: Client candidate acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_base_url:
+        description: Railway candidate URL for the client web service
+        required: true
+        type: string
+      api_base_url:
+        description: Railway candidate URL for the API service
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-candidate-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ACCEPTANCE_WEB_BASE_URL: ${{ inputs.web_base_url }}
+      ACCEPTANCE_API_BASE_URL: ${{ inputs.api_base_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:acceptance --workspace @wrg/platform-client-web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: client-candidate-playwright-report
+          path: apps/client/playwright-report/

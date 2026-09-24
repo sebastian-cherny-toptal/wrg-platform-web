@@ -16,6 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:acceptance:guard": "node e2e/acceptance/verify-suite.mjs",
+    "test:e2e:acceptance": "npm run test:e2e:acceptance:guard && playwright test --config playwright.acceptance.config.ts",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
