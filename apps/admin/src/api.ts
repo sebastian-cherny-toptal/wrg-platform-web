@@ -370,6 +370,32 @@ export type UploadedKeyImpactAnalysis = PendingKeyImpactAnalysis & {
   sourceFileName: string | null;
 };
 
+export type CustomReportTarget = {
+  organizationId: string;
+  organizationName: string;
+  organizationProgramId: string;
+  programId: string;
+  programName: string;
+  programYear: number | null;
+  projectId: string;
+  projectName: string;
+};
+
+export type CustomReportUpload = CustomReportTarget & {
+  id: string;
+  reportName: string;
+  description: string;
+  sourceFileName: string;
+  sizeBytes: number;
+  uploadedByUsername: string | null;
+  uploadedAt: string;
+};
+
+export type CustomReportCatalog = {
+  targets: CustomReportTarget[];
+  uploads: CustomReportUpload[];
+};
+
 export type ProgramZohoResyncField =
   | "organizationName"
   | "stage"
@@ -1180,6 +1206,80 @@ export const api = {
         status: stringValue(value.status, "Processing"),
       };
     });
+  },
+
+  async customReports(): Promise<CustomReportCatalog> {
+    const response = await request<unknown>("/admin/custom-reports");
+    const data = object(object(response).data);
+    const target = (entry: unknown): CustomReportTarget => {
+      const value = object(entry);
+      return {
+        organizationId: stringValue(value.organizationId),
+        organizationName: stringValue(value.organizationName),
+        organizationProgramId: stringValue(value.organizationProgramId),
+        programId: stringValue(value.programId),
+        programName: stringValue(value.programName),
+        programYear: Number.isInteger(value.programYear)
+          ? Number(value.programYear)
+          : null,
+        projectId: stringValue(value.projectId),
+        projectName: stringValue(value.projectName),
+      };
+    };
+    return {
+      targets: array(data.targets).map(target),
+      uploads: array(data.uploads).map((entry) => {
+        const value = object(entry);
+        return {
+          ...target(value),
+          id: stringValue(value.id),
+          reportName: stringValue(value.reportName),
+          description: stringValue(value.description),
+          sourceFileName: stringValue(value.sourceFileName),
+          sizeBytes: Number(value.sizeBytes) || 0,
+          uploadedByUsername: stringValue(value.uploadedByUsername) || null,
+          uploadedAt: stringValue(value.uploadedAt),
+        };
+      }),
+    };
+  },
+
+  async uploadCustomReport(
+    target: CustomReportTarget,
+    reportName: string,
+    description: string,
+    file: File,
+  ): Promise<void> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("organizationProgramId", target.organizationProgramId);
+    formData.append("reportName", reportName);
+    formData.append("description", description);
+    formData.append("file", file);
+    const response = await fetch(`${apiBaseUrl}/admin/custom-reports`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        ...authHeaders(auth?.accessToken),
+      },
+      body: formData,
+    });
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401 && auth?.accessToken) persistAuth(null);
+      const body = object(payload);
+      throw new ApiError(
+        stringValue(body.message) || "Upload failed",
+        response.status,
+      );
+    }
+  },
+
+  async downloadCustomReport(item: CustomReportUpload): Promise<void> {
+    await downloadRequest(
+      `/admin/custom-reports/${encodeURIComponent(item.id)}/download`,
+      item.sourceFileName,
+    );
   },
 
   async uploadedKeyImpactAnalyses(): Promise<UploadedKeyImpactAnalysis[]> {

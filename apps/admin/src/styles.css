@@ -760,6 +760,42 @@ a {
   outline: 2px solid #7c3aed;
   outline-offset: -2px;
 }
+.report-upload-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.report-upload-intro p {
+  margin: 0;
+}
+.custom-report-form {
+  display: grid;
+  gap: 18px;
+}
+.custom-report-form > label:not(.upload-card) {
+  display: grid;
+  gap: 8px;
+  color: #3f3f46;
+  font-size: 14px;
+  font-weight: 600;
+}
+.custom-report-form input:not([type="file"]),
+.custom-report-form textarea {
+  width: 100%;
+  border: 1px solid #dedee2;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #18181b;
+  font: inherit;
+  font-weight: 400;
+}
+.custom-report-form input:not([type="file"]) {
+  min-height: 44px;
+}
+.custom-report-form textarea {
+  resize: vertical;
+}
 .details-panel {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

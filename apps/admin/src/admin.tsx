@@ -45,6 +45,8 @@ import {
   formatDate,
   formatDateTime,
   type CategoryPricing,
+  type CustomReportTarget,
+  type CustomReportUpload,
   type OrganizationRecord,
   type PendingKeyImpactAnalysis,
   type UploadedKeyImpactAnalysis,
@@ -107,6 +109,11 @@ const navigation: Array<{
     label: "KIA Uploads",
     icon: FileChartColumn,
     countKey: "keyImpactAnalyses",
+  },
+  {
+    to: "/admin/report-uploads",
+    label: "Report Uploads",
+    icon: FileUp,
   },
   {
     to: "/admin/order-log",
@@ -1936,6 +1943,246 @@ export function KeyImpactAnalysisUploadsPage() {
         />
       ) : null}
     </>
+  );
+}
+
+export function CustomReportUploadsPage() {
+  return (
+    <>
+      <PageHeader
+        title="Report uploads"
+        breadcrumb="Programs | Report uploads"
+      />
+      <CustomReportUploadsPanel />
+    </>
+  );
+}
+
+function CustomReportUploadsPanel() {
+  const catalog = useLoad("custom-report-uploads", api.customReports);
+  const [showUpload, setShowUpload] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  if (catalog.loading && !catalog.data) {
+    return (
+      <State
+        loading
+        title="Loading custom reports"
+        message="Retrieving upload history."
+      />
+    );
+  }
+  if (catalog.error || !catalog.data) {
+    return <State title="Custom reports unavailable" message={catalog.error} />;
+  }
+  return (
+    <>
+      <div className="page-intro report-upload-intro">
+        <p>
+          Upload PPTX, CSV, XLSX, or PDF files for a program organization. Every
+          upload remains available in the history below.
+        </p>
+        <button
+          className="primary-button compact"
+          disabled={catalog.data.targets.length === 0}
+          onClick={() => setShowUpload(true)}
+        >
+          Upload custom report <FileUp size={16} />
+        </button>
+      </div>
+      {notice ? <div className="notice">{notice}</div> : null}
+      {downloadError ? (
+        <p className="form-error" role="alert">
+          {downloadError}
+        </p>
+      ) : null}
+      <h2>Upload History</h2>
+      <DataTable
+        headers={[
+          "Organization",
+          "Program",
+          "Report Name",
+          "Description",
+          "File",
+          "Uploaded by",
+          "Uploaded on",
+          "Action",
+        ]}
+        rows={catalog.data.uploads.map((upload) => [
+          upload.organizationName,
+          `${upload.programName}${upload.programYear ? ` (${upload.programYear})` : ""}`,
+          upload.reportName,
+          upload.description,
+          upload.sourceFileName,
+          upload.uploadedByUsername ?? "—",
+          formatDateTime(upload.uploadedAt),
+          <button
+            className="secondary-button compact"
+            onClick={() => {
+              setDownloadError("");
+              void api
+                .downloadCustomReport(upload)
+                .catch((error: unknown) =>
+                  setDownloadError(
+                    error instanceof Error ? error.message : "Download failed",
+                  ),
+                );
+            }}
+          >
+            Download <Download size={16} />
+          </button>,
+        ])}
+        empty="No custom reports have been uploaded yet."
+      />
+      {showUpload ? (
+        <CustomReportUploadModal
+          targets={catalog.data.targets}
+          onClose={() => setShowUpload(false)}
+          onUploaded={(fileName, target) => {
+            setNotice(
+              `${fileName} was uploaded for ${target.organizationName} — ${target.programName}.`,
+            );
+            setShowUpload(false);
+            void catalog.reload();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function CustomReportUploadModal({
+  targets,
+  onClose,
+  onUploaded,
+}: {
+  targets: CustomReportTarget[];
+  onClose: () => void;
+  onUploaded: (fileName: string, target: CustomReportTarget) => void;
+}) {
+  const [targetId, setTargetId] = useState(
+    targets[0]?.organizationProgramId ?? "",
+  );
+  const [reportName, setReportName] = useState("");
+  const [description, setDescription] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const selectedTarget = targets.find(
+    (target) => target.organizationProgramId === targetId,
+  );
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedTarget || !reportName.trim() || !description.trim() || !file) {
+      setError(
+        "Choose a program organization and provide a name, description, and file.",
+      );
+      return;
+    }
+    if (!/\.(pptx|csv|xlsx|pdf)$/iu.test(file.name)) {
+      setError("Choose a PPTX, CSV, XLSX, or PDF file.");
+      return;
+    }
+    if (file.size === 0 || file.size > 25 * 1024 * 1024) {
+      setError(
+        "The selected file must be larger than 0 bytes and no more than 25 MB.",
+      );
+      return;
+    }
+    setUploading(true);
+    setError("");
+    try {
+      await api.uploadCustomReport(
+        selectedTarget,
+        reportName.trim(),
+        description.trim(),
+        file,
+      );
+      onUploaded(file.name, selectedTarget);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The report could not be uploaded.",
+      );
+      setUploading(false);
+    }
+  };
+  return (
+    <Modal title="Upload Custom Report" onClose={onClose}>
+      <form
+        className="custom-report-form"
+        onSubmit={(event) => void submit(event)}
+      >
+        <label>
+          Program organization
+          <SearchableSelect
+            ariaLabel="Program organization"
+            disabled={uploading}
+            onChange={setTargetId}
+            options={targets.map((target) => ({
+              value: target.organizationProgramId,
+              label: `${target.organizationName} — ${target.programName}${target.programYear ? ` (${target.programYear})` : ""}`,
+            }))}
+            searchPlaceholder="Search organizations…"
+            value={targetId}
+          />
+        </label>
+        <label>
+          Report name
+          <input
+            disabled={uploading}
+            maxLength={160}
+            onChange={(event) => setReportName(event.target.value)}
+            required
+            value={reportName}
+          />
+        </label>
+        <label>
+          Description
+          <textarea
+            disabled={uploading}
+            maxLength={1000}
+            onChange={(event) => setDescription(event.target.value)}
+            required
+            rows={4}
+            value={description}
+          />
+        </label>
+        <label className="upload-card benefits-upload-card">
+          <FileUp size={34} aria-hidden="true" />
+          <strong>{file ? "File selected" : "Choose a report file"}</strong>
+          <span>{file?.name ?? "PPTX, CSV, XLSX, or PDF · maximum 25 MB"}</span>
+          <input
+            accept=".pptx,.csv,.xlsx,.pdf"
+            disabled={uploading}
+            onChange={(event) => {
+              setError("");
+              setFile(event.target.files?.[0] ?? null);
+            }}
+            type="file"
+          />
+        </label>
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            disabled={uploading}
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button className="primary-button" disabled={uploading} type="submit">
+            {uploading ? "Uploading…" : "Upload report"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

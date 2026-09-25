@@ -55,6 +55,7 @@ describe("admin sidebar", () => {
       screen.getByRole("link", { name: "Users Management (5)" }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: "KIA Uploads (2)" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Report Uploads" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Order Log (8)" })).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Activity Log (13)" }),

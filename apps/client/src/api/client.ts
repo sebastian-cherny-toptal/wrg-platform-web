@@ -794,7 +794,9 @@ export const api = {
         { schema: keyImpactAnalysisSchema },
       ),
     downloadCustomReport: (url: string, filename: string) =>
-      downloadUrl(url, filename),
+      url.startsWith("/client/")
+        ? downloadRequest(url, filename)
+        : downloadUrl(url, filename),
     annualResponseRate: (programId: string) =>
       request(
         `/client/surveyResponseRateAnuualTrend?selectedProgramId=${encodeURIComponent(programId)}`,
