@@ -1,0 +1,57 @@
+map $args $access_log_query {
+  default $args;
+  ~*(^|&)(authorization|password|passcode|secret|token|api[_-]?key|signature|otp|code|refresh[_-]?token)= [REDACTED];
+}
+
+log_format access_json escape=json
+  '{'
+    '"event":"http_request",'
+    '"timestamp":"$time_iso8601",'
+    '"request_id":"$request_id",'
+    '"remote_address":"$remote_addr",'
+    '"forwarded_for":"$http_x_forwarded_for",'
+    '"host":"$host",'
+    '"method":"$request_method",'
+    '"path":"$uri",'
+    '"query":"$access_log_query",'
+    '"status":$status,'
+    '"request_time_seconds":$request_time,'
+    '"request_length":$request_length,'
+    '"bytes_sent":$bytes_sent,'
+    '"content_type":"$sent_http_content_type",'
+    '"referer":"$http_referer",'
+    '"user_agent":"$http_user_agent"'
+  '}';
+
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+  access_log /dev/stdout access_json;
+  error_log /dev/stderr warn;
+  include /etc/nginx/security-headers.conf;
+
+  location = /healthz {
+    include /etc/nginx/security-headers.conf;
+    access_log off;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 3s;
+    proxy_ssl_server_name on;
+    proxy_set_header Host $proxy_host;
+    proxy_pass __API_READINESS_URL__;
+  }
+
+  location /assets/ {
+    include /etc/nginx/security-headers.conf;
+    try_files $uri =404;
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location / {
+    include /etc/nginx/security-headers.conf;
+    try_files $uri $uri/ /index.html;
+    add_header Cache-Control "no-store";
+  }
+}
