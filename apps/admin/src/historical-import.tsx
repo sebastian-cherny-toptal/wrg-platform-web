@@ -718,10 +718,12 @@ function WinnerMultiSelect({
 
 export function CategoryPricingEditor({
   benchmarkCategories,
+  currency = "USD",
   value,
   onChange,
 }: {
   benchmarkCategories: string[];
+  currency?: string;
   value: CategoryPricing[];
   onChange: (value: CategoryPricing[]) => void;
 }) {
@@ -767,9 +769,10 @@ export function CategoryPricingEditor({
                 <strong>{entry.pricingCategoryName}</strong>
               </div>
               <label>
-                Report price (USD)
+                Report price ({currency})
                 <MoneyInput
                   ariaLabel={`${entry.pricingCategoryName} report price`}
+                  currency={currency}
                   onChange={(priceCents) => update(entry.tier, { priceCents })}
                   priceCents={entry.priceCents}
                   required
@@ -809,6 +812,7 @@ export function MetadataStep({
     zohoProgramId: draft.metadata?.zohoProgramId,
     programName: draft.metadata?.programName ?? "",
     programYear: draft.metadata?.programYear ?? undefined,
+    currency: draft.metadata?.currency ?? "USD",
     projectAbbreviation:
       draft.metadata?.projectAbbreviation ??
       abbreviationForProject(initialProject),
@@ -893,6 +897,7 @@ export function MetadataStep({
       ...(form.zohoProgramId ? { zohoProgramId: form.zohoProgramId } : {}),
       programName: form.programName.trim(),
       programYear: form.programYear,
+      currency: form.currency,
       efsLaunchDate: form.efsLaunchDate,
       efsDeadline: form.efsDeadline,
       zohoWinnerOrganizations: form.zohoWinnerOrganizations,
@@ -1040,6 +1045,7 @@ export function MetadataStep({
                       ...form,
                       zohoProgramId: undefined,
                       programName: "",
+                      currency: "USD",
                       zohoWinnerOrganizations: [],
                       zohoOrganizations: [],
                       organizationPrograms: [],
@@ -1060,6 +1066,7 @@ export function MetadataStep({
                     zohoProgramId: selected.id,
                     programName: selected.name,
                     programYear: selected.year ?? form.programYear,
+                    currency: selected.currency ?? form.currency,
                     efsLaunchDate:
                       selected.efsLaunchDate?.slice(0, 10) ??
                       form.efsLaunchDate,
@@ -1190,6 +1197,7 @@ export function MetadataStep({
           benchmarkCategories={
             form.benchmarkCategories ?? defaultBenchmarkCategories
           }
+          currency={form.currency}
           onChange={(categoryPricing) => setForm({ ...form, categoryPricing })}
           value={form.categoryPricing ?? defaultCategoryPricing}
         />
@@ -2272,7 +2280,11 @@ function CatalogStep({
       {loading ? (
         <p>Loading product options…</p>
       ) : (
-        <CatalogEditor products={products} onChange={setProducts} />
+        <CatalogEditor
+          currency={draft.metadata.currency}
+          products={products}
+          onChange={setProducts}
+        />
       )}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
@@ -2325,6 +2337,12 @@ export function HistoricalImportPage() {
               programId: program.id,
               programName: program.name,
               programYear: program.year ?? undefined,
+              currency:
+                typeof details.currency === "string"
+                  ? details.currency
+                  : typeof details.Currency === "string"
+                    ? details.Currency
+                    : "USD",
               projectAbbreviation: "",
               efsLaunchDate: datePart(
                 details.StartDate ?? details.startsAt,

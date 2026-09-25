@@ -7,6 +7,7 @@ export const programSchema = z.object({
   id: z.string(),
   name: z.string(),
   year: z.number().int(),
+  currency: z.string().regex(/^[A-Z]{3}$/u).optional(),
   organizationName: z.string(),
   entitlements: entitlementSchema,
   reportSelections: z.object({
@@ -54,6 +55,8 @@ const legacyProgramReferenceSchema = z.object({
   name: z.string().optional(),
   Program_Year: z.string().nullable().optional(),
   year: z.number().int().nullable().optional(),
+  Currency: z.string().optional(),
+  currency: z.string().optional(),
 });
 
 export const legacyClientLoginSchema = z.object({

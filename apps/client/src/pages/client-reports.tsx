@@ -42,12 +42,14 @@ import {
 } from "./key-impact-report";
 
 const OPEN_REPORT_CART_EVENT = "wrg:open-report-cart";
-const reportMoney = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+function formatReportMoney(amount: number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
 
 function openReportCart() {
   window.dispatchEvent(new Event(OPEN_REPORT_CART_EVENT));
@@ -112,6 +114,8 @@ function useCategoryResults(queryFilter: ReportQueryFilter = {}) {
 
 function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const cart = useAppStore((state) => state.cart);
+  const program = useSelectedProgram();
+  const currency = program?.currency ?? "USD";
   const total = cart.reduce(
     (sum, item) => sum + item.priceCents * item.quantity,
     0,
@@ -150,7 +154,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                   </span>
                 ) : null}
                 <span className="text-zinc-500">
-                  {reportMoney.format(item.priceCents / 100)}
+                  {formatReportMoney(item.priceCents / 100, currency)}
                 </span>
               </div>
             ))
@@ -161,7 +165,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="border-t border-zinc-200 p-6">
           <div className="mb-5 flex justify-between">
             <span>Total:</span>
-            <span>{reportMoney.format(total / 100)}</span>
+            <span>{formatReportMoney(total / 100, currency)}</span>
           </div>
           {cart.length ? (
             <Link
@@ -2314,7 +2318,10 @@ export function EmployeeVerbatimsPage() {
               <p className="text-[13px] text-zinc-500">Price</p>
               <strong className="text-2xl">
                 {sortedVerbatims?.priceCents != null
-                  ? `$ ${(sortedVerbatims.priceCents / 100).toLocaleString()}`
+                  ? formatReportMoney(
+                      sortedVerbatims.priceCents / 100,
+                      program?.currency,
+                    )
                   : "—"}
               </strong>
               <p className="mt-3 text-xs font-medium text-zinc-700">

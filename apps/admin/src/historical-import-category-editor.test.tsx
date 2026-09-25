@@ -49,12 +49,15 @@ describe("CategoryPricingEditor", () => {
     render(
       <CategoryPricingEditor
         benchmarkCategories={["Small/Medium", "Large"]}
+        currency="GBP"
         onChange={onChange}
         value={[category]}
       />,
     );
 
     const input = screen.getByLabelText("25-99 report price");
+    expect(screen.getByText("Report price (GBP)")).toBeTruthy();
+    expect(screen.getByText("£")).toBeTruthy();
     expect((input as HTMLInputElement).value).toBe("1110.00");
     fireEvent.change(input, { target: { value: "1234.56" } });
     fireEvent.blur(input);

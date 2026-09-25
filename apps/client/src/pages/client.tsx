@@ -38,12 +38,14 @@ import { ImageDownloadMenu } from '../components/image-download-menu'
 import { Badge, Button, Card, PageHeader, StatePanel, buttonClasses, cn, storeTextLinkClasses } from '../components/ui'
 import { useAppStore, useSelectedProgram } from '../store/app-store'
 
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+function formatMoney(amount: number, currency = 'USD') {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
 
 const promotionalStoreLinkClasses = cn(
   buttonClasses('store'),
@@ -521,6 +523,7 @@ export function WorkforceFeedbackPage() {
 
 export function CatalogPage() {
   const program = useSelectedProgram()
+  const currency = program?.currency ?? 'USD'
   const isPromotional = useAppStore((state) => state.session?.user.role === 'promotional')
   const catalog = useQuery({
     queryKey: ['report-catalog', program?.id],
@@ -613,7 +616,7 @@ export function CatalogPage() {
                   </div>
                 </div>
                 {!standardPackage.owned ? <strong className="text-sm text-zinc-600">
-                  {standardPackage.priceCents === null ? 'Price unavailable' : money.format(standardPackage.priceCents / 100)}
+                  {standardPackage.priceCents === null ? 'Price unavailable' : formatMoney(standardPackage.priceCents / 100, currency)}
                 </strong> : null}
               </div>
               <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -669,7 +672,7 @@ export function CatalogPage() {
                   {isSorted ? <MessageSquareText className="size-4" /> : isKia ? <FileChartColumn className="size-4" /> : <FileText className="size-4" />}
                 </span>
                 <h3 className="mt-3 text-sm font-bold">{product.name}</h3>
-                <strong className="mt-3 text-xl text-red-500">{product.priceCents === null ? 'Unavailable' : money.format(product.priceCents / 100)}</strong>
+                <strong className="mt-3 text-xl text-red-500">{product.priceCents === null ? 'Unavailable' : formatMoney(product.priceCents / 100, currency)}</strong>
                 <p className="mt-3 text-xs leading-5 text-zinc-500">{product.description}</p>
                 <p className="mt-2 text-xs text-zinc-600"><span className="mr-2 text-violet-600">✓</span>{product.deliveryMessage}</p>
                 {isSorted ? (
@@ -720,6 +723,8 @@ export function CatalogPage() {
 
 export function CartPage() {
   const cart = useAppStore((state) => state.cart)
+  const program = useSelectedProgram()
+  const currency = program?.currency ?? 'USD'
   const remove = useAppStore((state) => state.removeFromCart)
   const clear = useAppStore((state) => state.clearCart)
   const total = cart.reduce((sum, item) => sum + item.priceCents * item.quantity, 0)
@@ -731,13 +736,13 @@ export function CartPage() {
         {cart.length === 0 ? <StatePanel kind="empty" title="Your cart is empty" message="Browse the reports store to add a report." action={<Link to={routeMap.catalog} className={buttonClasses('store')}>Browse reports</Link>} /> : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
             <Card className="overflow-hidden">
-              <ul className="divide-y divide-zinc-200">{cart.map((item) => <li className="flex items-center gap-4 p-5" key={item.productId}><span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700"><FileText className="size-5" /></span><div className="min-w-0 flex-1"><strong>{item.name}</strong><p className="text-sm text-zinc-500">{item.optionLabel ? `Sorting category: ${item.optionLabel}` : 'Report for selected program'}</p></div><strong>{money.format(item.priceCents * item.quantity / 100)}</strong><button className="p-2 text-zinc-400 hover:text-red-600" onClick={() => remove(item.productId)} aria-label={`Remove ${item.name}`}><Trash2 className="size-4" /></button></li>)}</ul>
+              <ul className="divide-y divide-zinc-200">{cart.map((item) => <li className="flex items-center gap-4 p-5" key={item.productId}><span className="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700"><FileText className="size-5" /></span><div className="min-w-0 flex-1"><strong>{item.name}</strong><p className="text-sm text-zinc-500">{item.optionLabel ? `Sorting category: ${item.optionLabel}` : 'Report for selected program'}</p></div><strong>{formatMoney(item.priceCents * item.quantity / 100, currency)}</strong><button className="p-2 text-zinc-400 hover:text-red-600" onClick={() => remove(item.productId)} aria-label={`Remove ${item.name}`}><Trash2 className="size-4" /></button></li>)}</ul>
               <div className="flex justify-end gap-3 p-4"><Button onClick={clear} variant="ghost">Remove all</Button><Button variant="ghost">Save for later</Button></div>
             </Card>
             <aside className="h-fit rounded-2xl bg-slate-900 p-6 text-white">
               <h2 className="text-lg font-bold">Summary</h2>
-              <div className="mt-5 grid gap-3">{cart.map((item) => <div className="flex justify-between gap-3 text-sm text-slate-300" key={item.productId}><span>{item.name}{item.optionLabel ? <small className="block text-slate-400">Sorted by {item.optionLabel}</small> : null}</span><span>{money.format(item.priceCents / 100)}</span></div>)}</div>
-              <div className="mt-6 flex justify-between border-t border-slate-700 pt-5 font-bold"><span>Total</span><span>{money.format(total / 100)}</span></div>
+              <div className="mt-5 grid gap-3">{cart.map((item) => <div className="flex justify-between gap-3 text-sm text-slate-300" key={item.productId}><span>{item.name}{item.optionLabel ? <small className="block text-slate-400">Sorted by {item.optionLabel}</small> : null}</span><span>{formatMoney(item.priceCents / 100, currency)}</span></div>)}</div>
+              <div className="mt-6 flex justify-between border-t border-slate-700 pt-5 font-bold"><span>Total</span><span>{formatMoney(total / 100, currency)}</span></div>
               <Link className={cn(buttonClasses('store'), 'mt-6 w-full')} to={routeMap.checkout}>Go To Checkout</Link>
             </aside>
           </div>
@@ -751,6 +756,7 @@ export function CheckoutPage() {
   const cart = useAppStore((state) => state.cart)
   const clearCart = useAppStore((state) => state.clearCart)
   const program = useSelectedProgram()
+  const currency = program?.currency ?? 'USD'
   const total = cart.reduce((sum, item) => sum + item.priceCents * item.quantity, 0)
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'invoice'>('card')
   const cardFee = Math.round(total * 0.03)
@@ -775,7 +781,7 @@ export function CheckoutPage() {
     api.commerce.createPaymentIntent({
       programId: program.id,
       amount: total / 100,
-      currency: 'USD',
+      currency,
       paymentMethod,
       items: cart.map((item) => ({
         title: item.name,
@@ -792,7 +798,7 @@ export function CheckoutPage() {
       })
     })
     return () => { active = false }
-  }, [cart, paymentKey, paymentMethod, pendingPayment, program, total])
+  }, [cart, currency, paymentKey, paymentMethod, pendingPayment, program, total])
 
   async function requestInvoice() {
     if (!program) return
@@ -802,7 +808,7 @@ export function CheckoutPage() {
       await api.commerce.requestInvoice({
         programId: program.id,
         amount: total / 100,
-        currency: 'USD',
+        currency,
         items: cart.map((item) => ({
           title: item.name,
           amount: item.priceCents * item.quantity / 100,
@@ -837,7 +843,7 @@ export function CheckoutPage() {
           <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 text-violet-600" /><div><h2 className="text-xl font-bold">Choose payment method</h2><p className="mt-1 text-sm text-zinc-500">Pay by card, US bank account (ACH), or request an invoice.</p></div></div>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'card' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('card')} type="button"><strong className="text-sm">Credit card</strong><p className="mt-1 text-xs text-zinc-500">Immediate access after successful payment. A 3% fee applies.</p></button>
-            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'ach' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('ach')} type="button"><strong className="text-sm">US bank account (ACH)</strong><p className="mt-1 text-xs text-zinc-500">No card fee. Access begins after payment succeeds, usually within four business days.</p></button>
+            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'ach' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} disabled={currency !== 'USD'} onClick={() => setPaymentMethod('ach')} type="button"><strong className="text-sm">US bank account (ACH)</strong><p className="mt-1 text-xs text-zinc-500">{currency === 'USD' ? 'No card fee. Access begins after payment succeeds, usually within four business days.' : `Available only for USD programs; this program uses ${currency}.`}</p></button>
             <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'invoice' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('invoice')} type="button"><strong className="text-sm">Request an invoice</strong><p className="mt-1 text-xs text-zinc-500">Access begins after WRG records payment.</p></button>
           </div>
           {paymentMethod !== 'invoice' ? (
@@ -858,8 +864,8 @@ export function CheckoutPage() {
         <aside className="h-fit rounded-2xl bg-slate-900 p-6 text-white">
           <h2 className="font-bold">Order summary</h2>
           <p className="mt-2 text-sm text-slate-400">{cart.length} report product{cart.length === 1 ? '' : 's'}</p>
-          <div className="mt-5 grid gap-2 border-t border-slate-700 pt-5 text-sm text-slate-300"><div className="flex justify-between"><span>Subtotal</span><span>{money.format(total / 100)}</span></div>{paymentMethod === 'card' ? <div className="flex justify-between"><span>Card fee (3%)</span><span>{money.format(cardFee / 100)}</span></div> : null}</div>
-          <div className="mt-4 flex justify-between border-t border-slate-700 pt-4 text-lg font-bold"><span>Total</span><span>{money.format(checkoutTotal / 100)}</span></div>
+          <div className="mt-5 grid gap-2 border-t border-slate-700 pt-5 text-sm text-slate-300"><div className="flex justify-between"><span>Subtotal</span><span>{formatMoney(total / 100, currency)}</span></div>{paymentMethod === 'card' ? <div className="flex justify-between"><span>Card fee (3%)</span><span>{formatMoney(cardFee / 100, currency)}</span></div> : null}</div>
+          <div className="mt-4 flex justify-between border-t border-slate-700 pt-4 text-lg font-bold"><span>Total</span><span>{formatMoney(checkoutTotal / 100, currency)}</span></div>
         </aside>
       </div>
     </>

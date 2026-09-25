@@ -906,6 +906,13 @@ export function ProgramDetailPage() {
   const [catalogOrganization, setCatalogOrganization] =
     useState<OrganizationRecord | null>(null);
   const program = programLoaded.data;
+  const programCurrency =
+    program?.currency ??
+    (typeof program?.details?.currency === "string"
+      ? program.details.currency
+      : typeof program?.details?.Currency === "string"
+        ? program.details.Currency
+        : "USD");
   useEffect(() => {
     setCategoryPricing(programCategoryPricing(program));
   }, [program]);
@@ -1278,9 +1285,10 @@ export function ProgramDetailPage() {
                     <strong>{entry.pricingCategoryName}</strong>
                   </div>
                   <label>
-                    Report price (USD)
+                    Report price ({programCurrency})
                     <MoneyInput
                       ariaLabel={`${entry.pricingCategoryName} report price`}
+                      currency={programCurrency}
                       onChange={(priceCents) =>
                         setCategoryPricing((current) =>
                           current.map((category) =>
@@ -1327,7 +1335,11 @@ export function ProgramDetailPage() {
           ) : catalogLoaded.error ? (
             <p className="form-error">{catalogLoaded.error}</p>
           ) : (
-            <CatalogEditor products={products} onChange={setProducts} />
+            <CatalogEditor
+              currency={programCurrency}
+              products={products}
+              onChange={setProducts}
+            />
           )}
           {storeError ? <p className="form-error">{storeError}</p> : null}
           <div className="program-configuration-actions">

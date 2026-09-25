@@ -270,6 +270,7 @@ async function backendClientLogin(input: {
     const id = reference.id ?? reference._id;
     const name = reference.name ?? reference.Name;
     const year = reference.year ?? Number(reference.Program_Year);
+    const currency = (reference.currency ?? reference.Currency)?.toUpperCase();
     if (!id || !name || !Number.isInteger(year)) {
       throw new ApiError(
         "The account contains an invalid reporting program",
@@ -281,6 +282,7 @@ async function backendClientLogin(input: {
       id,
       name,
       year,
+      ...(currency ? { currency } : {}),
       organizationName,
       entitlements: {
         WFR_Access: entitlement(enrollment.reportAccess.WFR_Access),

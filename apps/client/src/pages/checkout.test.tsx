@@ -16,9 +16,9 @@ vi.mock('@stripe/react-stripe-js', () => ({
 vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test_example')
 const { CheckoutPage } = await import('./client')
 
-function setup() {
+function setup(currency = 'USD') {
   useAppStore.getState().setSession({
-    user: { id: 'client', displayName: 'Client', email: 'client@example.test', role: 'client', permissions: [], programs: [{ id: 'program', name: 'Program', year: 2026, organizationName: 'Organization', entitlements: {} }] },
+    user: { id: 'client', displayName: 'Client', email: 'client@example.test', role: 'client', permissions: [], programs: [{ id: 'program', name: 'Program', year: 2026, currency, organizationName: 'Organization', entitlements: {} }] },
     expiresAt: '2099-01-01T00:00:00Z', verifiedAt: '2026-01-01T00:00:00Z', impersonation: null,
   })
   useAppStore.getState().addToCart({ productId: 'report-response-detail', name: 'Response Detail', priceCents: 42500 })
@@ -46,6 +46,13 @@ describe('ACH checkout', () => {
     expect(useAppStore.getState().cart).toEqual([])
     expect(useAppStore.getState().session?.user.programs[0]?.entitlements).toEqual({})
     expect(screen.queryByRole('button', { name: 'Complete Purchase' })).toBeNull()
+  })
+
+  it('uses the selected program currency and disables ACH for non-USD programs', async () => {
+    const { create } = setup('GBP')
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ currency: 'GBP' })))
+    expect(screen.getByText('£425.00')).toBeVisible()
+    expect(screen.getByRole('button', { name: /US bank account \(ACH\)/ })).toBeDisabled()
   })
 
   it('shows Stripe’s verification link when microdeposits are required', async () => {

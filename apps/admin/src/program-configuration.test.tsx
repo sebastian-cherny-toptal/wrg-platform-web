@@ -35,6 +35,7 @@ describe("program configuration", () => {
       id: "program-id",
       name: "Program 2026",
       year: 2026,
+      currency: "GBP",
       createdAt: null,
       organizationCount: 0,
       winnersCount: 0,
@@ -104,6 +105,7 @@ describe("program configuration", () => {
     ).toBe("true");
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(screen.getByText("15-24")).toBeTruthy();
+    expect(screen.getAllByText("Report price (GBP)")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByText("Enter a price for every category.")).toBeTruthy();
@@ -121,6 +123,7 @@ describe("program configuration", () => {
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "Store" }));
+    expect(screen.getAllByText("Price (GBP)").length).toBeGreaterThan(0);
     const productName = await screen.findByLabelText("Product name");
     fireEvent.change(productName, { target: { value: "Updated Dashboard" } });
     const storePrice = screen.getByLabelText("Updated Dashboard price");

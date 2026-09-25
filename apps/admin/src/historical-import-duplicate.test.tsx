@@ -55,6 +55,7 @@ async function renderSelectedProgram(
       id: "zoho-program-id",
       name: "Indiana 2026",
       year: 2026,
+      currency: "USD",
       projectId: "zoho-project-id",
       projectName: "Indiana",
       projectAbbreviation: "IN",

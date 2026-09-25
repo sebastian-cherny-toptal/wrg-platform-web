@@ -12,16 +12,22 @@ export function MoneyInput({
   priceCents,
   onChange,
   ariaLabel,
+  currency = "USD",
   required = false,
 }: {
   priceCents: number | null;
   onChange: (priceCents: number) => void;
   ariaLabel?: string;
+  currency?: string;
   required?: boolean;
 }) {
   const formattedPrice = (cents: number | null) =>
     cents === null ? "" : (cents / 100).toFixed(2);
   const [value, setValue] = useState(formattedPrice(priceCents));
+  const currencySymbol =
+    new Intl.NumberFormat("en-US", { style: "currency", currency })
+      .formatToParts(0)
+      .find(({ type }) => type === "currency")?.value ?? currency;
 
   useEffect(() => setValue(formattedPrice(priceCents)), [priceCents]);
 
@@ -41,7 +47,7 @@ export function MoneyInput({
 
   return (
     <div className="money-input">
-      <span>$</span>
+      <span>{currencySymbol}</span>
       <input
         aria-label={ariaLabel}
         inputMode="decimal"
@@ -61,9 +67,11 @@ export function MoneyInput({
 }
 
 export function CatalogEditor({
+  currency = "USD",
   products,
   onChange,
 }: {
+  currency?: string;
   products: ReportProduct[];
   onChange: (products: ReportProduct[]) => void;
 }) {
@@ -76,8 +84,8 @@ export function CatalogEditor({
   return (
     <div className="catalog-editor">
       <p className="modal-copy">
-        Choose which optional reports clients can see. Prices are shown in US
-        dollars; Custom Report Re-sort remains contact-only.
+        Choose which optional reports clients can see. Prices are shown in
+        {` ${currency}`}; Custom Report Re-sort remains contact-only.
       </p>
       <div className="catalog-product-grid">
         {products.map((product) => {
@@ -136,9 +144,10 @@ export function CatalogEditor({
                 </p>
               ) : (
                 <label>
-                  Price (USD)
+                  Price ({currency})
                   <MoneyInput
                     ariaLabel={`${product.name} price`}
+                    currency={currency}
                     priceCents={product.priceCents}
                     onChange={(priceCents) =>
                       update(product.id, { priceCents })

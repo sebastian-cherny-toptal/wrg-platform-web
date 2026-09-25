@@ -34,6 +34,7 @@ export type ProgramRecord = {
   externalId?: string;
   name: string;
   year: number | null;
+  currency?: string | null;
   createdAt: string | null;
   organizationCount: number;
   winnersCount: number;
@@ -85,6 +86,7 @@ export type ZohoProgramOption = {
   id: string;
   name: string;
   year: number | null;
+  currency: string | null;
   projectId: string | null;
   projectName: string | null;
   projectAbbreviation: string | null;
@@ -199,6 +201,7 @@ export type HistoricalImportMetadata = {
   zohoProgramId?: string;
   programName: string;
   programYear?: number;
+  currency?: string;
   projectAbbreviation?: string;
   efsLaunchDate?: string;
   efsDeadline?: string;
@@ -656,6 +659,8 @@ function program(raw: unknown): ProgramRecord {
     year: Number.isFinite(Number(value.Program_Year ?? value.year))
       ? Number(value.Program_Year ?? value.year)
       : null,
+    currency:
+      stringValue(value.Currency ?? value.currency).toUpperCase() || null,
     createdAt:
       stringValue(value.createAt) || stringValue(value.createdAt) || null,
     organizationCount: Number(
@@ -1469,6 +1474,7 @@ export const api = {
         id: stringValue(value.id),
         name: stringValue(value.name),
         year: Number.isInteger(parsedYear) ? parsedYear : null,
+        currency: stringValue(value.currency).toUpperCase() || null,
         projectId: stringValue(value.projectId) || null,
         projectName: stringValue(value.projectName) || null,
         projectAbbreviation: stringValue(value.projectAbbreviation) || null,
