@@ -4,13 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import { useAppStore } from '../store/app-store'
 
-const payment = vi.hoisted<{ status: string; next_action: unknown }>(() => ({ status: 'processing', next_action: undefined }))
 vi.mock('@stripe/stripe-js', () => ({ loadStripe: () => Promise.resolve({}) }))
 vi.mock('@stripe/react-stripe-js', () => ({
   Elements: ({ children }: { children: React.ReactNode }) => children,
   PaymentElement: () => <div>Secure payment form</div>,
   useElements: () => ({}),
-  useStripe: () => ({ confirmPayment: () => Promise.resolve({ paymentIntent: { id: 'pi_ach', ...payment } }) }),
+  useStripe: () => ({ confirmPayment: () => Promise.resolve({ paymentIntent: { id: 'pi_card', status: 'succeeded' } }) }),
 }))
 
 vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test_example')
@@ -28,41 +27,32 @@ function setup(currency = 'USD') {
   return { create, confirm }
 }
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); useAppStore.getState().setSession(null); payment.next_action = undefined; payment.status = 'processing' })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); useAppStore.getState().setSession(null) })
 
-describe('ACH checkout', () => {
-  it('removes the card fee and submits processing payments without granting access or inviting another payment', async () => {
-    const { create, confirm } = setup()
+describe('checkout payment options', () => {
+  it('offers fee-free credit card and invoice payments without ACH', async () => {
+    const { create } = setup()
     await screen.findByText('Secure payment form')
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'card', amount: 425, currency: 'USD' })))
     expect(screen.getByRole('button', { name: 'Complete Purchase' })).toHaveClass('bg-violet-900')
-    expect(screen.getByText('Card fee (3%)')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: /US bank account \(ACH\)/ }))
-    await waitFor(() => expect(create).toHaveBeenLastCalledWith(expect.objectContaining({ paymentMethod: 'ach', amount: 425, currency: 'USD' })))
     expect(screen.queryByText('Card fee (3%)')).toBeNull()
-    await screen.findByText('Secure payment form')
-    fireEvent.click(screen.getByRole('button', { name: 'Complete Purchase' }))
-    await screen.findByRole('heading', { name: 'Payment submitted' })
-    expect(confirm).not.toHaveBeenCalled()
-    expect(useAppStore.getState().cart).toEqual([])
-    expect(useAppStore.getState().session?.user.programs[0]?.entitlements).toEqual({})
-    expect(screen.queryByRole('button', { name: 'Complete Purchase' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /US bank account \(ACH\)/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /Credit card/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /Invoice me/ })).toBeVisible()
   })
 
-  it('uses the selected program currency and disables ACH for non-USD programs', async () => {
+  it('uses the selected program currency for card payments', async () => {
     const { create } = setup('GBP')
-    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ currency: 'GBP' })))
-    expect(screen.getByText('£425.00')).toBeVisible()
-    expect(screen.getByRole('button', { name: /US bank account \(ACH\)/ })).toBeDisabled()
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'card', amount: 425, currency: 'GBP' })))
+    expect(screen.getAllByText('£425.00')).toHaveLength(2)
   })
 
-  it('shows Stripe’s verification link when microdeposits are required', async () => {
-    payment.status = 'requires_action'
-    payment.next_action = { type: 'verify_with_microdeposits', verify_with_microdeposits: { hosted_verification_url: 'https://payments.stripe.com/verify/test' } }
-    const { confirm } = setup()
-    fireEvent.click(screen.getByRole('button', { name: /US bank account \(ACH\)/ }))
-    await screen.findByText('Secure payment form')
-    fireEvent.click(screen.getByRole('button', { name: 'Complete Purchase' }))
-    expect(await screen.findByRole('link', { name: 'Verify bank account with Stripe' })).toHaveAttribute('href', 'https://payments.stripe.com/verify/test')
-    expect(confirm).not.toHaveBeenCalled()
+  it('submits invoice requests without a payment fee', async () => {
+    const requestInvoice = vi.spyOn(api.commerce, 'requestInvoice').mockResolvedValue({ success: true, status: 'pending', message: 'Invoice requested' })
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: /Invoice me/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Request invoice' }))
+    await waitFor(() => expect(requestInvoice).toHaveBeenCalledWith(expect.objectContaining({ amount: 425, currency: 'USD' })))
+    expect(await screen.findByRole('heading', { name: 'Invoice request received' })).toBeVisible()
   })
 })

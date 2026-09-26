@@ -643,7 +643,7 @@ export function CatalogPage() {
               <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-zinc-200 pt-4">
                 {!standardPackage.owned ? <div>
                   <p className="text-xs font-semibold text-emerald-700">ⓘ Immediate access upon successful credit card payment</p>
-                  <p className="mt-2 text-[11px] italic text-zinc-400">All credit card transactions are subject to a 3% fee. Invoice requests are handled by WRG.</p>
+                  <p className="mt-2 text-[11px] italic text-zinc-400">Pay by credit card or request an invoice from WRG.</p>
                 </div> : <p className="text-sm font-semibold text-emerald-700">✓ Purchased</p>}
                 <div className="flex gap-2">
                   {!standardPackage.owned ? <Link to={routeMap.dashboard}><Button variant="secondary">View demo</Button></Link> : null}
@@ -761,13 +761,10 @@ export function CheckoutPage() {
   const program = useSelectedProgram()
   const currency = program?.currency ?? 'USD'
   const total = cart.reduce((sum, item) => sum + item.priceCents * item.quantity, 0)
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'ach' | 'invoice'>('card')
-  const cardFee = Math.round(total * 0.03)
-  const checkoutTotal = paymentMethod === 'card' ? total + cardFee : total
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'invoice'>('card')
   const [invoiceSubmitting, setInvoiceSubmitting] = useState(false)
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [invoiceSubmitted, setInvoiceSubmitted] = useState(false)
-  const [pendingPayment, setPendingPayment] = useState<{ verificationUrl?: string } | null>(null)
   const paymentKey = `${paymentMethod}:${program?.id ?? 'none'}:${cart.map((item) => `${item.productId}:${item.quantity}:${item.priceCents}`).join(',')}`
   const [paymentState, setPaymentState] = useState<{
     key: string
@@ -779,7 +776,7 @@ export function CheckoutPage() {
   const error = currentPayment?.error ?? null
 
   useEffect(() => {
-    if (!program || total <= 0 || paymentMethod === 'invoice' || pendingPayment) return
+    if (!program || total <= 0 || paymentMethod === 'invoice') return
     let active = true
     api.commerce.createPaymentIntent({
       programId: program.id,
@@ -801,7 +798,7 @@ export function CheckoutPage() {
       })
     })
     return () => { active = false }
-  }, [cart, currency, paymentKey, paymentMethod, pendingPayment, program, total])
+  }, [cart, currency, paymentKey, paymentMethod, program, total])
 
   async function requestInvoice() {
     if (!program) return
@@ -827,10 +824,6 @@ export function CheckoutPage() {
     }
   }
 
-  if (pendingPayment) {
-    return <div className="p-6"><Card className="mx-auto max-w-2xl p-8 text-center"><h1 className="text-2xl font-bold">{pendingPayment.verificationUrl ? 'Verify your bank account' : 'Payment submitted'}</h1><p className="mt-3 text-sm leading-6 text-zinc-600">{pendingPayment.verificationUrl ? 'Follow Stripe’s instructions to verify the microdeposits in your bank account. Payment will process after verification.' : 'Your payment is processing. Bank payments can take up to four business days. You do not need to pay again.'} Report access will be granted after payment succeeds.</p>{pendingPayment.verificationUrl ? <a className="mt-4 inline-block text-violet-700 underline" href={pendingPayment.verificationUrl}>Verify bank account with Stripe</a> : null}<Link to={routeMap.dashboard}><Button className="mt-6">Return to dashboard</Button></Link></Card></div>
-  }
-
   if (invoiceSubmitted) {
     return <div className="p-6"><Card className="mx-auto max-w-2xl border-emerald-200 p-8 text-center"><CheckCircle2 className="mx-auto size-10 text-emerald-600" /><h1 className="mt-4 text-2xl font-bold">Invoice request received</h1><p className="mt-3 text-sm leading-6 text-zinc-600">Your order is pending. WRG will send an invoice within 48 business hours. Report access will be granted after payment is recorded.</p><Link to={routeMap.dashboard}><Button className="mt-6">Return to dashboard</Button></Link></Card></div>
   }
@@ -843,17 +836,16 @@ export function CheckoutPage() {
       <PageHeader title="Checkout" description="Confirm the reports and billing summary for the selected survey program." />
       <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
         <Card className="p-6">
-          <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 text-violet-600" /><div><h2 className="text-xl font-bold">Choose payment method</h2><p className="mt-1 text-sm text-zinc-500">Pay by card, US bank account (ACH), or request an invoice.</p></div></div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'card' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('card')} type="button"><strong className="text-sm">Credit card</strong><p className="mt-1 text-xs text-zinc-500">Immediate access after successful payment. A 3% fee applies.</p></button>
-            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'ach' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} disabled={currency !== 'USD'} onClick={() => setPaymentMethod('ach')} type="button"><strong className="text-sm">US bank account (ACH)</strong><p className="mt-1 text-xs text-zinc-500">{currency === 'USD' ? 'No card fee. Access begins after payment succeeds, usually within four business days.' : `Available only for USD programs; this program uses ${currency}.`}</p></button>
-            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'invoice' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('invoice')} type="button"><strong className="text-sm">Request an invoice</strong><p className="mt-1 text-xs text-zinc-500">Access begins after WRG records payment.</p></button>
+          <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 text-violet-600" /><div><h2 className="text-xl font-bold">Choose payment method</h2><p className="mt-1 text-sm text-zinc-500">Pay by credit card or request an invoice.</p></div></div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'card' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('card')} type="button"><strong className="text-sm">Credit card</strong><p className="mt-1 text-xs text-zinc-500">Immediate access after successful payment.</p></button>
+            <button className={cn('rounded-xl border p-4 text-left', paymentMethod === 'invoice' ? 'border-violet-500 bg-violet-50' : 'border-zinc-200')} onClick={() => setPaymentMethod('invoice')} type="button"><strong className="text-sm">Invoice me</strong><p className="mt-1 text-xs text-zinc-500">Access begins after WRG records payment.</p></button>
           </div>
           {paymentMethod !== 'invoice' ? (
             <>
               {error ? <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
               {!clientSecret && !error ? <div className="mt-6"><StatePanel kind="loading" title="Preparing payment" message="Opening the secure payment form." /></div> : null}
-              {clientSecret && stripePromise ? <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}><StripeCheckoutForm onPending={(payment) => { setPendingPayment(payment); clearCart() }} /></Elements> : null}
+              {clientSecret && stripePromise ? <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}><StripeCheckoutForm /></Elements> : null}
               {!stripePromise ? <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Stripe is not configured. Set VITE_STRIPE_PUBLISHABLE_KEY to enable online payments.</div> : null}
             </>
           ) : (
@@ -867,8 +859,8 @@ export function CheckoutPage() {
         <aside className="h-fit rounded-2xl bg-slate-900 p-6 text-white">
           <h2 className="font-bold">Order summary</h2>
           <p className="mt-2 text-sm text-slate-400">{cart.length} report product{cart.length === 1 ? '' : 's'}</p>
-          <div className="mt-5 grid gap-2 border-t border-slate-700 pt-5 text-sm text-slate-300"><div className="flex justify-between"><span>Subtotal</span><span>{formatMoney(total / 100, currency)}</span></div>{paymentMethod === 'card' ? <div className="flex justify-between"><span>Card fee (3%)</span><span>{formatMoney(cardFee / 100, currency)}</span></div> : null}</div>
-          <div className="mt-4 flex justify-between border-t border-slate-700 pt-4 text-lg font-bold"><span>Total</span><span>{formatMoney(checkoutTotal / 100, currency)}</span></div>
+          <div className="mt-5 grid gap-2 border-t border-slate-700 pt-5 text-sm text-slate-300"><div className="flex justify-between"><span>Subtotal</span><span>{formatMoney(total / 100, currency)}</span></div></div>
+          <div className="mt-4 flex justify-between border-t border-slate-700 pt-4 text-lg font-bold"><span>Total</span><span>{formatMoney(total / 100, currency)}</span></div>
         </aside>
       </div>
     </>
@@ -878,7 +870,7 @@ export function CheckoutPage() {
 const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
 const stripePromise = stripeKey ? loadStripe(stripeKey) : null
 
-function StripeCheckoutForm({ onPending }: { onPending: (payment: { verificationUrl?: string }) => void }) {
+function StripeCheckoutForm() {
   const stripe = useStripe()
   const elements = useElements()
   const clearCart = useAppStore((state) => state.clearCart)
@@ -917,10 +909,6 @@ function StripeCheckoutForm({ onPending }: { onPending: (payment: { verification
       })))
       clearCart()
       void navigate(routeMap.dashboard)
-    } else if (result.paymentIntent.status === 'processing') {
-      onPending({})
-    } else if (result.paymentIntent.status === 'requires_action' && result.paymentIntent.next_action?.type === 'verify_with_microdeposits' && result.paymentIntent.next_action.verify_with_microdeposits) {
-      onPending({ verificationUrl: result.paymentIntent.next_action.verify_with_microdeposits.hosted_verification_url })
     } else {
       setError('Payment has not completed. Please review your payment details.')
       setPaying(false)

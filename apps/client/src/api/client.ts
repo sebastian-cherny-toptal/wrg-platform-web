@@ -930,7 +930,7 @@ export const api = {
       programId: string;
       amount: number;
       currency: string;
-      paymentMethod: "card" | "ach";
+      paymentMethod: "card";
       items: { title: string; amount: number; keys: Record<string, unknown> }[];
     }) => request(`/payment/stripePaymentIntent?selectedProgramId=${encodeURIComponent(input.programId)}`, {
       method: "POST",
