@@ -2,6 +2,7 @@ export type WorkforceCohortHeader = {
   title: string;
   type: string;
   color: string;
+  employeeSize?: string | undefined;
 };
 
 export type WorkforceCohort = {
@@ -11,19 +12,24 @@ export type WorkforceCohort = {
   kind: "winner" | "nonWinner";
 };
 
-const cohortOrder = ["all", "small", "smallmedium", "medium", "large", "major"];
+const cohortOrder = ["all", "boutique", "small", "smallmedium", "medium", "large", "mega", "major"];
 const emptyHeader: WorkforceCohortHeader = { title: "", type: "", color: "" };
 
 function normalizedSize(header: Pick<WorkforceCohortHeader, "title" | "type">) {
-  const normalized = `${header.title} ${header.type}`
+  const normalize = (value: string) => value
     .toLowerCase()
     .replace(/non[\s_-]*winners?|winners?|employers?|yes|no/g, "")
     .replace(/[^a-z]/g, "");
+  const normalizedType = normalize(header.type);
+  const normalizedTitle = normalize(header.title);
+  const normalized = normalizedType || normalizedTitle;
 
   // Zoho historically calls the Small-Medium cohort "Super" in its data key.
   return normalized.includes("smallmedium") || normalized.includes("super")
     ? "smallmedium"
-    : cohortOrder.find((size) => normalized.includes(size)) ?? normalized;
+    : cohortOrder.find((size) => normalized === size) ??
+      cohortOrder.find((size) => normalizedTitle.startsWith(size)) ??
+      normalized;
 }
 
 function cohortRank(header: Pick<WorkforceCohortHeader, "title" | "type">) {
@@ -43,7 +49,10 @@ export function workforceCohorts(headers: WorkforceCohortHeader[]): WorkforceCoh
     .map((header, index) => {
       const key = header.type.replace(/[_\s-]/g, "");
       const kind = /no$/i.test(key) ? "nonWinner" : /yes$/i.test(key) ? "winner" : null;
-      return kind ? { label: header.title, key, index, kind } : null;
+      const label = header.employeeSize
+        ? `${header.title} (${header.employeeSize} Employees)`
+        : header.title;
+      return kind ? { label, key, index, kind } : null;
     })
     .filter((cohort): cohort is WorkforceCohort => cohort !== null)
     .sort((left, right) => {

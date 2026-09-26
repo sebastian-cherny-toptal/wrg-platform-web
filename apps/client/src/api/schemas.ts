@@ -10,6 +10,7 @@ export const programSchema = z.object({
   currency: z.string().regex(/^[A-Z]{3}$/u).optional(),
   organizationName: z.string(),
   entitlements: entitlementSchema,
+  benchmarkReportsAvailable: z.boolean().optional(),
   reportSelections: z.object({
     SEV_Filter: z.string().optional(),
     KIA_Order_Status: z.string().optional(),
@@ -76,6 +77,7 @@ export const legacyClientLoginSchema = z.object({
       organizationProgram: z.array(
         z.object({
           reportAccess: z.record(z.string(), z.unknown()),
+          benchmarkReportsAvailable: z.boolean().optional(),
           metrics: z.record(z.string(), z.unknown()).optional(),
           programId: legacyProgramReferenceSchema,
         }),
@@ -271,6 +273,7 @@ export const workforceComparisonSchema = z.object({
         title: z.string(),
         type: z.string(),
         color: z.string(),
+        employeeSize: z.string().optional(),
       }),
     ),
     data: z.array(

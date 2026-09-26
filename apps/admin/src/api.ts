@@ -124,6 +124,8 @@ export type ZohoWinnerOrganization = {
 export type CategoryPricing = {
   tier: "Boutique" | "Small" | "Medium" | "Large" | "Mega" | "Major";
   pricingCategoryName: string;
+  zohoCategoryName?: string;
+  employeeSize?: string;
   priceCents: number | null;
 };
 
@@ -147,6 +149,12 @@ export function categoryPricingFromApi(value: unknown): CategoryPricing[] {
         tier,
         pricingCategoryName:
           stringValue(entry.pricingCategoryName) || pricingCategoryNames[tier],
+        ...(stringValue(entry.zohoCategoryName)
+          ? { zohoCategoryName: stringValue(entry.zohoCategoryName) }
+          : {}),
+        ...(stringValue(entry.employeeSize)
+          ? { employeeSize: stringValue(entry.employeeSize) }
+          : {}),
         priceCents:
           entry.priceCents === null || entry.priceCents === undefined
             ? null

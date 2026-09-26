@@ -83,6 +83,23 @@ describe("client sidebar", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("hides benchmark links until ranking information is available", async () => {
+    const unrankedSession = session();
+    const program = unrankedSession.user.programs[0];
+    if (!program) throw new Error("Missing test program");
+    program.entitlements = { ...program.entitlements, WBC_Access: "yes" };
+    program.benchmarkReportsAvailable = false;
+    useAppStore.getState().setSession(unrankedSession);
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(screen.getByText("My Reports", { selector: "summary span" }));
+
+    expect(screen.queryByText("Workforce Benchmark Comparisons")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Benchmark Data" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Comparison Data" })).not.toBeInTheDocument();
+  });
+
   it("always shows Employee Verbatims even without EV_Access", async () => {
     useAppStore.getState().setSession(session());
     const user = userEvent.setup();

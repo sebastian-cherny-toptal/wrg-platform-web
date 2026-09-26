@@ -89,5 +89,6 @@ export function hasEntitlement(entitlement: ClientEntitlement): boolean {
   const programs = state.session?.user.programs ?? []
   const selected =
     programs.find((program) => program.id === state.selectedProgramId) ?? latestProgram(programs)
-  return selected?.entitlements[entitlement] === 'yes'
+  return selected?.entitlements[entitlement] === 'yes' &&
+    (entitlement !== 'WBC_Access' || selected.benchmarkReportsAvailable !== false)
 }

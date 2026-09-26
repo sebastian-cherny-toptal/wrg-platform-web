@@ -284,6 +284,7 @@ async function backendClientLogin(input: {
       year,
       ...(currency ? { currency } : {}),
       organizationName,
+      benchmarkReportsAvailable: enrollment.benchmarkReportsAvailable !== false,
       entitlements: {
         WFR_Access: entitlement(enrollment.reportAccess.WFR_Access),
         EV_Access: entitlement(enrollment.reportAccess.EV_Access),
