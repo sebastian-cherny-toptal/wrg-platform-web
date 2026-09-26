@@ -2317,7 +2317,7 @@ function ImpersonationUserModal({
   const [error, setError] = useState("");
   const [opening, setOpening] = useState(false);
   const openDashboard = async () => {
-    if (users.data?.length && !selectedUserId) return;
+    if (!selectedUserId) return;
     setOpening(true);
     setError("");
     try {
@@ -2335,10 +2335,7 @@ function ImpersonationUserModal({
     }
   };
   return (
-    <Modal
-      title={users.data?.length ? "Choose a portal user" : "Preview dashboard"}
-      onClose={onClose}
-    >
+    <Modal title="Choose a portal user" onClose={onClose}>
       <p className="modal-description">
         {users.data?.length ? (
           <>
@@ -2347,8 +2344,9 @@ function ImpersonationUserModal({
           </>
         ) : (
           <>
-            No portal user exists for <strong>{organization.name}</strong>. A
-            generic, program-scoped preview identity will be used.
+            No active portal user with access to <strong>{program.name}</strong>{" "}
+            exists for <strong>{organization.name}</strong>. Add or assign a
+            client user before opening the dashboard.
           </>
         )}
       </p>
@@ -2407,10 +2405,7 @@ function ImpersonationUserModal({
           type="button"
           className="primary-button compact"
           disabled={
-            (Boolean(users.data?.length) && !selectedUserId) ||
-            opening ||
-            users.loading ||
-            Boolean(users.error)
+            !selectedUserId || opening || users.loading || Boolean(users.error)
           }
           onClick={() => void openDashboard()}
         >

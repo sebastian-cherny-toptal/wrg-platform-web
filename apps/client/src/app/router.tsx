@@ -42,6 +42,11 @@ function Guard({
   return <Outlet />
 }
 
+function WritableClientGuard() {
+  const session = useAppStore((state) => state.session)
+  return session?.impersonation ? <Navigate replace to={routeMap.forbidden} /> : <Outlet />
+}
+
 function AdminAppRedirect() {
   const location = useLocation()
   useEffect(() => {
@@ -133,10 +138,15 @@ export const router = createBrowserRouter([
               { path: '/custom-reporting', element: <Navigate replace to={routeMap.customReports} /> },
             ],
           },
-          { path: routeMap.catalog, element: <CatalogPage /> },
-          { path: '/reports/catalog', element: <Navigate replace to={routeMap.catalog} /> },
-          { path: routeMap.cart, element: <CartPage /> },
-          { path: routeMap.checkout, element: <CheckoutPage /> },
+          {
+            element: <WritableClientGuard />,
+            children: [
+              { path: routeMap.catalog, element: <CatalogPage /> },
+              { path: '/reports/catalog', element: <Navigate replace to={routeMap.catalog} /> },
+              { path: routeMap.cart, element: <CartPage /> },
+              { path: routeMap.checkout, element: <CheckoutPage /> },
+            ],
+          },
         ],
       },
       { path: routeMap.forbidden, element: <ForbiddenPage /> },

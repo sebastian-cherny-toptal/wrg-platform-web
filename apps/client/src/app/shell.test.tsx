@@ -68,6 +68,26 @@ afterEach(() => {
 });
 
 describe("client sidebar", () => {
+  it("keeps impersonated previews visibly read-only", () => {
+    const previewSession = session();
+    previewSession.impersonation = {
+      actorId: "admin-1",
+      actorDisplayName: "Admin User",
+      reason: "Preview client dashboard",
+      startedAt: "2026-01-01T00:00:00.000Z",
+    };
+    useAppStore.getState().setSession(previewSession);
+    renderShell();
+
+    expect(screen.getByText("Warning: Admin Access")).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Reports Store" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Cart with/u }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps purchased-report links hidden for a client without entitlements", async () => {
     useAppStore.getState().setSession(session());
     const user = userEvent.setup();

@@ -1687,14 +1687,14 @@ export const api = {
   async startImpersonation(
     organizationId: string,
     programId: string,
-    targetUserId?: string,
+    targetUserId: string,
   ): Promise<{ url: string }> {
     return request<{ url: string }>("/admin/impersonations", {
       method: "POST",
       body: JSON.stringify({
         organizationId,
         programId,
-        ...(targetUserId ? { targetUserId } : {}),
+        targetUserId,
         reason: "Preview client dashboard from administration",
       }),
     });

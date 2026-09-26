@@ -122,6 +122,7 @@ function ReportGroup({
 
 function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
   const location = useLocation()
+  const isImpersonating = useAppStore((state) => Boolean(state.session?.impersonation))
   const selectedProgramId = useAppStore((state) => state.selectedProgramId)
   const selectedProgram = useAppStore((state) =>
     state.session?.user.programs.find((program) => program.id === selectedProgramId),
@@ -185,11 +186,13 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
         </div>
       </details>
 
-      <div className="mt-2">
-        <SidebarLink onNavigate={onNavigate} to={routeMap.catalog}>
-          <Store className="size-4" /> Reports Store
-        </SidebarLink>
-      </div>
+      {!isImpersonating ? (
+        <div className="mt-2">
+          <SidebarLink onNavigate={onNavigate} to={routeMap.catalog}>
+            <Store className="size-4" /> Reports Store
+          </SidebarLink>
+        </div>
+      ) : null}
     </nav>
   )
 }
@@ -305,10 +308,12 @@ export function AppShell() {
       <header className="sticky top-0 z-40 flex h-[72px] items-center bg-[#171717] px-5 text-white lg:hidden">
         <WorkforceLogoWhite className="w-40" />
         <div className="ml-auto flex items-center gap-2">
-          <NavLink className="relative p-2" to={routeMap.cart} aria-label={`Cart with ${cartCount} items`}>
-            <ShoppingCart className="size-5" />
-            <span className="absolute right-0 top-0 rounded-full bg-violet-600 px-1.5 text-[10px] font-bold">{cartCount}</span>
-          </NavLink>
+          {!session.impersonation ? (
+            <NavLink className="relative p-2" to={routeMap.cart} aria-label={`Cart with ${cartCount} items`}>
+              <ShoppingCart className="size-5" />
+              <span className="absolute right-0 top-0 rounded-full bg-violet-600 px-1.5 text-[10px] font-bold">{cartCount}</span>
+            </NavLink>
+          ) : null}
           <button className="p-2" onClick={() => setMenuOpen((value) => !value)} aria-label="Toggle navigation">
             {menuOpen ? <X /> : <Menu />}
           </button>
