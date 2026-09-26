@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Session } from "../api/schemas";
-import { useAppStore } from "./app-store";
+import { hasEntitlement, useAppStore } from "./app-store";
 
 const session = {
   user: {
@@ -30,5 +30,25 @@ describe("app store program selection", () => {
   it("selects the latest available program when a session is established", () => {
     useAppStore.getState().setSession(session);
     expect(useAppStore.getState().selectedProgramId).toBe("program-2026");
+  });
+
+  it("allows one login to be promotional for one year and client for another", () => {
+    useAppStore.getState().setSession({
+      ...session,
+      user: {
+        ...session.user,
+        programs: session.user.programs.map((program) => ({
+          ...program,
+          accessMode:
+            program.year === 2026
+              ? ("promotional" as const)
+              : ("client" as const),
+        })),
+      },
+    });
+
+    expect(hasEntitlement("WFR_Access")).toBe(false);
+    useAppStore.getState().selectProgram("program-2025");
+    expect(hasEntitlement("WFR_Access")).toBe(true);
   });
 });

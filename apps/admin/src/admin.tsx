@@ -1646,7 +1646,7 @@ export function ProgramDetailPage() {
                   className="action-link button-link"
                   onClick={() => setCatalogOrganization(item)}
                 >
-                  Configure store <ShoppingBag size={17} />
+                  Configure access &amp; store <ShoppingBag size={17} />
                 </button>
               ) : null}
             </div>,
@@ -1677,7 +1677,7 @@ export function ProgramDetailPage() {
           onClose={() => setCatalogOrganization(null)}
           onSaved={() =>
             setNotice(
-              `The report store was updated for ${catalogOrganization.name}.`,
+              `Portal access and the report store were updated for ${catalogOrganization.name}.`,
             )
           }
         />
@@ -1697,6 +1697,9 @@ function CatalogModal({
 }) {
   const [products, setProducts] = useState<import("./api").ReportProduct[]>([]);
   const [inherit, setInherit] = useState(false);
+  const [accessMode, setAccessMode] = useState<"client" | "promotional">(
+    "client",
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1722,7 +1725,10 @@ function CatalogModal({
               },
           ),
         );
-        if (!Array.isArray(configured)) setInherit(configured.inherited);
+        if (!Array.isArray(configured)) {
+          setInherit(configured.inherited);
+          setAccessMode(configured.accessMode);
+        }
       })
       .catch((caught) =>
         setError(
@@ -1740,7 +1746,13 @@ function CatalogModal({
     try {
       if (scope.kind === "program")
         await api.saveProgramCatalog(scope.id, products);
-      else await api.saveOrganizationCatalog(scope.id, products, inherit);
+      else
+        await api.saveOrganizationCatalog(
+          scope.id,
+          products,
+          inherit,
+          accessMode,
+        );
       onSaved();
       onClose();
     } catch (caught) {
@@ -1751,22 +1763,39 @@ function CatalogModal({
     }
   };
   return (
-    <Modal title={`Configure report store — ${scope.label}`} onClose={onClose}>
+    <Modal title={`Configure portal access & report store — ${scope.label}`} onClose={onClose}>
       {scope.kind === "organization" ? (
-        <label className="inherit-catalog">
-          <input
-            type="checkbox"
-            checked={inherit}
-            onChange={(event) => setInherit(event.target.checked)}
-          />
-          <span>
-            <strong>Use program catalog</strong>
+        <>
+          <label>
+            Portal access for this program/year
+            <select
+              value={accessMode}
+              onChange={(event) =>
+                setAccessMode(event.target.value as "client" | "promotional")
+              }
+            >
+              <option value="client">Client — purchased reports can be opened</option>
+              <option value="promotional">Promotional — store and sample data only</option>
+            </select>
             <small>
-              Keep this organization synchronized with program-wide products and
-              prices.
+              This setting applies only to this organization in this program.
             </small>
-          </span>
-        </label>
+          </label>
+          <label className="inherit-catalog">
+            <input
+              type="checkbox"
+              checked={inherit}
+              onChange={(event) => setInherit(event.target.checked)}
+            />
+            <span>
+              <strong>Use program catalog</strong>
+              <small>
+                Keep this organization synchronized with program-wide products and
+                prices.
+              </small>
+            </span>
+          </label>
+        </>
       ) : null}
       {loading ? (
         <p className="modal-copy">Loading catalog…</p>

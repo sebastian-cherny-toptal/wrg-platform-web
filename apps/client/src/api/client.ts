@@ -140,6 +140,7 @@ export function cachePurchasedReportAccess(products: { productId: string; name: 
     const selectedFilter = sortedVerbatims?.keys?.EV_Sorting_Filter;
     return {
       ...program,
+      accessMode: "client" as const,
       entitlements,
       ...(selectedFilter || purchased.has("report-kia")
         ? {
@@ -282,6 +283,7 @@ async function backendClientLogin(input: {
       id,
       name,
       year,
+      accessMode: enrollment.accessMode ?? clientRole(userData.role),
       ...(currency ? { currency } : {}),
       organizationName,
       benchmarkReportsAvailable: enrollment.benchmarkReportsAvailable !== false,

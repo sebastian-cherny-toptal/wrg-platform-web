@@ -83,9 +83,20 @@ export function useSelectedProgram() {
   })
 }
 
+function selectedProgramIsPromotional(state: Pick<AppState, 'session' | 'selectedProgramId'>): boolean {
+  const programs = state.session?.user.programs ?? []
+  const selected =
+    programs.find((program) => program.id === state.selectedProgramId) ?? latestProgram(programs)
+  return (selected?.accessMode ?? state.session?.user.role) === 'promotional'
+}
+
+export function useSelectedProgramIsPromotional(): boolean {
+  return useAppStore(selectedProgramIsPromotional)
+}
+
 export function hasEntitlement(entitlement: ClientEntitlement): boolean {
   const state = useAppStore.getState()
-  if (state.session?.user.role === 'promotional') return false
+  if (selectedProgramIsPromotional(state)) return false
   const programs = state.session?.user.programs ?? []
   const selected =
     programs.find((program) => program.id === state.selectedProgramId) ?? latestProgram(programs)

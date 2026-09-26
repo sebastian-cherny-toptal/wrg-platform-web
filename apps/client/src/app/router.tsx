@@ -3,7 +3,7 @@ import { Navigate, Outlet, createBrowserRouter, isRouteErrorResponse, useLocatio
 import type { AccessRole, ClientEntitlement } from './metadata'
 import { routeMap } from './metadata'
 import { AppShell } from './shell'
-import { hasEntitlement, useAppStore } from '../store/app-store'
+import { hasEntitlement, useAppStore, useSelectedProgramIsPromotional } from '../store/app-store'
 import { AdminPreviewPage, ClientLoginPage } from '../pages/auth'
 import { CartPage, CatalogPage, CheckoutPage, DashboardPage, ProgramsPage, WorkforceFeedbackPage } from '../pages/client'
 import {
@@ -30,10 +30,11 @@ function Guard({
   allowPromotional?: boolean
 }) {
   const session = useAppStore((state) => state.session)
+  const isPromotional = useSelectedProgramIsPromotional()
   const location = useLocation()
   if (role === 'guest' && session) return <Navigate replace to={routeMap.dashboard} />
   if (role === 'client' && !session) return <Navigate replace to={routeMap.clientLogin} />
-  const promotionalAccess = allowPromotional && session?.user.role === 'promotional'
+  const promotionalAccess = allowPromotional && isPromotional
   const demoProduct = new URLSearchParams(location.search).get('demo')
   const demoAccess =
     (entitlement === 'RD_Access' && demoProduct === 'report-response-detail') ||

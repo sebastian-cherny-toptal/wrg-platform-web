@@ -36,7 +36,7 @@ import { api, cachePurchasedReportAccess } from '../api/client'
 import { routeMap } from '../app/metadata'
 import { ImageDownloadMenu } from '../components/image-download-menu'
 import { Badge, Button, Card, PageHeader, StatePanel, buttonClasses, cn, storeTextLinkClasses } from '../components/ui'
-import { useAppStore, useSelectedProgram } from '../store/app-store'
+import { useAppStore, useSelectedProgram, useSelectedProgramIsPromotional } from '../store/app-store'
 
 function formatMoney(amount: number, currency = 'USD') {
   return new Intl.NumberFormat('en-US', {
@@ -155,17 +155,18 @@ export function DashboardPage() {
   const statementsRef = useRef<HTMLDivElement>(null)
   const session = useAppStore((state) => state.session)
   const cartCount = useAppStore((state) => state.cart.reduce((total, item) => total + item.quantity, 0))
-  const isPromotional = session?.user.role === 'promotional'
-  const [promotionalModalOpen, setPromotionalModalOpen] = useState(isPromotional)
+  const program = useSelectedProgram()
+  const isPromotional = useSelectedProgramIsPromotional()
+  const [dismissedPromotionalProgramId, setDismissedPromotionalProgramId] = useState<string | null>(null)
+  const promotionalModalOpen = isPromotional && dismissedPromotionalProgramId !== program?.id
   useEffect(() => {
     if (!isPromotional || !promotionalModalOpen) return
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPromotionalModalOpen(false)
+      if (event.key === 'Escape') setDismissedPromotionalProgramId(program?.id ?? null)
     }
     document.addEventListener('keydown', closeOnEscape)
     return () => document.removeEventListener('keydown', closeOnEscape)
-  }, [isPromotional, promotionalModalOpen])
-  const program = useSelectedProgram()
+  }, [isPromotional, program?.id, promotionalModalOpen])
   const programs = session?.user.programs ?? []
   const programWindowSize = 4
   const showProgramNavigation = programs.length > programWindowSize
@@ -196,7 +197,7 @@ export function DashboardPage() {
       <div className="flex h-[104px] items-start justify-between gap-4 px-6 pt-6">
         <div>
           <h1 aria-label={`Welcome, ${session?.user.displayName ?? 'client'}`} className="text-[30px] font-bold leading-[36px] text-[#111111]">{program?.name ?? 'Dashboard'}</h1>
-          <p className="mt-0.5 text-[16px] leading-6 text-zinc-500">Welcome, {isPromotional ? session.user.displayName : program?.organizationName ?? session?.user.displayName}!</p>
+          <p className="mt-0.5 text-[16px] leading-6 text-zinc-500">Welcome, {isPromotional ? session?.user.displayName : program?.organizationName ?? session?.user.displayName}!</p>
         </div>
         <button className="relative hidden h-10 min-w-[89px] items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 pr-8 text-sm font-medium text-zinc-900 hover:bg-zinc-50 lg:inline-flex" onClick={() => setCartOpen(true)}>
           <ShoppingCart className="size-4" /> Cart
@@ -416,7 +417,7 @@ export function DashboardPage() {
         </div>
       ) : null}
       {isPromotional && promotionalModalOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="presentation" onClick={() => setPromotionalModalOpen(false)}>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="presentation" onClick={() => setDismissedPromotionalProgramId(program?.id ?? null)}>
           <section className="w-full max-w-[450px] bg-white px-10 py-9 text-center shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="promotional-results-title" onClick={(event) => event.stopPropagation()}>
             <h2 className="text-xl font-semibold" id="promotional-results-title">The results are in!</h2>
             <p className="mt-8">Find out what your employees had to say.</p>
@@ -460,7 +461,7 @@ export function ProgramsPage() {
 
 export function WorkforceFeedbackPage() {
   const program = useSelectedProgram()
-  const isDummy = useAppStore((state) => state.session?.user.role === 'promotional')
+  const isDummy = useSelectedProgramIsPromotional()
   const report = useQuery({
     queryKey: ['wfr-demographics', program?.id, isDummy],
     queryFn: () => api.reports.demographics(program?.id ?? '', isDummy),
@@ -526,7 +527,7 @@ export function WorkforceFeedbackPage() {
 export function CatalogPage() {
   const program = useSelectedProgram()
   const currency = program?.currency ?? 'USD'
-  const isPromotional = useAppStore((state) => state.session?.user.role === 'promotional')
+  const isPromotional = useSelectedProgramIsPromotional()
   const catalog = useQuery({
     queryKey: ['report-catalog', program?.id],
     queryFn: () => api.reports.catalog(program?.id),

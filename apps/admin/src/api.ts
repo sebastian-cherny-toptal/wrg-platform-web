@@ -248,6 +248,7 @@ export type ReportProduct = {
 
 export type OrganizationCatalog = {
   inherited: boolean;
+  accessMode: "client" | "promotional";
   products: ReportProduct[];
 };
 
@@ -1758,12 +1759,15 @@ export const api = {
     organizationProgramId: string,
     products: ReportProduct[],
     inherit: boolean,
+    accessMode: "client" | "promotional",
   ): Promise<OrganizationCatalog> {
     const response = await request<unknown>(
       `/admin/organization-programs/${encodeURIComponent(organizationProgramId)}/report-catalog`,
       {
         method: "PUT",
-        body: JSON.stringify(inherit ? { inherit: true } : { products }),
+        body: JSON.stringify(
+          inherit ? { inherit: true, accessMode } : { products, accessMode },
+        ),
       },
     );
     return object(object(response).data) as OrganizationCatalog;

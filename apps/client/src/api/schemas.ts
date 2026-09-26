@@ -9,6 +9,7 @@ export const programSchema = z.object({
   year: z.number().int(),
   currency: z.string().regex(/^[A-Z]{3}$/u).optional(),
   organizationName: z.string(),
+  accessMode: z.enum(["client", "promotional"]).optional(),
   entitlements: entitlementSchema,
   benchmarkReportsAvailable: z.boolean().optional(),
   reportSelections: z.object({
@@ -77,6 +78,7 @@ export const legacyClientLoginSchema = z.object({
       organizationProgram: z.array(
         z.object({
           reportAccess: z.record(z.string(), z.unknown()),
+          accessMode: z.enum(["client", "promotional"]).optional(),
           benchmarkReportsAvailable: z.boolean().optional(),
           metrics: z.record(z.string(), z.unknown()).optional(),
           programId: legacyProgramReferenceSchema,

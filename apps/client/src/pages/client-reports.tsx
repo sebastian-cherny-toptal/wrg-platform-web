@@ -32,7 +32,7 @@ import { routeMap } from "../app/metadata";
 import { BenefitsBenchmarkTable } from "../components/benefits-benchmark-table";
 import { ImageDownloadMenu } from "../components/image-download-menu";
 import { Button, Card, PageHeader, StatePanel, cn } from "../components/ui";
-import { useAppStore, useSelectedProgram } from "../store/app-store";
+import { useAppStore, useSelectedProgram, useSelectedProgramIsPromotional } from "../store/app-store";
 import { pairedWorkforceCohorts, workforceCohorts } from "./workforce-cohorts";
 import {
   downloadKeyImpactPdf,
@@ -1233,9 +1233,7 @@ function formatResponsePatternPercentage(value: number): string {
 export function ResponsePatternsPage() {
   const program = useSelectedProgram();
   const programId = program?.id;
-  const isDummy = useAppStore(
-    (state) => state.session?.user.role === "promotional",
-  );
+  const isDummy = useSelectedProgramIsPromotional();
   const [enabled, setEnabled] = useState<boolean[]>([false, false, false]);
   const [ranges, setRanges] = useState(() =>
     patternConfigs.map(({ defaultRange }) => defaultRange),
@@ -2176,9 +2174,7 @@ export function EmployeeVerbatimsPage() {
   const [searchParams] = useSearchParams();
   const isDemo = searchParams.get("demo") === "report-verbatims-sorted";
   const program = useSelectedProgram();
-  const isDummy =
-    useAppStore((state) => state.session?.user.role === "promotional") ||
-    isDemo;
+  const isDummy = useSelectedProgramIsPromotional() || isDemo;
   const addToCart = useAppStore((state) => state.addToCart);
   const inCart = useAppStore((state) =>
     state.cart.some((item) => item.productId === "report-verbatims-sorted"),
@@ -2721,9 +2717,7 @@ function BenchmarkDetailsTable({
 
 export function BenchmarkDataPage() {
   const program = useSelectedProgram();
-  const isDummy = useAppStore(
-    (state) => state.session?.user.role === "promotional",
-  );
+  const isDummy = useSelectedProgramIsPromotional();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const comparison = useQuery({
     queryKey: ["workforce-comparison", program?.id, isDummy],
@@ -3271,9 +3265,7 @@ export function ComparisonDataPage() {
 
 export function BenefitsBestPracticesPage() {
   const program = useSelectedProgram();
-  const isDummy = useAppStore(
-    (state) => state.session?.user.role === "promotional",
-  );
+  const isDummy = useSelectedProgramIsPromotional();
   const report = useQuery({
     queryKey: ["employer-benchmark", program?.id, isDummy],
     queryFn: () => api.reports.employerBenchmark(program?.id ?? "", isDummy),
