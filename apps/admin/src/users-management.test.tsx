@@ -3,6 +3,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -110,6 +111,38 @@ it("shows the three primary actions in order and downloads the complete user set
   fireEvent.click(download);
   expect(createObjectUrl).toHaveBeenCalledTimes(1);
   expect(revokeObjectUrl).toHaveBeenCalledWith("blob:users");
+});
+
+it("offers user impersonation only for active portal users with programs", async () => {
+  const portalUser: UserRecord = {
+    ...user,
+    id: "portal-user",
+    role: "client",
+    programDetails: [
+      { id: "program-2025", name: "Workforce", year: 2025 },
+      { id: "program-2026", name: "Benefits", year: 2026 },
+    ],
+  };
+  vi.spyOn(api, "users").mockResolvedValue([portalUser, user]);
+  const impersonate = vi
+    .spyOn(api, "startUserImpersonation")
+    .mockRejectedValue(new Error("Preview unavailable"));
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+
+  const actions = await screen.findAllByRole("button", {
+    name: "Impersonate Alex Example",
+  });
+  const portalAction = actions[0];
+  if (!portalAction) throw new Error("Missing portal impersonation action");
+  expect((portalAction as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(portalAction);
+  await waitFor(() => expect(impersonate).toHaveBeenCalledWith("portal-user"));
+  expect(screen.getByText("Preview unavailable")).toBeTruthy();
+  expect((actions[1] as HTMLButtonElement).disabled).toBe(true);
 });
 
 it("creates clients by selecting a project, searchable organization, and its programs", async () => {

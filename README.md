@@ -61,7 +61,7 @@ as a manual post-deployment gate.
 - Client and admin login routes live in different applications and origins.
 - Admin credentials/tokens use the admin origin's session storage and are not available to the client origin.
 - Client authentication remains cookie-backed for normal users.
-- `View dashboard` asks the backend for a single-use grant, opens the client app at `/admin-preview?grant=...`, and exchanges it for a short-lived impersonated client session.
+- `View dashboard` asks the backend for a single-use, one-program grant. `Impersonate` from Users Management uses a separate user-scoped grant that reproduces every included program assigned to that portal user. Both open the client app at `/admin-preview?grant=...` and exchange the grant for a short-lived, read-only client session.
 - The client displays the persistent `Admin access` banner and can end that impersonated session. It never receives the administrator's normal access or refresh token.
 - Legacy client URLs such as `/admin-login` and `/admin/*` redirect to `VITE_ADMIN_APP_URL`; they do not render an admin bundle.
 

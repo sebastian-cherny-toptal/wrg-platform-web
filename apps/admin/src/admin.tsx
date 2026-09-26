@@ -10,6 +10,7 @@ import {
   FileChartColumn,
   FileUp,
   KeyRound,
+  LogIn,
   LogOut,
   Menu,
   Pencil,
@@ -1763,7 +1764,10 @@ function CatalogModal({
     }
   };
   return (
-    <Modal title={`Configure portal access & report store — ${scope.label}`} onClose={onClose}>
+    <Modal
+      title={`Configure portal access & report store — ${scope.label}`}
+      onClose={onClose}
+    >
       {scope.kind === "organization" ? (
         <>
           <label>
@@ -1774,8 +1778,12 @@ function CatalogModal({
                 setAccessMode(event.target.value as "client" | "promotional")
               }
             >
-              <option value="client">Client — purchased reports can be opened</option>
-              <option value="promotional">Promotional — store and sample data only</option>
+              <option value="client">
+                Client — purchased reports can be opened
+              </option>
+              <option value="promotional">
+                Promotional — store and sample data only
+              </option>
             </select>
             <small>
               This setting applies only to this organization in this program.
@@ -1790,8 +1798,8 @@ function CatalogModal({
             <span>
               <strong>Use program catalog</strong>
               <small>
-                Keep this organization synchronized with program-wide products and
-                prices.
+                Keep this organization synchronized with program-wide products
+                and prices.
               </small>
             </span>
           </label>
@@ -2899,6 +2907,16 @@ const userTableColumns = [
   "Actions",
 ];
 
+function canImpersonateUser(user: UserRecord): boolean {
+  const roles = user.roles?.length ? user.roles : [user.role];
+  return (
+    user.status === "ACTIVE" &&
+    Boolean(user.organization) &&
+    user.programDetails.length > 0 &&
+    roles.some((role) => role === "client" || role === "promotional")
+  );
+}
+
 export function UsersManagementPage() {
   const loaded = useLoad("management-users", api.users);
   const [bulkCreation, setBulkCreation] = useState(false);
@@ -2914,6 +2932,7 @@ export function UsersManagementPage() {
     temporaryPassword: string;
   } | null>(null);
   const [resetting, setResetting] = useState("");
+  const [impersonating, setImpersonating] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
@@ -2996,6 +3015,21 @@ export function UsersManagementPage() {
       );
     } finally {
       setResetting("");
+    }
+  };
+  const impersonateUser = async (user: UserRecord) => {
+    setImpersonating(user.id);
+    setNotice("");
+    try {
+      const result = await api.startUserImpersonation(user.id);
+      window.location.assign(result.url);
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "User impersonation could not be started.",
+      );
+      setImpersonating("");
     }
   };
   const downloadAllUsers = () => {
@@ -3186,6 +3220,23 @@ export function UsersManagementPage() {
                     {user.status.replaceAll("_", " ")}
                   </span>,
                   <div className="row-actions">
+                    <button
+                      className="icon-button"
+                      title={
+                        user.status !== "ACTIVE"
+                          ? "Only active users can be impersonated"
+                          : !canImpersonateUser(user)
+                            ? "Only portal users with assigned programs can be impersonated"
+                            : "Impersonate"
+                      }
+                      aria-label={`Impersonate ${user.fullName}`}
+                      disabled={
+                        impersonating === user.id || !canImpersonateUser(user)
+                      }
+                      onClick={() => void impersonateUser(user)}
+                    >
+                      <LogIn size={16} />
+                    </button>
                     <button
                       className="icon-button"
                       title="Edit"

@@ -180,6 +180,7 @@ export type UserRecord = {
   username: string | null;
   mobile: string | null;
   role: string | null;
+  roles?: string[];
   roleId: string | null;
   organization: { id: string; name: string } | null;
   projects: Array<{ id: string; name: string }>;
@@ -1388,6 +1389,7 @@ export const api = {
         username: stringValue(value.username) || null,
         mobile: stringValue(value.mobile) || null,
         role: stringValue(value.role) || null,
+        roles: array(value.roles).map((role) => stringValue(role)),
         roleId: stringValue(value.roleId) || null,
         organization: stringValue(organizationValue.id)
           ? {
@@ -1699,6 +1701,13 @@ export const api = {
         reason: "Preview client dashboard from administration",
       }),
     });
+  },
+
+  async startUserImpersonation(targetUserId: string): Promise<{ url: string }> {
+    return request<{ url: string }>(
+      `/admin/impersonations/users/${encodeURIComponent(targetUserId)}`,
+      { method: "POST" },
+    );
   },
 
   async reportProductTemplates(): Promise<ReportProduct[]> {
