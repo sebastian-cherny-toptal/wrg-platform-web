@@ -98,7 +98,7 @@ test('store actions use the dark violet treatment through checkout', async ({ pa
 
   await checkoutLink.click()
   await expect(page.getByRole('heading', { name: 'Checkout' })).toBeVisible()
-  await page.getByRole('button', { name: /Request an invoice/ }).click()
+  await page.getByRole('button', { name: /Invoice me/ }).click()
   await screenshot('checkout')
   await check(page.getByRole('button', { name: 'Request invoice', exact: true }), 'bg-violet-900')
 })
