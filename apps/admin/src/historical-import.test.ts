@@ -96,7 +96,7 @@ describe("winner organization filtering", () => {
         {
           organizationId: "460737994",
           organizationName:
-            "Alpha Company-460737994-Best Places to Work in Baton Rouge 2026",
+            "Alpha Company-460737994-Best Places to Work in Example Region 2026",
           isWinner: "Y",
           surveysSent: 125,
           stage: "Qualified",
@@ -111,7 +111,7 @@ describe("winner organization filtering", () => {
         {
           organizationId: "952037468",
           organizationName:
-            "Beta Company-952037468-Best Places to Work in Baton Rouge 2026",
+            "Beta Company-952037468-Best Places to Work in Example Region 2026",
           isWinner: "N",
           surveysSent: 80,
           stage: null,
@@ -257,7 +257,7 @@ describe("project options", () => {
       newProgramProjectPayload({
         id: "4876876000000123456",
         externalId: "4876876000000123456",
-        name: "Baton Rouge",
+        name: "Example Region",
         abbreviation: "BR",
         createdAt: null,
         programs: [],
@@ -265,7 +265,7 @@ describe("project options", () => {
     ).toEqual({
       projectId: null,
       zohoProjectId: "4876876000000123456",
-      projectName: "Baton Rouge",
+      projectName: "Example Region",
       projectAbbreviation: "BR",
     });
   });
@@ -325,11 +325,11 @@ describe("historical import API client", () => {
           data: [
             {
               id: "zoho-program-1",
-              name: "Baton Rouge 2026",
+              name: "Example Region 2026",
               year: 2026,
               currency: "GBP",
               projectId: "zoho-project-1",
-              projectName: "Baton Rouge",
+              projectName: "Example Region",
               projectAbbreviation: "BR",
               efsLaunchDate: "2026-01-15",
               efsDeadline: "2026-04-30",
@@ -344,11 +344,11 @@ describe("historical import API client", () => {
     await expect(api.zohoPrograms("zoho-project-1")).resolves.toEqual([
       {
         id: "zoho-program-1",
-        name: "Baton Rouge 2026",
+        name: "Example Region 2026",
         year: 2026,
         currency: "GBP",
         projectId: "zoho-project-1",
-        projectName: "Baton Rouge",
+        projectName: "Example Region",
         projectAbbreviation: "BR",
         efsLaunchDate: "2026-01-15",
         efsDeadline: "2026-04-30",

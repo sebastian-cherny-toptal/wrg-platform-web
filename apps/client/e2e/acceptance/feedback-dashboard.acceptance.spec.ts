@@ -2,8 +2,14 @@ import { readFile } from 'node:fs/promises'
 import { expect, test, type Page, type Request } from '@playwright/test'
 import { routeMetadata } from '../../src/app/metadata'
 
-const username = process.env.ACCEPTANCE_USERNAME ?? 'test.baton'
-const email = process.env.ACCEPTANCE_EMAIL ?? 'test.baton@example.test'
+function requiredEnvironmentVariable(name: string) {
+  const value = process.env[name]
+  if (!value) throw new Error(`${name} is required`)
+  return value
+}
+
+const username = requiredEnvironmentVariable('ACCEPTANCE_USERNAME')
+const email = requiredEnvironmentVariable('ACCEPTANCE_EMAIL')
 const expectedProgramYears = (process.env.ACCEPTANCE_PROGRAM_YEARS ?? '2024,2025,2026')
   .split(',')
   .map((year) => Number.parseInt(year.trim(), 10))

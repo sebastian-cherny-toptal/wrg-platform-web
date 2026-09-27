@@ -35,26 +35,27 @@ npm run build --workspace @wrg/platform-admin-web
 The default client Playwright command is fast browser/UI coverage and may use
 request fixtures. It deliberately excludes `apps/client/e2e/acceptance`.
 
-Run the real-stack acceptance suite only after the sanitized Baton Rouge data
-has been seeded into an isolated Railway API candidate. Both URLs are required,
-and the acceptance configuration rejects the production web and API hosts:
+Run the real-stack acceptance suite against an isolated Railway API candidate.
+Both URLs and the credentials for a suitable test user are required, and the
+acceptance configuration rejects the production web and API hosts:
 
 ```sh
 ACCEPTANCE_WEB_BASE_URL=https://client-candidate.up.railway.app \
 ACCEPTANCE_API_BASE_URL=https://api-candidate.up.railway.app \
+ACCEPTANCE_USERNAME=test-user \
+ACCEPTANCE_EMAIL=test-user@example.test \
 npm run test:e2e:acceptance --workspace @wrg/platform-client-web
 ```
 
-For example: `ACCEPTANCE_WEB_BASE_URL=https://wrg-platform-web-production.up.railway.app/ ACCEPTANCE_API_BASE_URL=https://wrg-platform-api-production.up.railway.app/  npm run test:e2e:acceptance`
+The manual GitHub workflow prompts for the same URLs, user identity, and
+expected program years.
 
-The suite logs in as `test.baton` / `test.baton@example.test` by default, calls
-the real API without Playwright request interception, verifies that browser API
+The suite logs in with `ACCEPTANCE_USERNAME` and `ACCEPTANCE_EMAIL`, calls the
+real API without Playwright request interception, verifies that browser API
 traffic stays on the configured candidate API origin, downloads a generated
-chart, and opens every client route. `ACCEPTANCE_USERNAME` and
-`ACCEPTANCE_EMAIL` can override the seeded identity when needed; set
-`ACCEPTANCE_PROGRAM_YEARS` to its comma-separated program years at the same
-time. The `Client candidate acceptance` GitHub workflow exposes the same check
-as a manual post-deployment gate.
+chart, and opens every client route. Set `ACCEPTANCE_PROGRAM_YEARS` to the
+user's comma-separated program years. The `Client candidate acceptance` GitHub
+workflow exposes the same check as a manual post-deployment gate.
 
 ## Authentication and impersonation boundaries
 

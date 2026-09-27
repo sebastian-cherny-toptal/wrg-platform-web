@@ -11,6 +11,19 @@ on:
         description: Railway candidate URL for the API service
         required: true
         type: string
+      username:
+        description: Username for an existing acceptance-test client
+        required: true
+        type: string
+      email:
+        description: Email for the acceptance-test client
+        required: true
+        type: string
+      program_years:
+        description: Comma-separated program years assigned to the client
+        required: false
+        default: "2024,2025,2026"
+        type: string
 
 permissions:
   contents: read
@@ -26,6 +39,9 @@ jobs:
     env:
       ACCEPTANCE_WEB_BASE_URL: ${{ inputs.web_base_url }}
       ACCEPTANCE_API_BASE_URL: ${{ inputs.api_base_url }}
+      ACCEPTANCE_USERNAME: ${{ inputs.username }}
+      ACCEPTANCE_EMAIL: ${{ inputs.email }}
+      ACCEPTANCE_PROGRAM_YEARS: ${{ inputs.program_years }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6

@@ -30,7 +30,7 @@ function session(): Session {
       programs: [
         {
           id: "program-2026",
-          name: "Baton Rouge 2026",
+          name: "Example Region 2026",
           year: 2026,
           organizationName: "Example Organization",
           entitlements: deniedEntitlements,

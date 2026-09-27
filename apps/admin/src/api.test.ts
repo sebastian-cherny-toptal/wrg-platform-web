@@ -581,7 +581,7 @@ describe("admin API projections", () => {
     expect(
       organization({
         _id: "organization-uuid",
-        Account_Name: "Baton Rouge Organization D6EA749C",
+        Account_Name: "Example Region Organization D6EA749C",
         sourceOrganizationId: "19",
         sourceOrganizationName: "19",
         orgPrograms: [
@@ -599,7 +599,7 @@ describe("admin API projections", () => {
       id: "organization-uuid",
       sourceId: "19",
       sourceName: "19",
-      name: "Baton Rouge Organization D6EA749C",
+      name: "Example Region Organization D6EA749C",
       surveysSent: 200,
       isWinner: "Y",
       isIncluded: true,
