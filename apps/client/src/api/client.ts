@@ -681,7 +681,8 @@ export const api = {
         (entry) => entry.id === (programId ?? state.selectedProgramId),
       );
       if (!program) return products;
-      const ownsStandard = ["WFR_Access", "EV_Access", "WBC_Access", "BBP_Access"]
+      const isPromotional = (program.accessMode ?? state.session?.user.role) === "promotional";
+      const ownsStandard = !isPromotional && ["WFR_Access", "EV_Access", "WBC_Access", "BBP_Access"]
         .every((key) => program.entitlements[key] === "yes");
       return products.map((product) => {
         const locallyOwned =
@@ -691,8 +692,12 @@ export const api = {
           (product.id === "report-kia" && program.entitlements.KIA_Access === "yes");
         return {
           ...product,
-          owned: product.owned || locallyOwned,
-          standardPackageOwned: product.standardPackageOwned || ownsStandard,
+          owned: product.id === "report-standard-package" && isPromotional
+            ? false
+            : product.owned || locallyOwned,
+          standardPackageOwned: isPromotional
+            ? false
+            : product.standardPackageOwned || ownsStandard,
           ...(product.id === "report-verbatims-sorted" &&
           !product.selection && program.reportSelections?.SEV_Filter
             ? { selection: program.reportSelections.SEV_Filter }

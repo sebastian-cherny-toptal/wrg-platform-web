@@ -151,4 +151,32 @@ describe("order log", () => {
     await waitFor(() => expect(validate).toHaveBeenCalledWith("ach-order"));
     expect(await screen.findByText("ACH payment validated.")).toBeTruthy();
   });
+
+  it("confirms a pending invoice payment and refreshes the order log", async () => {
+    vi.spyOn(api, "orders").mockResolvedValue([
+      {
+        id: "invoice-order",
+        paymentMethod: "Needs Invoiced",
+        status: "PENDING",
+      },
+    ]);
+    const confirmInvoice = vi
+      .spyOn(api, "confirmInvoiceOrder")
+      .mockResolvedValue();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <MemoryRouter>
+        <OrderLogPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Confirm invoice payment" }),
+    );
+
+    await waitFor(() =>
+      expect(confirmInvoice).toHaveBeenCalledWith("invoice-order"),
+    );
+    expect(await screen.findByText("Invoice payment confirmed.")).toBeTruthy();
+  });
 });

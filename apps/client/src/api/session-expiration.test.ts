@@ -25,6 +25,53 @@ afterEach(() => {
 });
 
 describe("client session expiration", () => {
+  it("does not infer standard-package ownership from entitlements for a promotional program", async () => {
+    const promotionalSession: Session = {
+      ...session,
+      user: {
+        ...session.user,
+        role: "promotional",
+        programs: [{
+          id: "program-2026",
+          name: "2026 program",
+          year: 2026,
+          organizationName: "Example Client",
+          accessMode: "promotional",
+          entitlements: {
+            WFR_Access: "yes",
+            EV_Access: "yes",
+            WBC_Access: "yes",
+            BBP_Access: "yes",
+          },
+        }],
+      },
+    };
+    useAppStore.getState().setSession(promotionalSession);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([{
+        id: "report-standard-package",
+        name: "The Feedback Data Dashboard",
+        description: "Dashboard",
+        priceCents: 10_000,
+        available: true,
+        purchaseMode: "checkout",
+        fulfillment: "instant",
+        requiresStandardPackage: false,
+        priceAvailable: true,
+        owned: false,
+        standardPackageOwned: false,
+        purchasable: true,
+        deliveryMessage: "Instant access",
+      }]),
+    }));
+
+    const products = await api.reports.catalog("program-2026");
+
+    expect(products[0]).toMatchObject({ owned: false, standardPackageOwned: false, purchasable: true });
+  });
+
   it("grants Employee Verbatims with the standard package", () => {
     const purchaseSession: Session = {
       ...session,

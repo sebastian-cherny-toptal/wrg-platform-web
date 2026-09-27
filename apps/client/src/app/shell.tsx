@@ -111,7 +111,7 @@ function ReportGroup({
       </summary>
       <div className="ml-3 border-l border-zinc-600 pl-2">
         {visibleLinks.map((link) => (
-          <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
+          <SidebarLink highlight={Boolean(link.entitlement && (hasEntitlement(link.entitlement) || highlightedEntitlements.includes(link.entitlement)))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
             {link.title}
           </SidebarLink>
         ))}
@@ -156,7 +156,7 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
           />
           {directBasicLinks.slice(0, 1).map((link) =>
             isClientLinkVisible(link) ? (
-              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+              <SidebarLink highlight={Boolean(link.entitlement && (hasEntitlement(link.entitlement) || highlightedEntitlements.includes(link.entitlement)))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
             ) : null,
           )}
           <ReportGroup
@@ -168,7 +168,7 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
           />
           {directBasicLinks.slice(1).map((link) =>
             isClientLinkVisible(link) ? (
-              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+              <SidebarLink highlight={Boolean(link.entitlement && (hasEntitlement(link.entitlement) || highlightedEntitlements.includes(link.entitlement)))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
             ) : null,
           )}
 
@@ -178,7 +178,7 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
               link.entitlement === 'KIA_Access' &&
               selectedProgram?.reportSelections?.KIA_Order_Status !== 'Delivered'
             return (
-              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
+              <SidebarLink highlight={Boolean(link.entitlement && (hasEntitlement(link.entitlement) || highlightedEntitlements.includes(link.entitlement)))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
                 {awaitingKiaUpload ? 'Key Impact Analysis (not yet uploaded)' : link.title}
               </SidebarLink>
             )

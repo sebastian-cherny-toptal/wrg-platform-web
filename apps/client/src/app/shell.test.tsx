@@ -68,6 +68,27 @@ afterEach(() => {
 });
 
 describe("client sidebar", () => {
+  it("shows purchased report links in green after a fresh login", async () => {
+    const purchasedSession = session();
+    const program = purchasedSession.user.programs[0];
+    if (!program) throw new Error("Missing test program");
+    program.entitlements = {
+      ...program.entitlements,
+      WFR_Access: "yes",
+      EV_Access: "yes",
+      WBC_Access: "yes",
+      BBP_Access: "yes",
+    };
+    useAppStore.getState().setSession(purchasedSession);
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(screen.getByText("My Reports", { selector: "summary span" }));
+
+    expect(screen.getByRole("link", { name: "Employee Response Breakdown" })).toHaveClass("bg-emerald-600");
+    expect(screen.getByRole("link", { name: "Employee Verbatims" })).toHaveClass("bg-emerald-600");
+  });
+
   it("keeps impersonated previews visibly read-only", () => {
     const previewSession = session();
     previewSession.impersonation = {

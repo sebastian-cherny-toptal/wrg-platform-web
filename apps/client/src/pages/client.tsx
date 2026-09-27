@@ -649,10 +649,10 @@ export function CatalogPage() {
                   {!standardPackage.owned ? <Link to={routeMap.dashboard}><Button variant="secondary">View demo</Button></Link> : null}
                   <Button
                     variant="store"
-                    disabled={standardPackage.owned || inCart(standardPackage.id) || standardPackage.priceCents === null}
+                    disabled={!standardPackage.purchasable || standardPackage.owned || inCart(standardPackage.id)}
                     onClick={() => addProduct(standardPackage)}
                   >
-                    {standardPackage.owned ? 'Purchased' : inCart(standardPackage.id) ? 'Added to cart' : standardPackage.priceCents === null ? 'Unavailable' : 'Add to cart'}
+                    {standardPackage.owned ? 'Purchased' : inCart(standardPackage.id) ? 'Added to cart' : !standardPackage.purchasable ? 'Unavailable' : 'Add to cart'}
                   </Button>
                 </div>
               </div>

@@ -3402,39 +3402,62 @@ function GenericLogPage({
             const requiresPayment =
               field(row, "status", "stripeStatus").toLocaleUpperCase() ===
               "REQUIRES_PAYMENT";
-            return isAch && requiresPayment ? (
+            const isInvoice =
+              field(row, "paymentMethod").toLocaleLowerCase("en") ===
+              "needs invoiced";
+            const pending =
+              field(row, "status", "stripeStatus").toLocaleUpperCase() ===
+              "PENDING";
+            const canConfirm =
+              (isAch && requiresPayment) || (isInvoice && pending);
+            return canConfirm ? (
               <button
                 className="secondary-button compact"
                 disabled={validatingOrder === orderId}
                 onClick={() => {
                   if (
                     !window.confirm(
-                      "Validate that this ACH payment was received and grant the purchased access?",
+                      isInvoice
+                        ? "Confirm that this invoice was paid and grant the purchased access?"
+                        : "Validate that this ACH payment was received and grant the purchased access?",
                     )
                   ) {
                     return;
                   }
                   setNotice("");
                   setValidatingOrder(orderId);
-                  void api
-                    .validateAchOrder(orderId)
+                  void (
+                    isInvoice
+                      ? api.confirmInvoiceOrder(orderId)
+                      : api.validateAchOrder(orderId)
+                  )
                     .then(async () => {
-                      setNotice("ACH payment validated.");
+                      setNotice(
+                        isInvoice
+                          ? "Invoice payment confirmed."
+                          : "ACH payment validated.",
+                      );
                       await loaded.reload();
                     })
                     .catch((caught: unknown) =>
                       setNotice(
                         caught instanceof Error
                           ? caught.message
-                          : "ACH payment could not be validated.",
+                          : isInvoice
+                            ? "Invoice payment could not be confirmed."
+                            : "ACH payment could not be validated.",
                       ),
                     )
                     .finally(() => setValidatingOrder(""));
                 }}
               >
                 {validatingOrder === orderId
-                  ? "Validating…"
-                  : "Validate ACH payment"}
+                  ? isInvoice
+                    ? "Confirming…"
+                    : "Validating…"
+                  : isInvoice
+                    ? "Confirm invoice payment"
+                    : "Validate ACH payment"}
               </button>
             ) : (
               "—"

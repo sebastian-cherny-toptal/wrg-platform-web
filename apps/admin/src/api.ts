@@ -1531,6 +1531,15 @@ export const api = {
     });
   },
 
+  async confirmInvoiceOrder(orderId: string): Promise<void> {
+    await request(
+      `/admin/orders/${encodeURIComponent(orderId)}/confirm-invoice`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
   async activity(): Promise<Record<string, unknown>[]> {
     const response = await request<unknown>(
       "/admin/system/log?page=1&limit=100",
