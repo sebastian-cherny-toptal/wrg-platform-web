@@ -161,6 +161,7 @@ export function cachePurchasedReportAccess(products: { productId: string; name: 
   useAppStore.getState().selectProgram(selectedProgramId);
   useAppStore.getState().celebratePurchase(
     products.map(({ name }) => name),
+    products.map(({ productId }) => productId),
     [...gainedEntitlements],
   );
 }

@@ -43,15 +43,16 @@ function session(): Session {
   };
 }
 
-function renderShell() {
+function renderShell(initialEntry = "/dashboard") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 60_000 } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/dashboard"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<AppShell />}>
             <Route path="/dashboard" element={<Link to="/programs">Programs</Link>} />
             <Route path="/programs" element={<Link to="/dashboard">Return to dashboard</Link>} />
+            <Route path="/detailed-results" element={<h1>Detailed Results page</h1>} />
             <Route path="/key-impact-analysis" element={<KeyImpactAnalysisPage />} />
           </Route>
         </Routes>
@@ -64,11 +65,12 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  useAppStore.getState().clearPurchaseCelebration();
   useAppStore.getState().setSession(null);
 });
 
 describe("client sidebar", () => {
-  it("shows purchased report links in green after a fresh login", async () => {
+  it("does not show entitled report links in green after a fresh client login", async () => {
     const purchasedSession = session();
     const program = purchasedSession.user.programs[0];
     if (!program) throw new Error("Missing test program");
@@ -85,8 +87,65 @@ describe("client sidebar", () => {
 
     await user.click(screen.getByText("My Reports", { selector: "summary span" }));
 
+    expect(screen.getByRole("link", { name: "Employee Response Breakdown" })).not.toHaveClass("bg-emerald-600");
+    expect(screen.getByRole("link", { name: "Employee Verbatims" })).not.toHaveClass("bg-emerald-600");
+  });
+
+  it("shows only newly purchased report links in green during the purchase celebration", async () => {
+    const purchasedSession = session();
+    const program = purchasedSession.user.programs[0];
+    if (!program) throw new Error("Missing test program");
+    program.entitlements = {
+      ...program.entitlements,
+      WFR_Access: "yes",
+      EV_Access: "yes",
+    };
+    useAppStore.getState().setSession(purchasedSession);
+    useAppStore.getState().celebratePurchase(["Workforce Feedback"], ["report-workforce-feedback"], ["WFR_Access"]);
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(screen.getByText("My Reports", { selector: "summary span" }));
+
     expect(screen.getByRole("link", { name: "Employee Response Breakdown" })).toHaveClass("bg-emerald-600");
-    expect(screen.getByRole("link", { name: "Employee Verbatims" })).toHaveClass("bg-emerald-600");
+    expect(screen.getByRole("link", { name: "Employee Verbatims" })).not.toHaveClass("bg-emerald-600");
+  });
+
+  it("expands all report groups immediately after an FDD card purchase", () => {
+    const purchasedSession = session();
+    const program = purchasedSession.user.programs[0];
+    if (!program) throw new Error("Missing test program");
+    program.entitlements = {
+      ...program.entitlements,
+      WFR_Access: "yes",
+      EV_Access: "yes",
+      WBC_Access: "yes",
+      BBP_Access: "yes",
+    };
+    useAppStore.getState().setSession(purchasedSession);
+    useAppStore.getState().celebratePurchase(
+      ["Employee Feedback Data Dashboard"],
+      ["report-standard-package"],
+      ["WFR_Access", "EV_Access", "WBC_Access", "BBP_Access"],
+    );
+    renderShell();
+
+    expect(screen.getByText("My Reports", { selector: "summary span" }).closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("Workforce Feedback Results").closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("Workforce Benchmark Comparisons").closest("details")).toHaveAttribute("open");
+  });
+
+  it("expands the report groups needed to reveal the active tab", () => {
+    const activeSession = session();
+    const program = activeSession.user.programs[0];
+    if (!program) throw new Error("Missing test program");
+    program.entitlements = { ...program.entitlements, WFR_Access: "yes" };
+    useAppStore.getState().setSession(activeSession);
+    renderShell("/detailed-results");
+
+    expect(screen.getByText("My Reports", { selector: "summary span" }).closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("Workforce Feedback Results").closest("details")).toHaveAttribute("open");
+    expect(screen.getByRole("link", { name: "Detailed Results" })).toHaveClass("bg-violet-600");
   });
 
   it("keeps impersonated previews visibly read-only", () => {
@@ -202,7 +261,6 @@ describe("client sidebar", () => {
     expect(within(reportTable).getByText("42.0%")).toBeVisible();
     expect(analysis).toHaveBeenCalledTimes(2);
     act(() => useAppStore.getState().selectProgram("program-2025"));
-    await user.click(screen.getByText("My Reports", { selector: "summary span" }));
     expect(screen.getByRole("link", { name: "Key Impact Analysis (not yet uploaded)" })).toBeVisible();
   });
 });

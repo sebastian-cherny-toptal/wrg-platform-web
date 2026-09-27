@@ -9,7 +9,7 @@ import {
   UserRoundX,
   X,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
@@ -79,24 +79,49 @@ function SidebarLink({
   )
 }
 
+function SidebarDetails({
+  children,
+  className,
+  openWhen,
+}: {
+  children: ReactNode
+  className: string
+  openWhen: boolean
+}) {
+  const detailsRef = useCallback((element: HTMLDetailsElement | null) => {
+    if (openWhen && element) element.open = true
+  }, [openWhen])
+
+  return (
+    <details
+      className={className}
+      ref={detailsRef}
+    >
+      {children}
+    </details>
+  )
+}
+
 function ReportGroup({
   title,
   links,
   locationPath,
   onNavigate,
   highlightedEntitlements,
+  expandAll,
 }: {
   title: string
   links: ClientLink[]
   locationPath: string
   onNavigate: () => void
   highlightedEntitlements: readonly string[]
+  expandAll: boolean
 }) {
   const visibleLinks = links.filter(isClientLinkVisible)
   if (!visibleLinks.length) return null
   const active = visibleLinks.some((link) => locationPath === link.path)
   return (
-    <details className="group/report" open={active}>
+    <SidebarDetails className="group/report" openWhen={expandAll || active}>
       <summary
         className={cn(
           'flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-lg px-1 text-sm text-zinc-400 hover:text-white',
@@ -111,12 +136,12 @@ function ReportGroup({
       </summary>
       <div className="ml-3 border-l border-zinc-600 pl-2">
         {visibleLinks.map((link) => (
-          <SidebarLink highlight={Boolean(link.entitlement && (hasEntitlement(link.entitlement) || highlightedEntitlements.includes(link.entitlement)))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
+          <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
             {link.title}
           </SidebarLink>
         ))}
       </div>
-    </details>
+    </SidebarDetails>
   )
 }
 
@@ -129,17 +154,25 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
   )
   const purchaseCelebration = useAppStore((state) => state.purchaseCelebration)
   const highlightedEntitlements = purchaseCelebration?.entitlements ?? []
+  const expandAll = purchaseCelebration?.productIds.includes('report-standard-package') ?? false
   const directBasicLinks: ClientLink[] = [
     { title: 'Employee Verbatims', path: routeMap.employeeVerbatims, entitlement: 'EV_Access', alwaysVisible: true },
     { title: 'Benefits & Best Practices', path: routeMap.benefitsBestPractices, entitlement: 'BBP_Access' },
   ]
+  const visibleReportLinks = [
+    ...workforceFeedbackLinks,
+    ...directBasicLinks,
+    ...benchmarkLinks,
+    ...additionalLinks,
+  ].filter(isClientLinkVisible)
+  const activeReportLink = visibleReportLinks.some((link) => location.pathname === link.path)
   return (
     <nav className="grid gap-0" aria-label="Primary navigation">
       <SidebarLink onNavigate={onNavigate} to={routeMap.dashboard}>
         <Home className="size-4" /> Dashboard
       </SidebarLink>
 
-      <details className="group/nav mt-3">
+      <SidebarDetails className="group/nav mt-3" openWhen={expandAll || activeReportLink}>
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800">
           <Gauge className="size-4" />
           <span className="flex-1">My Reports</span>
@@ -153,10 +186,11 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
             onNavigate={onNavigate}
             title="Workforce Feedback Results"
             highlightedEntitlements={highlightedEntitlements}
+            expandAll={expandAll}
           />
           {directBasicLinks.slice(0, 1).map((link) =>
             isClientLinkVisible(link) ? (
-              <SidebarLink highlight={Boolean(link.entitlement && (hasEntitlement(link.entitlement) || highlightedEntitlements.includes(link.entitlement)))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
             ) : null,
           )}
           <ReportGroup
@@ -165,10 +199,11 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
             onNavigate={onNavigate}
             title="Workforce Benchmark Comparisons"
             highlightedEntitlements={highlightedEntitlements}
+            expandAll={expandAll}
           />
           {directBasicLinks.slice(1).map((link) =>
             isClientLinkVisible(link) ? (
-              <SidebarLink highlight={Boolean(link.entitlement && (hasEntitlement(link.entitlement) || highlightedEntitlements.includes(link.entitlement)))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
             ) : null,
           )}
 
@@ -178,13 +213,13 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
               link.entitlement === 'KIA_Access' &&
               selectedProgram?.reportSelections?.KIA_Order_Status !== 'Delivered'
             return (
-              <SidebarLink highlight={Boolean(link.entitlement && (hasEntitlement(link.entitlement) || highlightedEntitlements.includes(link.entitlement)))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
+              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>
                 {awaitingKiaUpload ? 'Key Impact Analysis (not yet uploaded)' : link.title}
               </SidebarLink>
             )
           })}
         </div>
-      </details>
+      </SidebarDetails>
 
       {!isImpersonating ? (
         <div className="mt-2">

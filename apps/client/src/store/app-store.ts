@@ -16,13 +16,13 @@ type AppState = {
   session: Session | null
   selectedProgramId: string | null
   cart: CartLine[]
-  purchaseCelebration: { productNames: string[]; entitlements: ClientEntitlement[] } | null
+  purchaseCelebration: { productNames: string[]; productIds: string[]; entitlements: ClientEntitlement[] } | null
   setSession: (session: Session | null) => void
   selectProgram: (programId: string) => void
   addToCart: (line: Omit<CartLine, 'quantity'>) => void
   removeFromCart: (productId: string) => void
   clearCart: () => void
-  celebratePurchase: (productNames: string[], entitlements: ClientEntitlement[]) => void
+  celebratePurchase: (productNames: string[], productIds: string[], entitlements: ClientEntitlement[]) => void
   clearPurchaseCelebration: () => void
 }
 
@@ -61,8 +61,8 @@ export const useAppStore = create<AppState>()(
       removeFromCart: (productId) =>
         set((state) => ({ cart: state.cart.filter((item) => item.productId !== productId) })),
       clearCart: () => set({ cart: [] }),
-      celebratePurchase: (productNames, entitlements) =>
-        set({ purchaseCelebration: { productNames, entitlements } }),
+      celebratePurchase: (productNames, productIds, entitlements) =>
+        set({ purchaseCelebration: { productNames, productIds, entitlements } }),
       clearPurchaseCelebration: () => set({ purchaseCelebration: null }),
     }),
     {
