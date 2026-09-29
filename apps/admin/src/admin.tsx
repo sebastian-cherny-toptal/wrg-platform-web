@@ -909,6 +909,13 @@ export function ProgramDetailPage() {
   const [surveyDefinitionNotice, setSurveyDefinitionNotice] = useState("");
   const [surveyDefinitionError, setSurveyDefinitionError] = useState("");
   const surveyDefinitionInput = useRef<HTMLInputElement>(null);
+  const [eaDefinitionFile, setEaDefinitionFile] = useState<File | null>(null);
+  const [eaDefinitionAction, setEaDefinitionAction] = useState<
+    "download" | "upload" | null
+  >(null);
+  const [eaDefinitionNotice, setEaDefinitionNotice] = useState("");
+  const [eaDefinitionError, setEaDefinitionError] = useState("");
+  const eaDefinitionInput = useRef<HTMLInputElement>(null);
   const [previewOrganization, setPreviewOrganization] =
     useState<OrganizationRecord | null>(null);
   const [catalogOrganization, setCatalogOrganization] =
@@ -1119,6 +1126,50 @@ export function ProgramDetailPage() {
       );
     } finally {
       setSurveyDefinitionAction(null);
+    }
+  };
+  const downloadEaDefinition = async () => {
+    setEaDefinitionAction("download");
+    setEaDefinitionError("");
+    try {
+      await api.downloadProgramEmployerAssessmentDefinition(program.id);
+    } catch (caught) {
+      setEaDefinitionError(
+        caught instanceof Error
+          ? caught.message
+          : "EA Questions and Answers could not be downloaded.",
+      );
+    } finally {
+      setEaDefinitionAction(null);
+    }
+  };
+  const uploadEaDefinition = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!eaDefinitionFile) return;
+    setEaDefinitionAction("upload");
+    setEaDefinitionError("");
+    setEaDefinitionNotice("");
+    try {
+      const result = await api.uploadProgramEmployerAssessmentDefinition(
+        program.id,
+        eaDefinitionFile,
+      );
+      setEaDefinitionNotice(
+        result.unchanged
+          ? "EA Questions and Answers are unchanged."
+          : `EA Questions and Answers updated (${result.updatedLabels} report labels).`,
+      );
+      setEaDefinitionFile(null);
+      if (eaDefinitionInput.current) eaDefinitionInput.current.value = "";
+      await programLoaded.reload();
+    } catch (caught) {
+      setEaDefinitionError(
+        caught instanceof Error
+          ? caught.message
+          : "EA Questions and Answers could not be uploaded.",
+      );
+    } finally {
+      setEaDefinitionAction(null);
     }
   };
   const saveCategoryPrices = async (event: FormEvent) => {
@@ -1437,6 +1488,69 @@ export function ProgramDetailPage() {
           {surveyDefinitionNotice ? (
             <p className="program-sync-status" role="status">
               {surveyDefinitionNotice}
+            </p>
+          ) : null}
+        </form>
+        <div className="program-sync-heading">
+          <div>
+            <h4>Benefits &amp; Best Practices labels (EA)</h4>
+            <p>
+              Optional. Download the default EA template, customize the
+              question, answer, and section labels, then upload it. If no file
+              is uploaded, the report keeps using its current built-in labels.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={(event) => void uploadEaDefinition(event)}>
+          <div className="program-sync-actions">
+            <button
+              className="secondary-button compact action-link"
+              type="button"
+              disabled={eaDefinitionAction !== null}
+              onClick={() => void downloadEaDefinition()}
+            >
+              <Download size={16} />{" "}
+              {eaDefinitionAction === "download"
+                ? "Downloading…"
+                : "Download EA labels template"}
+            </button>
+            {canUploadBenefits ? (
+              <>
+                <label>
+                  New EA Questions and Answers XLSX
+                  <input
+                    ref={eaDefinitionInput}
+                    type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    disabled={eaDefinitionAction !== null}
+                    onChange={(event) => {
+                      setEaDefinitionFile(event.target.files?.[0] ?? null);
+                      setEaDefinitionError("");
+                      setEaDefinitionNotice("");
+                    }}
+                  />
+                </label>
+                <button
+                  className="primary-button compact"
+                  type="submit"
+                  disabled={!eaDefinitionFile || eaDefinitionAction !== null}
+                >
+                  <FileUp size={16} />{" "}
+                  {eaDefinitionAction === "upload"
+                    ? "Uploading…"
+                    : "Upload EA labels"}
+                </button>
+              </>
+            ) : null}
+          </div>
+          {eaDefinitionError ? (
+            <p className="form-error" role="alert">
+              {eaDefinitionError}
+            </p>
+          ) : null}
+          {eaDefinitionNotice ? (
+            <p className="program-sync-status" role="status">
+              {eaDefinitionNotice}
             </p>
           ) : null}
         </form>

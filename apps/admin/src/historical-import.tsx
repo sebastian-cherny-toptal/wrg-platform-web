@@ -40,6 +40,7 @@ type DraftState = {
   eaFile?: File;
   efsFile?: File;
   surveyDefinitionFile?: File;
+  employerAssessmentDefinitionFile?: File;
   validation?: HistoricalImportValidationSummary;
   workbookPreviews?: Partial<
     Record<"EA" | "EFS", HistoricalImportValidationSummary>
@@ -1258,6 +1259,9 @@ export function UploadStep({
   const [eaFile, setEaFile] = useState<File | null>(draft.eaFile ?? null);
   const [efsFile, setEfsFile] = useState<File | null>(draft.efsFile ?? null);
   const surveyDefinitionFileRef = useRef(draft.surveyDefinitionFile ?? null);
+  const eaDefinitionFileRef = useRef(
+    draft.employerAssessmentDefinitionFile ?? null,
+  );
   const eaFileRef = useRef(eaFile);
   const efsFileRef = useRef(efsFile);
   const previewRef = useRef<
@@ -1288,6 +1292,9 @@ export function UploadStep({
     if (kind === "EFS" && file !== efsFileRef.current) {
       surveyDefinitionFileRef.current = null;
     }
+    if (kind === "EA" && file !== eaFileRef.current) {
+      eaDefinitionFileRef.current = null;
+    }
     setFile(file);
     if (kind === "EA") eaFileRef.current = file;
     else efsFileRef.current = file;
@@ -1302,6 +1309,8 @@ export function UploadStep({
       eaFile: eaFileRef.current ?? undefined,
       efsFile: efsFileRef.current ?? undefined,
       surveyDefinitionFile: surveyDefinitionFileRef.current ?? undefined,
+      employerAssessmentDefinitionFile:
+        eaDefinitionFileRef.current ?? undefined,
       uploadsConfigured: false,
       surveyDefinitionConfigured: false,
       validation: previewWithoutChangedFile,
@@ -1318,6 +1327,11 @@ export function UploadStep({
         ...(kind === "EFS" && surveyDefinitionFileRef.current
           ? { surveyDefinitionFile: surveyDefinitionFileRef.current }
           : {}),
+        ...(eaDefinitionFileRef.current
+          ? {
+              employerAssessmentDefinitionFile: eaDefinitionFileRef.current,
+            }
+          : {}),
       });
       if (requestId !== analysisRequests.current[kind]) return;
       previewRef.current = {
@@ -1331,6 +1345,8 @@ export function UploadStep({
         eaFile: eaFileRef.current ?? undefined,
         efsFile: efsFileRef.current ?? undefined,
         surveyDefinitionFile: surveyDefinitionFileRef.current ?? undefined,
+        employerAssessmentDefinitionFile:
+          eaDefinitionFileRef.current ?? undefined,
         uploadsConfigured: false,
         surveyDefinitionConfigured: false,
         validation: combinedValidation,
@@ -1408,6 +1424,8 @@ export function UploadStep({
         eaFile: eaFile ?? undefined,
         efsFile: efsFile ?? undefined,
         surveyDefinitionFile: surveyDefinitionFileRef.current ?? undefined,
+        employerAssessmentDefinitionFile:
+          eaDefinitionFileRef.current ?? undefined,
         uploadsConfigured: true,
         surveyDefinitionConfigured: false,
         validation: preparedValidation,
@@ -1453,6 +1471,7 @@ export function UploadStep({
             : !eaFile &&
                 !efsFile &&
                 !surveyDefinitionFileRef.current &&
+                !eaDefinitionFileRef.current &&
                 draft.metadata.programId
               ? "Skip uploads"
               : "Continue"}{" "}
@@ -1546,6 +1565,9 @@ export function SurveyDefinitionStep({
   const [file, setFile] = useState<File | null>(
     draft.surveyDefinitionFile ?? null,
   );
+  const [eaFile, setEaFile] = useState<File | null>(
+    draft.employerAssessmentDefinitionFile ?? null,
+  );
   const [validation, setValidation] = useState(draft.validation);
   const [working, setWorking] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -1553,6 +1575,7 @@ export function SurveyDefinitionStep({
   const [definitionFailed, setDefinitionFailed] = useState(false);
   const requestId = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
+  const eaFileInput = useRef<HTMLInputElement>(null);
 
   const definitionChanged = async (nextFile: File | null) => {
     const currentRequest = ++requestId.current;
@@ -1567,7 +1590,7 @@ export function SurveyDefinitionStep({
     };
     onDraftChange?.(next);
     try {
-      if (!draft.efsFile && !nextFile) {
+      if (!draft.efsFile && !nextFile && !eaFile) {
         setValidation(undefined);
         onDraftChange?.({ ...next, validation: undefined });
         return;
@@ -1575,6 +1598,7 @@ export function SurveyDefinitionStep({
       const prepared = await api.prepareHistoricalImport(draft.metadata, {
         ...(draft.efsFile ? { efsFile: draft.efsFile } : {}),
         ...(nextFile ? { surveyDefinitionFile: nextFile } : {}),
+        ...(eaFile ? { employerAssessmentDefinitionFile: eaFile } : {}),
       });
       if (currentRequest !== requestId.current) return;
       const workbookPreviews = draft.efsFile
@@ -1596,6 +1620,56 @@ export function SurveyDefinitionStep({
         caught instanceof Error
           ? caught.message
           : "Unable to analyze survey definition",
+      );
+    } finally {
+      if (currentRequest === requestId.current) setWorking(false);
+    }
+  };
+
+  const eaDefinitionChanged = async (nextFile: File | null) => {
+    const currentRequest = ++requestId.current;
+    setEaFile(nextFile);
+    setError("");
+    setDefinitionFailed(false);
+    setWorking(true);
+    const next = {
+      ...draft,
+      surveyDefinitionFile: file ?? undefined,
+      employerAssessmentDefinitionFile: nextFile ?? undefined,
+      surveyDefinitionConfigured: false,
+    };
+    onDraftChange?.(next);
+    try {
+      if (!draft.efsFile && !nextFile && !file) {
+        setValidation(undefined);
+        onDraftChange?.({ ...next, validation: undefined });
+        return;
+      }
+      const prepared = await api.prepareHistoricalImport(draft.metadata, {
+        ...(draft.efsFile ? { efsFile: draft.efsFile } : {}),
+        ...(file ? { surveyDefinitionFile: file } : {}),
+        ...(nextFile ? { employerAssessmentDefinitionFile: nextFile } : {}),
+      });
+      if (currentRequest !== requestId.current) return;
+      const workbookPreviews = draft.efsFile
+        ? { ...draft.workbookPreviews, EFS: prepared.validation }
+        : (draft.workbookPreviews ?? {});
+      const nextValidation = draft.efsFile
+        ? combineWorkbookPreviews(workbookPreviews)
+        : prepared.validation;
+      setValidation(nextValidation);
+      onDraftChange?.({
+        ...next,
+        validation: nextValidation,
+        workbookPreviews,
+      });
+    } catch (caught) {
+      if (currentRequest !== requestId.current) return;
+      setDefinitionFailed(true);
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to analyze EA definition",
       );
     } finally {
       if (currentRequest === requestId.current) setWorking(false);
@@ -1628,6 +1702,29 @@ export function SurveyDefinitionStep({
     }
   };
 
+  const downloadEaDefault = async () => {
+    setDownloading(true);
+    setError("");
+    try {
+      if (draft.metadata.programId) {
+        await api.downloadProgramEmployerAssessmentDefinition(
+          draft.metadata.programId,
+          "EA_Definition_Default_Template.xlsx",
+        );
+      } else {
+        await api.downloadDefaultEmployerAssessmentDefinition();
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to download EA template",
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const continueToOrganizations = () => {
     if (definitionFailed) return;
     if (
@@ -1641,6 +1738,7 @@ export function SurveyDefinitionStep({
     onComplete({
       ...draft,
       surveyDefinitionFile: file ?? undefined,
+      employerAssessmentDefinitionFile: eaFile ?? undefined,
       surveyDefinitionConfigured: true,
       validation,
     });
@@ -1678,6 +1776,7 @@ export function SurveyDefinitionStep({
         Download it to review or customize them, then upload the edited workbook
         here. This step is optional when the defaults are correct.
       </p>
+      <h3>Employee Feedback Survey labels</h3>
       <button
         type="button"
         className="secondary-button"
@@ -1724,6 +1823,47 @@ export function SurveyDefinitionStep({
         change. Questions missing approved wording must be completed before
         continuing.
       </p>
+      <h3>Benefits &amp; Best Practices labels</h3>
+      <p className="wizard-copy">
+        The EA label file is optional. Without it, Benefits &amp; Best Practices
+        uses exactly the current built-in question, answer, and section labels.
+      </p>
+      <button
+        type="button"
+        className="secondary-button"
+        disabled={working || downloading}
+        onClick={() => void downloadEaDefault()}
+      >
+        <FileSpreadsheet size={16} />
+        {downloading ? "Preparing template…" : "Download EA labels template"}
+      </button>
+      <label className="upload-card">
+        <FileSpreadsheet size={28} />
+        <strong>EA Definition (optional)</strong>
+        <span>{eaFile?.name ?? "Use built-in report labels"}</span>
+        <input
+          ref={eaFileInput}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          disabled={working || downloading}
+          onChange={(event) =>
+            void eaDefinitionChanged(event.target.files?.[0] ?? null)
+          }
+        />
+      </label>
+      {eaFile ? (
+        <button
+          type="button"
+          className="secondary-button compact"
+          disabled={working || downloading}
+          onClick={() => {
+            if (eaFileInput.current) eaFileInput.current.value = "";
+            void eaDefinitionChanged(null);
+          }}
+        >
+          Use built-in EA labels
+        </button>
+      ) : null}
       {validation ? <IssueList issues={validation.issues} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
@@ -2099,6 +2239,8 @@ export function ReviewStep({
         eaFile: draft.eaFile,
         efsFile: draft.efsFile,
         surveyDefinitionFile: draft.surveyDefinitionFile,
+        employerAssessmentDefinitionFile:
+          draft.employerAssessmentDefinitionFile,
       });
       setStatus(result);
     } catch (caught) {
@@ -2201,6 +2343,13 @@ export function ReviewStep({
           <strong>
             {draft.surveyDefinitionFile?.name ??
               "Current definition / defaults"}
+          </strong>
+        </div>
+        <div className="review-card">
+          <span>EA report labels</span>
+          <strong>
+            {draft.employerAssessmentDefinitionFile?.name ??
+              "Current definition / built-in defaults"}
           </strong>
         </div>
         <div className="review-card">

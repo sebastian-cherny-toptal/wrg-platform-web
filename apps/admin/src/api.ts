@@ -1004,6 +1004,46 @@ export const api = {
     );
   },
 
+  async downloadProgramEmployerAssessmentDefinition(
+    id: string,
+    filename = "EA_Questions_and_Answers.xlsx",
+  ): Promise<void> {
+    await downloadRequest(
+      `/admin/programs/${encodeURIComponent(id)}/employer-assessment-definition.xlsx`,
+      filename,
+    );
+  },
+
+  async downloadDefaultEmployerAssessmentDefinition(): Promise<void> {
+    const auth = readAuth();
+    const response = await fetch(
+      `${apiBaseUrl}/admin/historicalImports/default-employer-assessment-definition.xlsx`,
+      {
+        method: "POST",
+        headers: {
+          Accept:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          ...authHeaders(auth?.accessToken),
+        },
+      },
+    );
+    if (!response.ok) {
+      const payload = object(await response.json().catch(() => null));
+      throw new ApiError(
+        stringValue(payload.message) || "Unable to download EA template",
+        response.status,
+      );
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "EA_Definition_Default_Template.xlsx";
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
+
   async downloadDefaultSurveyDefinition(
     metadata: HistoricalImportMetadata,
     efsFile: File,
@@ -1080,6 +1120,39 @@ export const api = {
     const data = object(object(payload).data);
     return {
       updatedQuestions: Number(data.updatedQuestions ?? 0),
+      unchanged: data.unchanged === true,
+    };
+  },
+
+  async uploadProgramEmployerAssessmentDefinition(
+    id: string,
+    file: File,
+  ): Promise<{ updatedLabels: number; unchanged: boolean }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("employerAssessmentDefinitionFile", file);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/programs/${encodeURIComponent(id)}/employer-assessment-definition`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new ApiError(
+        stringValue(object(payload).message) ||
+          "EA Questions and Answers could not be uploaded",
+        response.status,
+      );
+    }
+    const data = object(object(payload).data);
+    return {
+      updatedLabels: Number(data.updatedLabels ?? 0),
       unchanged: data.unchanged === true,
     };
   },
@@ -1798,6 +1871,7 @@ export const api = {
       efsFile?: File;
       rankingFile?: File;
       surveyDefinitionFile?: File;
+      employerAssessmentDefinitionFile?: File;
     },
   ): Promise<HistoricalImportStatus> {
     const auth = readAuth();
@@ -1808,6 +1882,11 @@ export const api = {
     if (files.rankingFile) formData.append("rankingFile", files.rankingFile);
     if (files.surveyDefinitionFile)
       formData.append("surveyDefinitionFile", files.surveyDefinitionFile);
+    if (files.employerAssessmentDefinitionFile)
+      formData.append(
+        "employerAssessmentDefinitionFile",
+        files.employerAssessmentDefinitionFile,
+      );
     const response = await fetch(
       `${apiBaseUrl}/admin/historicalImports/commit`,
       {
@@ -1837,7 +1916,12 @@ export const api = {
 
   async prepareHistoricalImport(
     metadata: HistoricalImportMetadata,
-    files: { eaFile?: File; efsFile?: File; surveyDefinitionFile?: File },
+    files: {
+      eaFile?: File;
+      efsFile?: File;
+      surveyDefinitionFile?: File;
+      employerAssessmentDefinitionFile?: File;
+    },
   ): Promise<{
     metadata: HistoricalImportMetadata;
     validation: HistoricalImportValidationSummary;
@@ -1849,6 +1933,11 @@ export const api = {
     if (files.efsFile) formData.append("efsFile", files.efsFile);
     if (files.surveyDefinitionFile)
       formData.append("surveyDefinitionFile", files.surveyDefinitionFile);
+    if (files.employerAssessmentDefinitionFile)
+      formData.append(
+        "employerAssessmentDefinitionFile",
+        files.employerAssessmentDefinitionFile,
+      );
     const response = await fetch(
       `${apiBaseUrl}/admin/historicalImports/prepare`,
       {
