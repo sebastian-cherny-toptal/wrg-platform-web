@@ -387,6 +387,14 @@ export function ClientLoginPage() {
         </div>
         <div className="mb-10 mt-8 px-0">
           <div className="rounded-xl border-transparent bg-[#262626] p-4">
+            <h5 className="mb-1 font-semibold text-white">Pardon our dust!</h5>
+            <p className="text-sm text-gray-300">
+            We are making updates and you may notice temporary restricted access while we ensure everything is in tip-top shape. Thank you!
+            </p>
+          </div>
+        </div>
+        <div className="mb-10 mt-8 px-0">
+          <div className="rounded-xl border-transparent bg-[#262626] p-4">
             <h5 className="mb-1 font-semibold text-white">Sharing credentials</h5>
             <p className="text-sm text-gray-300">
               We care about your organization&apos;s security. Sharing credentials puts your organization&apos;s data at
