@@ -16,7 +16,7 @@ import { api } from '../api/client'
 import { WorkforceLogoWhite } from '@wrg/platform-ui'
 import { routeMap } from './metadata'
 import { PageViewLogger } from './page-view-logger'
-import { hasEntitlement, useAppStore } from '../store/app-store'
+import { hasEntitlement, useAppStore, useSelectedProgram } from '../store/app-store'
 import { Button, cn } from '../components/ui'
 
 type ClientLink = {
@@ -148,10 +148,7 @@ function ReportGroup({
 function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
   const location = useLocation()
   const isImpersonating = useAppStore((state) => Boolean(state.session?.impersonation))
-  const selectedProgramId = useAppStore((state) => state.selectedProgramId)
-  const selectedProgram = useAppStore((state) =>
-    state.session?.user.programs.find((program) => program.id === selectedProgramId),
-  )
+  const selectedProgram = useSelectedProgram()
   const purchaseCelebration = useAppStore((state) => state.purchaseCelebration)
   const highlightedEntitlements = purchaseCelebration?.entitlements ?? []
   const expandAll = purchaseCelebration?.productIds.includes('report-standard-package') ?? false
@@ -159,9 +156,14 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
     { title: 'Employee Verbatims', path: routeMap.employeeVerbatims, entitlement: 'EV_Access', alwaysVisible: true },
     { title: 'Benefits & Best Practices', path: routeMap.benefitsBestPractices, entitlement: 'BBP_Access' },
   ]
+  const visibleDirectBasicLinks = directBasicLinks.filter(
+    (link) =>
+      isClientLinkVisible(link) &&
+      (link.entitlement !== 'BBP_Access' || selectedProgram?.benchmarkReportsAvailable !== false),
+  )
   const visibleReportLinks = [
     ...workforceFeedbackLinks,
-    ...directBasicLinks,
+    ...visibleDirectBasicLinks,
     ...benchmarkLinks,
     ...additionalLinks,
   ].filter(isClientLinkVisible)
@@ -188,11 +190,9 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
             highlightedEntitlements={highlightedEntitlements}
             expandAll={expandAll}
           />
-          {directBasicLinks.slice(0, 1).map((link) =>
-            isClientLinkVisible(link) ? (
-              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
-            ) : null,
-          )}
+          {visibleDirectBasicLinks.slice(0, 1).map((link) => (
+            <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+          ))}
           <ReportGroup
             links={benchmarkLinks}
             locationPath={location.pathname}
@@ -201,11 +201,9 @@ function ClientSidebar({ onNavigate }: { onNavigate: () => void }) {
             highlightedEntitlements={highlightedEntitlements}
             expandAll={expandAll}
           />
-          {directBasicLinks.slice(1).map((link) =>
-            isClientLinkVisible(link) ? (
-              <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
-            ) : null,
-          )}
+          {visibleDirectBasicLinks.slice(1).map((link) => (
+            <SidebarLink highlight={Boolean(link.entitlement && highlightedEntitlements.includes(link.entitlement))} key={link.path} nested onNavigate={onNavigate} to={link.path}>{link.title}</SidebarLink>
+          ))}
 
           <p className="mb-1 mt-3 px-2 text-xs font-medium tracking-wide text-violet-400">ADDITIONAL REPORTS</p>
           {additionalLinks.filter(isClientLinkVisible).map((link) => {
