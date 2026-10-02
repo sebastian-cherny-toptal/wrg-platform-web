@@ -113,6 +113,7 @@ export type ZohoOrganizationInfo = {
   overallRank: string | null;
   categoryRank: string | null;
   purchasedEvSortingFilter: string | null;
+  rdPaymentType: string | null;
 };
 
 export type ZohoWinnerOrganization = {
@@ -233,6 +234,7 @@ export type HistoricalImportMetadata = {
     overallRank?: string;
     categoryRank?: string;
     purchasedEvSortingFilter?: string;
+    rdPaymentType?: string;
   }>;
   reportCatalog?: ReportProduct[];
   benchmarkCategories?: string[];
@@ -316,6 +318,7 @@ export type OrganizationRecord = {
   reportCategory: string | null;
   benchmarkCategory: string | null;
   purchasedEvSortingFilter: string | null;
+  rdPaymentType: string | null;
   organizationProgramId: string;
   programs: Array<{
     id: string;
@@ -416,7 +419,8 @@ export type ProgramZohoResyncField =
   | "categoryRank"
   | "reportCategory"
   | "currentZohoCategory"
-  | "purchasedEvSortingFilter";
+  | "purchasedEvSortingFilter"
+  | "rdPaymentType";
 
 export type ProgramZohoResyncValue = string | number | null;
 
@@ -797,6 +801,7 @@ export function organization(raw: unknown): OrganizationRecord {
     benchmarkCategory: stringValue(enrollment.benchmark_category) || null,
     purchasedEvSortingFilter:
       stringValue(enrollment.purchased_ev_sorting_filter) || null,
+    rdPaymentType: stringValue(enrollment.rd_payment_type) || null,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||
@@ -1714,6 +1719,7 @@ export const api = {
             categoryRank: stringValue(organization.categoryRank) || null,
             purchasedEvSortingFilter:
               stringValue(organization.purchasedEvSortingFilter) || null,
+            rdPaymentType: stringValue(organization.rdPaymentType) || null,
           };
         }),
         ...(Array.isArray(value.benchmarkCategories)
@@ -1765,6 +1771,7 @@ export const api = {
         categoryRank: stringValue(organization.categoryRank) || null,
         purchasedEvSortingFilter:
           stringValue(organization.purchasedEvSortingFilter) || null,
+        rdPaymentType: stringValue(organization.rdPaymentType) || null,
       };
     });
   },

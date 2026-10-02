@@ -107,6 +107,7 @@ describe("winner organization filtering", () => {
           overallRank: "4",
           categoryRank: "2",
           purchasedEvSortingFilter: "Department",
+          rdPaymentType: "Paid via ACH",
         },
         {
           organizationId: "952037468",
@@ -122,6 +123,7 @@ describe("winner organization filtering", () => {
           overallRank: null,
           categoryRank: null,
           purchasedEvSortingFilter: null,
+          rdPaymentType: null,
         },
       ]),
     ).toMatchObject([
@@ -136,6 +138,7 @@ describe("winner organization filtering", () => {
         overallRank: "4",
         categoryRank: "2",
         purchasedEvSortingFilter: "Department",
+        rdPaymentType: "Paid via ACH",
       },
       {
         isWinner: "N",
@@ -164,6 +167,7 @@ describe("Zoho organization initialization", () => {
           overallRank: "4",
           categoryRank: "2",
           purchasedEvSortingFilter: "Job Level",
+          rdPaymentType: "Paid via Check",
         },
       ]),
     ).toEqual([
@@ -383,6 +387,7 @@ describe("historical import API client", () => {
               overallRank: "4",
               categoryRank: "2",
               purchasedEvSortingFilter: "Department",
+              rdPaymentType: "Paid via ACH",
             },
           ],
         }),
@@ -405,6 +410,7 @@ describe("historical import API client", () => {
         overallRank: "4",
         categoryRank: "2",
         purchasedEvSortingFilter: "Department",
+        rdPaymentType: "Paid via ACH",
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(

@@ -24,6 +24,7 @@ function organization(id: string, name: string): OrganizationRecord {
     reportCategory: null,
     benchmarkCategory: null,
     purchasedEvSortingFilter: null,
+    rdPaymentType: null,
     organizationProgramId: "",
     isWinner: "N",
     isIncluded: true,

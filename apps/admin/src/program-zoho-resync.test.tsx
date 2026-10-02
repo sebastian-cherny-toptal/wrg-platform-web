@@ -100,6 +100,7 @@ describe("program Zoho resync changes", () => {
         reportCategory: "25-99",
         benchmarkCategory: null,
         purchasedEvSortingFilter: null,
+        rdPaymentType: null,
         organizationProgramId: "unchanged-enrollment-id",
         programs: [],
         users: [],
@@ -124,6 +125,7 @@ describe("program Zoho resync changes", () => {
         reportCategory: "25-99",
         benchmarkCategory: null,
         purchasedEvSortingFilter: "Department",
+        rdPaymentType: "Invoice Sent",
         organizationProgramId: "enrollment-id",
         programs: [],
         users: [],
@@ -153,6 +155,11 @@ describe("program Zoho resync changes", () => {
               field: "purchasedEvSortingFilter",
               previous: "Department",
               next: "Job Level",
+            },
+            {
+              field: "rdPaymentType",
+              previous: "Invoice Sent",
+              next: "Paid via ACH",
             },
           ],
         },
@@ -225,8 +232,9 @@ describe("program Zoho resync changes", () => {
     ).toHaveLength(4);
     const changedRow = screen.getByRole("row", { name: /Acme/u });
     expect(changedRow.classList.contains("zoho-resync-changed-row")).toBe(true);
-    expect(changedRow.querySelectorAll("del")).toHaveLength(4);
+    expect(changedRow.querySelectorAll("del")).toHaveLength(5);
     expect(changedRow.textContent).toContain("Job Level");
+    expect(changedRow.textContent).toContain("Paid via ACH");
     expect(
       screen.getByRole("button", { name: "Sort records" }).textContent,
     ).toBe("Rows being edited first");
@@ -288,6 +296,7 @@ describe("program Zoho resync changes", () => {
         reportCategory: null,
         benchmarkCategory: null,
         purchasedEvSortingFilter: null,
+        rdPaymentType: null,
         organizationProgramId: `enrollment-${index + 1}`,
         programs: [],
         users: [],

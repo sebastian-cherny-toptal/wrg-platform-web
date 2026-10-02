@@ -496,6 +496,7 @@ export function applyZohoOrganizations(
       categoryRank: organization.categoryRank ?? undefined,
       purchasedEvSortingFilter:
         organization.purchasedEvSortingFilter ?? undefined,
+      rdPaymentType: organization.rdPaymentType ?? undefined,
     };
   });
 }
@@ -535,6 +536,9 @@ export function organizationProgramsFromZoho(
         ? {
             purchasedEvSortingFilter: organization.purchasedEvSortingFilter,
           }
+        : {}),
+      ...(organization.rdPaymentType
+        ? { rdPaymentType: organization.rdPaymentType }
         : {}),
     };
   });
@@ -2076,6 +2080,7 @@ export function WinnersStep({
                   <th>Surveys Sent</th>
                   <th>Pricing category (Zoho)</th>
                   <th>Purchased EV Sorting Filter</th>
+                  <th>RD Payment Type</th>
                   <th>Benchmark category (Category List)</th>
                   <th aria-label="Inclusion actions">Actions</th>
                 </tr>
@@ -2157,6 +2162,7 @@ export function WinnersStep({
                       </td>
                       <td>{entry.reportCategory ?? "Not provided"}</td>
                       <td>{entry.purchasedEvSortingFilter ?? "-"}</td>
+                      <td>{entry.rdPaymentType ?? "-"}</td>
                       <td>
                         <div className="category-radio-group">
                           {benchmarkCategories.map((category) => (
@@ -2530,6 +2536,9 @@ export function HistoricalImportPage() {
                       purchasedEvSortingFilter:
                         organization.purchasedEvSortingFilter,
                     }
+                  : {}),
+                ...(organization.rdPaymentType
+                  ? { rdPaymentType: organization.rdPaymentType }
                   : {}),
                 ...(organization.benchmarkCategory
                   ? { benchmarkCategory: organization.benchmarkCategory }
