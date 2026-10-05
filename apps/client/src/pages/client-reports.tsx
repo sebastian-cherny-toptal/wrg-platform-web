@@ -91,7 +91,10 @@ function categoryResultsFromResponse(
   );
 }
 
-function useCategoryResults(queryFilter: ReportQueryFilter = {}) {
+function useCategoryResults(
+  queryFilter: ReportQueryFilter = {},
+  enabled = true,
+) {
   const program = useSelectedProgram();
   const report = useQuery({
     queryKey: [
@@ -101,7 +104,7 @@ function useCategoryResults(queryFilter: ReportQueryFilter = {}) {
     ],
     queryFn: () =>
       api.reports.responseBreakdownBySection(program?.id ?? "", queryFilter),
-    enabled: Boolean(program),
+    enabled: Boolean(program) && enabled,
   });
   return {
     ...report,
@@ -2718,11 +2721,13 @@ function BenchmarkDetailsTable({
 export function BenchmarkDataPage() {
   const program = useSelectedProgram();
   const isDummy = useSelectedProgramIsPromotional();
+  const benchmarkReportsUnavailable =
+    program?.benchmarkReportsAvailable === false;
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const comparison = useQuery({
     queryKey: ["workforce-comparison", program?.id, isDummy],
     queryFn: () => api.reports.workforceComparison(program?.id ?? "", isDummy),
-    enabled: Boolean(program),
+    enabled: Boolean(program) && !benchmarkReportsUnavailable,
   });
   const rawHeaders = comparison.data?.data.tableHeaders ?? [];
   const employerCohorts = pairedWorkforceCohorts(rawHeaders);
@@ -2773,6 +2778,23 @@ export function BenchmarkDataPage() {
     { length: Math.ceil(categories.length / 2) },
     (_, index) => categories.slice(index * 2, index * 2 + 2),
   );
+  if (benchmarkReportsUnavailable) {
+    return (
+      <>
+        <ReportHeader
+          description="Compare your organization’s results against benchmark groups across key workplace categories."
+          title="Benchmark Data"
+        />
+        <div className="p-6">
+          <StatePanel
+            kind="empty"
+            title="Benchmark information unavailable"
+            message="There is still no benchmark information for this program."
+          />
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <ReportHeader
@@ -3106,13 +3128,15 @@ function ComparisonCategoryCard({
 export function ComparisonDataPage() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const categoryReport = useCategoryResults();
-  const { categoryResults } = categoryReport;
   const program = useSelectedProgram();
+  const benchmarkReportsUnavailable =
+    program?.benchmarkReportsAvailable === false;
+  const categoryReport = useCategoryResults({}, !benchmarkReportsUnavailable);
+  const { categoryResults } = categoryReport;
   const comparison = useQuery({
     queryKey: ["workforce-comparison", program?.id],
     queryFn: () => api.reports.workforceComparison(program?.id ?? ""),
-    enabled: Boolean(program),
+    enabled: Boolean(program) && !benchmarkReportsUnavailable,
   });
   const cohorts = workforceCohorts(comparison.data?.data.tableHeaders ?? []);
   const winnerCohorts = cohorts.filter(({ kind }) => kind === "winner");
@@ -3142,8 +3166,30 @@ export function ComparisonDataPage() {
         selectedCategory ?? "",
         selectedCohort?.key ?? "",
       ),
-    enabled: Boolean(program && selectedCategory && selectedCohort),
+    enabled: Boolean(
+      program &&
+        selectedCategory &&
+        selectedCohort &&
+        !benchmarkReportsUnavailable,
+    ),
   });
+  if (benchmarkReportsUnavailable) {
+    return (
+      <>
+        <ReportHeader
+          description="Compare your survey results against other organizations in your industry and size."
+          title="Comparison Data"
+        />
+        <div className="p-6">
+          <StatePanel
+            kind="empty"
+            title="Benchmark information unavailable"
+            message="There is still no benchmark information for this program."
+          />
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <ReportHeader
@@ -3266,15 +3312,31 @@ export function ComparisonDataPage() {
 export function BenefitsBestPracticesPage() {
   const program = useSelectedProgram();
   const isDummy = useSelectedProgramIsPromotional();
+  const benchmarkReportsUnavailable =
+    program?.benchmarkReportsAvailable === false;
   const report = useQuery({
     queryKey: ["employer-benchmark", program?.id, isDummy],
     queryFn: () => api.reports.employerBenchmark(program?.id ?? "", isDummy),
-    enabled: Boolean(program),
+    enabled: Boolean(program) && !benchmarkReportsUnavailable,
   });
   const headers = report.data?.data.tableHeaders ?? [];
   const questions = (report.data?.data.tableData ?? []).flatMap(
     (section) => section.nestedData,
   );
+  if (benchmarkReportsUnavailable) {
+    return (
+      <>
+        <ReportHeader title="Benefits & Best Practices" />
+        <div className="p-6">
+          <StatePanel
+            kind="empty"
+            title="Benchmark information unavailable"
+            message="There is still no benchmark information for this program."
+          />
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <ReportHeader title="Benefits & Best Practices" />

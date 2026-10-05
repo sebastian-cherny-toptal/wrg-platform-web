@@ -181,7 +181,8 @@ export function DashboardPage() {
         (report) =>
           'alwaysVisible' in report ||
           (program?.entitlements[report.entitlement] === 'yes' &&
-            (report.entitlement !== 'WBC_Access' || program.benchmarkReportsAvailable !== false)),
+            (!['WBC_Access', 'BBP_Access'].includes(report.entitlement) ||
+              program.benchmarkReportsAvailable !== false)),
       )
   const dashboard = useQuery({
     queryKey: ['dashboard-overview', program?.id, isPromotional],

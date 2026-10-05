@@ -143,3 +143,67 @@ it("keeps the live dashboard request for a normal client", async () => {
     screen.queryByText("Sample dashboard preview"),
   ).not.toBeInTheDocument();
 });
+
+it("hides benchmark and benefits dashboard cards when benchmark data is unavailable", async () => {
+  useAppStore.getState().setSession({
+    ...session,
+    user: {
+      ...session.user,
+      role: "client",
+      programs: session.user.programs.map((program) => ({
+        ...program,
+        benchmarkReportsAvailable: false,
+        entitlements: {
+          ...program.entitlements,
+          WBC_Access: "yes",
+          BBP_Access: "yes",
+        },
+      })),
+    },
+  });
+  vi.spyOn(api.dashboard, "overview").mockResolvedValue({
+    agreement: {
+      percentage: 72,
+      negativePercentage: 18,
+      totalRespondents: 90,
+      StartDate: null,
+      EndDate: null,
+      numberOfQuestions: 35,
+    },
+    responseRate: {
+      sendSurvey: 120,
+      completedSurvey: 90,
+      responseRate: 75,
+      Total_Number_of_Program_EEs: 150,
+      Total_Number_of_National_EEs: 0,
+    },
+    statements: {
+      top: [],
+      bottom: [],
+      noteTop: "",
+      noteBottom: "",
+    },
+  });
+
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByText("Average Positive and Average Negative Response");
+  expect(
+    screen.queryByText("Workforce Benchmark Comparisons"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(
+      "This report provides the percentage of winning and non-winning organizations that offer various employee benefits and workplace practices.",
+    ),
+  ).not.toBeInTheDocument();
+});
