@@ -437,23 +437,33 @@ export function newProgramProjectPayload(
   };
 }
 
-function zohoOrganizationName(organization: ZohoOrganizationInfo): string {
+function stripProjectSuffix(value: string, projectName?: string): string {
+  const normalizedProjectName = projectName?.trim().toLowerCase();
+  if (!normalizedProjectName) return value;
+  const projectSeparator = value.lastIndexOf(" - ");
+  if (projectSeparator <= 0) return value;
+  const suffix = value.slice(projectSeparator + 3).trim().toLowerCase();
+  return suffix === normalizedProjectName
+    ? value.slice(0, projectSeparator).trim()
+    : value;
+}
+
+function zohoOrganizationName(
+  organization: ZohoOrganizationInfo,
+  projectName?: string,
+): string {
   const value = organization.organizationName ?? "";
   const marker = `-${organization.organizationId.trim()}-`;
   const markerIndex = value.lastIndexOf(marker);
   if (markerIndex > 0) return value.slice(0, markerIndex).trim();
   const withoutCompositeSuffix = value.replace(/-\d{6,}-.+$/u, "").trim();
-  const projectSeparator = withoutCompositeSuffix.lastIndexOf(" - ");
-  return (
-    projectSeparator > 0
-      ? withoutCompositeSuffix.slice(0, projectSeparator)
-      : withoutCompositeSuffix
-  ).trim();
+  return stripProjectSuffix(withoutCompositeSuffix, projectName).trim();
 }
 
 function findZohoOrganization(
   entry: OrganizationProgramDraft,
   organizations: ZohoOrganizationInfo[],
+  projectName?: string,
 ): ZohoOrganizationInfo | undefined {
   if (entry.sourceOrganizationId) {
     const byId = organizations.find(
@@ -468,7 +478,7 @@ function findZohoOrganization(
       organization.organizationName,
     );
     const splitName = normalizeOrganizationIdentity(
-      zohoOrganizationName(organization),
+      zohoOrganizationName(organization, projectName),
     );
     return Boolean(
       entryName && (entryName === fullName || entryName === splitName),
@@ -479,9 +489,14 @@ function findZohoOrganization(
 export function applyZohoOrganizations(
   entries: OrganizationProgramDraft[],
   organizations: ZohoOrganizationInfo[],
+  projectName?: string,
 ): OrganizationProgramDraft[] {
   return entries.map((entry) => {
-    const organization = findZohoOrganization(entry, organizations);
+    const organization = findZohoOrganization(
+      entry,
+      organizations,
+      projectName,
+    );
     if (!organization) return entry;
     return {
       ...entry,
@@ -508,9 +523,10 @@ export function applyZohoOrganizations(
 
 export function organizationProgramsFromZoho(
   organizations: ZohoOrganizationInfo[],
+  projectName?: string,
 ): OrganizationProgramDraft[] {
   return organizations.map((organization) => {
-    const organizationName = zohoOrganizationName(organization);
+    const organizationName = zohoOrganizationName(organization, projectName);
     return {
       organizationKey: `name:${normalizeOrganizationIdentity(organizationName)}`,
       sourceOrganizationId: organization.organizationId,
@@ -552,9 +568,17 @@ export function organizationProgramsFromZoho(
 export function refreshOrganizationProgramsFromZoho(
   entries: OrganizationProgramDraft[],
   organizations: ZohoOrganizationInfo[],
+  projectName?: string,
 ): OrganizationProgramDraft[] {
-  const refreshed = applyZohoOrganizations(entries, organizations);
-  const additions = organizationProgramsFromZoho(organizations).filter(
+  const refreshed = applyZohoOrganizations(
+    entries,
+    organizations,
+    projectName,
+  );
+  const additions = organizationProgramsFromZoho(
+    organizations,
+    projectName,
+  ).filter(
     (candidate) =>
       !refreshed.some(
         (entry) =>
@@ -1090,6 +1114,7 @@ export function MetadataStep({
                     zohoOrganizations: selected.organizations,
                     organizationPrograms: organizationProgramsFromZoho(
                       selected.organizations,
+                      selectedProject?.name,
                     ),
                     benchmarkCategories: selected.benchmarkCategories ?? [],
                     categoryPricing: selected.categoryPricing ?? [],
@@ -1398,7 +1423,10 @@ export function UploadStep({
           warningCount: 0,
         };
       const zohoOrganizations = draft.metadata.zohoProgramId
-        ? await api.zohoProgramOrganizations(draft.metadata.zohoProgramId)
+        ? await api.zohoProgramOrganizations(
+            draft.metadata.zohoProgramId,
+            draft.metadata.projectName,
+          )
         : (draft.metadata.zohoOrganizations ?? []);
       const currentOrganizations = normalizeOrganizationPrograms(
         draft.metadata.organizationPrograms ?? [],
@@ -1427,6 +1455,7 @@ export function UploadStep({
           ? workbookOrganizations
           : currentOrganizations,
         zohoOrganizations,
+        draft.metadata.projectName,
       );
       onComplete({
         ...draft,
@@ -1912,10 +1941,18 @@ export function WinnersStep({
   const sortedOrganizationPrograms = [...organizationPrograms].sort(
     (left, right) => {
       const leftMatched = Boolean(
-        findZohoOrganization(left, zohoOrganizations),
+        findZohoOrganization(
+          left,
+          zohoOrganizations,
+          draft.metadata.projectName,
+        ),
       );
       const rightMatched = Boolean(
-        findZohoOrganization(right, zohoOrganizations),
+        findZohoOrganization(
+          right,
+          zohoOrganizations,
+          draft.metadata.projectName,
+        ),
       );
       return (
         Number(leftMatched) - Number(rightMatched) ||
@@ -2094,7 +2131,11 @@ export function WinnersStep({
                 {sortedOrganizationPrograms.map((entry) => {
                   const key = organizationProgramKey(entry);
                   const matched = Boolean(
-                    findZohoOrganization(entry, zohoOrganizations),
+                    findZohoOrganization(
+                      entry,
+                      zohoOrganizations,
+                      draft.metadata.projectName,
+                    ),
                   );
                   const status = organizationParticipationStatus(entry);
                   const validationOrganization =

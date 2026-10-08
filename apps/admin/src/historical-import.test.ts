@@ -155,24 +155,27 @@ describe("winner organization filtering", () => {
 describe("Zoho organization initialization", () => {
   it("creates editable local organization rows without a draft request", () => {
     expect(
-      organizationProgramsFromZoho([
-        {
-          organizationId: "49",
-          organizationName: "Acme-49-Program 2026",
-          isWinner: "Y",
-          surveysSent: 125,
-          stage: "Qualified",
-          companySize: 30,
-          employeesCount: 125,
-          currentZohoCategory: "Small",
-          reportCategory: "25-99",
-          overallRank: "4",
-          categoryRank: "2",
-          purchasedEvSortingFilter: "Job Level",
-          rdPaymentType: "Paid via Check",
-          kiaPaymentType: "Paid via ACH",
-        },
-      ]),
+      organizationProgramsFromZoho(
+        [
+          {
+            organizationId: "49",
+            organizationName: "Acme-49-Program 2026",
+            isWinner: "Y",
+            surveysSent: 125,
+            stage: "Qualified",
+            companySize: 30,
+            employeesCount: 125,
+            currentZohoCategory: "Small",
+            reportCategory: "25-99",
+            overallRank: "4",
+            categoryRank: "2",
+            purchasedEvSortingFilter: "Job Level",
+            rdPaymentType: "Paid via Check",
+            kiaPaymentType: "Paid via ACH",
+          },
+        ],
+        "Program 2026",
+      ),
     ).toEqual([
       expect.objectContaining({
         organizationKey: "name:acme",
@@ -186,30 +189,59 @@ describe("Zoho organization initialization", () => {
 
   it("preserves separators inside the company name", () => {
     expect(
-      organizationProgramsFromZoho([
-        {
-          organizationId: "zoho-account-id",
-          organizationName: "Smith - Jones - Program 2026",
-          isWinner: "N",
-          surveysSent: 10,
-          stage: null,
-          companySize: null,
-          employeesCount: null,
-          currentZohoCategory: null,
-          reportCategory: null,
-          overallRank: null,
-          categoryRank: null,
-          purchasedEvSortingFilter: null,
-          rdPaymentType: null,
-          kiaPaymentType: null,
-        },
-      ]),
+      organizationProgramsFromZoho(
+        [
+          {
+            organizationId: "zoho-account-id",
+            organizationName: "Smith - Jones - Program 2026",
+            isWinner: "N",
+            surveysSent: 10,
+            stage: null,
+            companySize: null,
+            employeesCount: null,
+            currentZohoCategory: null,
+            reportCategory: null,
+            overallRank: null,
+            categoryRank: null,
+            purchasedEvSortingFilter: null,
+            rdPaymentType: null,
+            kiaPaymentType: null,
+          },
+        ],
+        "Program 2026",
+      ),
     ).toEqual([
       expect.objectContaining({
         organizationKey: "name:smith jones",
         organizationName: "Smith - Jones",
       }),
     ]);
+  });
+
+  it("strips only a case-insensitive suffix matching the project name", () => {
+    const organization = (organizationName: string) => ({
+      organizationId: "zoho-account-id",
+      organizationName,
+      isWinner: "N" as const,
+      surveysSent: 10,
+      stage: null,
+      companySize: null,
+      employeesCount: null,
+      currentZohoCategory: null,
+      reportCategory: null,
+      overallRank: null,
+      categoryRank: null,
+      purchasedEvSortingFilter: null,
+      rdPaymentType: null,
+      kiaPaymentType: null,
+    });
+
+    expect(
+      organizationProgramsFromZoho(
+        [organization("Acme - indiana"), organization("Smith - Jones")],
+        "Indiana",
+      ).map(({ organizationName }) => organizationName),
+    ).toEqual(["Acme", "Smith - Jones"]);
   });
 });
 
@@ -427,7 +459,7 @@ describe("historical import API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      api.zohoProgramOrganizations("zoho-program-1"),
+      api.zohoProgramOrganizations("zoho-program-1", "Indiana"),
     ).resolves.toEqual([
       {
         organizationId: "49",
@@ -447,7 +479,9 @@ describe("historical import API client", () => {
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/zoho/programs/zoho-program-1/organizations"),
+      expect.stringContaining(
+        "/zoho/programs/zoho-program-1/organizations?projectName=Indiana",
+      ),
       expect.any(Object),
     );
   });

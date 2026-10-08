@@ -1745,9 +1745,13 @@ export const api = {
 
   async zohoProgramOrganizations(
     programId: string,
+    projectName?: string,
   ): Promise<ZohoOrganizationInfo[]> {
+    const query = projectName
+      ? `?projectName=${encodeURIComponent(projectName)}`
+      : "";
     const response = await request<unknown>(
-      `/zoho/programs/${encodeURIComponent(programId)}/organizations`,
+      `/zoho/programs/${encodeURIComponent(programId)}/organizations${query}`,
     );
     return array(object(response).data).map((entry) => {
       const organization = object(entry);
