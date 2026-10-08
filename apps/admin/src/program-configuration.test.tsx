@@ -19,6 +19,95 @@ afterEach(() => {
 });
 
 describe("program configuration", () => {
+  it("shows organization and survey totals in Program Details", async () => {
+    persistAuth({
+      accessToken: "token",
+      refreshToken: "refresh",
+      user: {
+        id: "admin-id",
+        displayName: "Admin",
+        email: "admin@example.com",
+        roles: ["admin"],
+        permissions: [],
+      },
+    });
+    vi.spyOn(api, "program").mockResolvedValue({
+      id: "program-id",
+      name: "Program 2026",
+      year: 2026,
+      currency: "GBP",
+      createdAt: null,
+      organizationCount: 3,
+      winnersCount: 0,
+      categorySummaries: [],
+      latestZohoSync: null,
+      details: { EndDate: "2026-12-31" },
+    });
+    const organization = (name: string, surveysSent: number, id: string) => ({
+      id,
+      selectionId: id,
+      sourceId: id,
+      sourceName: name,
+      name,
+      createdAt: null,
+      stage: null,
+      lastSyncedAt: null,
+      surveysSent,
+      isWinner: null,
+      isIncluded: true,
+      companySize: null,
+      employeesCount: null,
+      overallRank: null,
+      categoryRank: null,
+      currentZohoCategory: null,
+      reportCategory: null,
+      benchmarkCategory: null,
+      purchasedEvSortingFilter: null,
+      rdPaymentType: null,
+      kiaPaymentType: null,
+      organizationProgramId: id,
+      programs: [],
+      users: [],
+    });
+    vi.spyOn(api, "organizations").mockResolvedValue([
+      organization("Alpha", 12, "alpha"),
+      organization("Beta", 40, "beta"),
+      organization("Gamma", 3, "gamma"),
+    ]);
+    vi.spyOn(api, "reportProductTemplates").mockResolvedValue([]);
+    vi.spyOn(api, "programCatalog").mockResolvedValue([]);
+
+    render(
+      <AuthProvider>
+        <MemoryRouter
+          initialEntries={["/admin/projects/project-id/programs/program-id"]}
+        >
+          <Routes>
+            <Route
+              path="/admin/projects/:projectId/programs/:programId"
+              element={<ProgramDetailPage />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>,
+    );
+
+    const detail = async (label: string) =>
+      (await screen.findByText(`${label}:`)).closest(".detail")?.textContent;
+    expect(await detail("Total # Organizations")).toBe(
+      "Total # Organizations:3",
+    );
+    expect(await detail("Total # Surveys Sent")).toBe(
+      "Total # Surveys Sent:55",
+    );
+    expect(await detail("Org with max # surveys sent")).toBe(
+      "Org with max # surveys sent:40 — Beta",
+    );
+    expect(await detail("Org with min # surveys sent")).toBe(
+      "Org with min # surveys sent:3 — Gamma",
+    );
+  });
+
   it("edits category prices and the program store from tabs", async () => {
     persistAuth({
       accessToken: "token",

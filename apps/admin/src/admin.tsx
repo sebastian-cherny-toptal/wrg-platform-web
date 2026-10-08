@@ -739,6 +739,36 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+function programSurveySummary(organizations: OrganizationRecord[]) {
+  if (!organizations.length) {
+    return {
+      organizationCount: 0,
+      surveysSent: 0,
+      maximum: "—",
+      minimum: "—",
+    };
+  }
+
+  const maximum = organizations.reduce((current, organization) =>
+    organization.surveysSent > current.surveysSent ? organization : current,
+  );
+  const minimum = organizations.reduce((current, organization) =>
+    organization.surveysSent < current.surveysSent ? organization : current,
+  );
+  const formatOrganization = (organization: OrganizationRecord) =>
+    `${organization.surveysSent} — ${organization.name}`;
+
+  return {
+    organizationCount: organizations.length,
+    surveysSent: organizations.reduce(
+      (total, organization) => total + organization.surveysSent,
+      0,
+    ),
+    maximum: formatOrganization(maximum),
+    minimum: formatOrganization(minimum),
+  };
+}
+
 function resyncDisplayValue(
   value: ProgramZohoResyncValue,
   emptyLabel = "Not provided",
@@ -995,6 +1025,9 @@ export function ProgramDetailPage() {
       />
     );
   const details = program.details ?? {};
+  const surveySummary = programSurveySummary(organizationsLoaded.data ?? []);
+  const surveySummaryValue = (value: string | number) =>
+    organizationsLoaded.loading ? "Loading…" : String(value);
   const previewSummaries = previewCategorySummaries(
     program.categorySummaries,
     organizationsLoaded.data ?? [],
@@ -1281,6 +1314,22 @@ export function ProgramDetailPage() {
           <Detail
             label="EFS Deadline"
             value={formatCalendarDate(details.EndDate ?? details.endsAt)}
+          />
+          <Detail
+            label="Total # Organizations"
+            value={surveySummaryValue(surveySummary.organizationCount)}
+          />
+          <Detail
+            label="Total # Surveys Sent"
+            value={surveySummaryValue(surveySummary.surveysSent)}
+          />
+          <Detail
+            label="Org with max # surveys sent"
+            value={surveySummaryValue(surveySummary.maximum)}
+          />
+          <Detail
+            label="Org with min # surveys sent"
+            value={surveySummaryValue(surveySummary.minimum)}
           />
           <section
             className="organization-summary details-category-summary"
