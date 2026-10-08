@@ -90,6 +90,10 @@ describe("admin API projections", () => {
               program: {
                 _id: "program-id",
                 Name: "Program 2026",
+                Project: {
+                  _id: "project-id",
+                  Name: "Cannabis",
+                },
                 benchmarkCategories: [
                   "Small",
                   "Medium",
@@ -124,6 +128,8 @@ describe("admin API projections", () => {
         { category: "Super", winners: 0, nonWinners: 0, total: 0 },
       ],
       winnersCount: 2,
+      projectId: "project-id",
+      projectName: "Cannabis",
     });
   });
 

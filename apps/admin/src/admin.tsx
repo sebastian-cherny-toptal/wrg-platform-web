@@ -1263,7 +1263,11 @@ export function ProgramDetailPage() {
         title={program.name}
         breadcrumb={
           <>
-            <Link to={`/admin/projects/${projectId}`}>Project</Link>
+            <Link to="/admin/projects">Projects</Link>
+            <span>|</span>
+            <Link to={`/admin/projects/${projectId}`}>
+              {program.projectName}
+            </Link>
             <span>|</span>
             {program.name}
           </>

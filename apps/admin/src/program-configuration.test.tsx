@@ -41,6 +41,7 @@ describe("program configuration", () => {
       winnersCount: 0,
       categorySummaries: [],
       latestZohoSync: null,
+      projectName: "Cannabis",
       details: { EndDate: "2026-12-31" },
     });
     const organization = (name: string, surveysSent: number, id: string) => ({
@@ -106,6 +107,17 @@ describe("program configuration", () => {
     expect(await detail("Org with min # surveys sent")).toBe(
       "Org with min # surveys sent:3 — Gamma",
     );
+    expect(
+      screen.getByRole("link", { name: "Projects" }).getAttribute("href"),
+    ).toBe("/admin/projects");
+    expect(
+      screen.getByRole("link", { name: "Cannabis" }).getAttribute("href"),
+    ).toBe("/admin/projects/project-id");
+    expect(
+      screen
+        .getAllByText("Program 2026")
+        .every((element) => element.closest("a") === null),
+    ).toBe(true);
   });
 
   it("edits category prices and the program store from tabs", async () => {

@@ -46,6 +46,7 @@ export type ProgramRecord = {
   }>;
   latestZohoSync: string | null;
   projectId?: string;
+  projectName?: string;
   details?: Record<string, unknown>;
 };
 
@@ -721,6 +722,7 @@ function program(raw: unknown): ProgramRecord {
     ),
     latestZohoSync: stringValue(value.latestZohoSync) || null,
     projectId: stringValue(object(value.Project)._id) || undefined,
+    projectName: stringValue(object(value.Project).Name) || undefined,
     details: value,
   };
 }
