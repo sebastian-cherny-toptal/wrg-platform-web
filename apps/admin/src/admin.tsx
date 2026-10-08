@@ -1689,6 +1689,7 @@ export function ProgramDetailPage() {
           "Benchmark Category",
           "Purchased EV Sorting Filter",
           "RD Payment Type",
+          "KIA Payment Type",
           "Actions",
         ]}
         rowClassNames={pagedOrganizations.map((item) =>
@@ -1753,6 +1754,11 @@ export function ProgramDetailPage() {
             <ZohoResyncValue
               value={item.rdPaymentType}
               change={change("rdPaymentType")}
+              emptyLabel="-"
+            />,
+            <ZohoResyncValue
+              value={item.kiaPaymentType}
+              change={change("kiaPaymentType")}
               emptyLabel="-"
             />,
             <div className="row-actions">

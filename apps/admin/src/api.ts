@@ -114,6 +114,7 @@ export type ZohoOrganizationInfo = {
   categoryRank: string | null;
   purchasedEvSortingFilter: string | null;
   rdPaymentType: string | null;
+  kiaPaymentType: string | null;
 };
 
 export type ZohoWinnerOrganization = {
@@ -319,6 +320,7 @@ export type OrganizationRecord = {
   benchmarkCategory: string | null;
   purchasedEvSortingFilter: string | null;
   rdPaymentType: string | null;
+  kiaPaymentType: string | null;
   organizationProgramId: string;
   programs: Array<{
     id: string;
@@ -420,7 +422,8 @@ export type ProgramZohoResyncField =
   | "reportCategory"
   | "currentZohoCategory"
   | "purchasedEvSortingFilter"
-  | "rdPaymentType";
+  | "rdPaymentType"
+  | "kiaPaymentType";
 
 export type ProgramZohoResyncValue = string | number | null;
 
@@ -802,6 +805,7 @@ export function organization(raw: unknown): OrganizationRecord {
     purchasedEvSortingFilter:
       stringValue(enrollment.purchased_ev_sorting_filter) || null,
     rdPaymentType: stringValue(enrollment.rd_payment_type) || null,
+    kiaPaymentType: stringValue(enrollment.kia_payment_type) || null,
     organizationProgramId:
       stringValue(enrollment.databaseId) ||
       stringValue(enrollment._id) ||
@@ -1720,6 +1724,7 @@ export const api = {
             purchasedEvSortingFilter:
               stringValue(organization.purchasedEvSortingFilter) || null,
             rdPaymentType: stringValue(organization.rdPaymentType) || null,
+            kiaPaymentType: stringValue(organization.kiaPaymentType) || null,
           };
         }),
         ...(Array.isArray(value.benchmarkCategories)
@@ -1772,6 +1777,7 @@ export const api = {
         purchasedEvSortingFilter:
           stringValue(organization.purchasedEvSortingFilter) || null,
         rdPaymentType: stringValue(organization.rdPaymentType) || null,
+        kiaPaymentType: stringValue(organization.kiaPaymentType) || null,
       };
     });
   },

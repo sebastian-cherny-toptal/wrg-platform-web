@@ -65,7 +65,7 @@ const demographicIcons = {
   Location: MapPin,
 } as const
 
-const reportCards = [
+const standardReportCards = [
   {
     entitlement: 'WFR_Access',
     title: 'Workforce Feedback Results',
@@ -96,6 +96,32 @@ const reportCards = [
     icon: LineChart,
   },
 ] as const
+
+const advancedReportCards = [
+  {
+    entitlement: 'RD_Access',
+    title: 'Response Detail',
+    description: 'This in-depth report reflects, by each survey question and for each demographic, the percentage of responses distributed across the entire 6-point scale.',
+    path: routeMap.responseDetail,
+    icon: FileText,
+  },
+  {
+    entitlement: 'KIA_Access',
+    title: 'Key Impact Analysis',
+    description: 'This report identifies key motivators of employee engagement within your unique population and the workplace attributes most important to retaining top talent and driving productivity.',
+    path: routeMap.keyImpactAnalysis,
+    icon: FileChartColumn,
+  },
+  {
+    entitlement: 'CR_Access',
+    title: 'Custom Reports',
+    description: 'Access the custom reports prepared for your organization in addition to the standard reporting package.',
+    path: routeMap.customReports,
+    icon: FileText,
+  },
+] as const
+
+const dashboardReportCards = [...standardReportCards, ...advancedReportCards] as const
 
 function surveyDateDescription(startDate: string | null, endDate: string | null) {
   if (!startDate && !endDate) return 'Survey collection dates are unavailable.'
@@ -177,7 +203,7 @@ export function DashboardPage() {
   const selectProgram = useAppStore((state) => state.selectProgram)
   const visibleReports = isPromotional
     ? []
-    : reportCards.filter(
+    : dashboardReportCards.filter(
         (report) =>
           'alwaysVisible' in report ||
           (program?.entitlements[report.entitlement] === 'yes' &&
@@ -591,7 +617,7 @@ export function CatalogPage() {
                 <li className="text-sm leading-6 text-zinc-600">
                   <strong className="text-zinc-900">Online Data Dashboard.</strong> This is a place where you can get all your data in the ways you need it, including downloading it in charts and graphs.
                 </li>
-                {reportCards.map((report) => (
+                {standardReportCards.map((report) => (
                   <li className="border-t border-zinc-100 pt-5 text-sm leading-6 text-zinc-600" key={report.path}>
                     <strong className="text-zinc-900">{report.title}{report.title === 'Benefits & Best Practices' ? ' Report' : ''}.</strong>{' '}
                     {report.description}{' '}

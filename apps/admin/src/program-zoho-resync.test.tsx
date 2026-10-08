@@ -101,6 +101,7 @@ describe("program Zoho resync changes", () => {
         benchmarkCategory: null,
         purchasedEvSortingFilter: null,
         rdPaymentType: null,
+        kiaPaymentType: null,
         organizationProgramId: "unchanged-enrollment-id",
         programs: [],
         users: [],
@@ -126,6 +127,7 @@ describe("program Zoho resync changes", () => {
         benchmarkCategory: null,
         purchasedEvSortingFilter: "Department",
         rdPaymentType: "Invoice Sent",
+        kiaPaymentType: "Paid via Check",
         organizationProgramId: "enrollment-id",
         programs: [],
         users: [],
@@ -200,6 +202,7 @@ describe("program Zoho resync changes", () => {
 
     expect(await screen.findByText("Report Category")).toBeTruthy();
     expect(screen.getByText("Benchmark Category")).toBeTruthy();
+    expect(screen.getByText("KIA Payment Type")).toBeTruthy();
     expect(screen.getByText(/Latest Zoho sync:/u).textContent).toContain(
       "Sep 7, 2026",
     );
@@ -297,6 +300,7 @@ describe("program Zoho resync changes", () => {
         benchmarkCategory: null,
         purchasedEvSortingFilter: null,
         rdPaymentType: null,
+        kiaPaymentType: null,
         organizationProgramId: `enrollment-${index + 1}`,
         programs: [],
         users: [],

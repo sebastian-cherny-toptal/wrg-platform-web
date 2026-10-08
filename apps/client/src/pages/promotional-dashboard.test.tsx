@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 import { api } from "../api/client";
@@ -206,4 +206,68 @@ it("hides benchmark and benefits dashboard cards when benchmark data is unavaila
       "This report provides the percentage of winning and non-winning organizations that offer various employee benefits and workplace practices.",
     ),
   ).not.toBeInTheDocument();
+});
+
+it("shows clickable home-page cards for entitled advanced reports", async () => {
+  useAppStore.getState().setSession({
+    ...session,
+    user: {
+      ...session.user,
+      role: "client",
+      programs: session.user.programs.map((program) => ({
+        ...program,
+        entitlements: {
+          RD_Access: "yes",
+          KIA_Access: "yes",
+          CR_Access: "yes",
+        },
+      })),
+    },
+  });
+  vi.spyOn(api.dashboard, "overview").mockResolvedValue({
+    agreement: {
+      percentage: 72,
+      negativePercentage: 18,
+      totalRespondents: 90,
+      StartDate: null,
+      EndDate: null,
+      numberOfQuestions: 35,
+    },
+    responseRate: {
+      sendSurvey: 120,
+      completedSurvey: 90,
+      responseRate: 75,
+      Total_Number_of_Program_EEs: 150,
+      Total_Number_of_National_EEs: 0,
+    },
+    statements: {
+      top: [],
+      bottom: [],
+      noteTop: "",
+      noteBottom: "",
+    },
+  });
+
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByText("Average Positive and Average Negative Response");
+  for (const [title, path] of [
+    ["Response Detail", "/response-detail"],
+    ["Key Impact Analysis", "/key-impact-analysis"],
+    ["Custom Reports", "/my-reports"],
+  ] as const) {
+    const card = screen.getByRole("heading", { name: title }).closest("section");
+    if (!card) throw new Error(`Expected a dashboard card for ${title}`);
+    expect(within(card).getByRole("link", { name: /View Report/u })).toHaveAttribute("href", path);
+  }
 });
