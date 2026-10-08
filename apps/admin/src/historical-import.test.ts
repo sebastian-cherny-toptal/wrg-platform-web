@@ -183,6 +183,34 @@ describe("Zoho organization initialization", () => {
       }),
     ]);
   });
+
+  it("preserves separators inside the company name", () => {
+    expect(
+      organizationProgramsFromZoho([
+        {
+          organizationId: "zoho-account-id",
+          organizationName: "Smith - Jones - Program 2026",
+          isWinner: "N",
+          surveysSent: 10,
+          stage: null,
+          companySize: null,
+          employeesCount: null,
+          currentZohoCategory: null,
+          reportCategory: null,
+          overallRank: null,
+          categoryRank: null,
+          purchasedEvSortingFilter: null,
+          rdPaymentType: null,
+          kiaPaymentType: null,
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        organizationKey: "name:smith jones",
+        organizationName: "Smith - Jones",
+      }),
+    ]);
+  });
 });
 
 describe("organization participation status", () => {

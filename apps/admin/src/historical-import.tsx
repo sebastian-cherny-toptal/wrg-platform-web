@@ -443,7 +443,12 @@ function zohoOrganizationName(organization: ZohoOrganizationInfo): string {
   const markerIndex = value.lastIndexOf(marker);
   if (markerIndex > 0) return value.slice(0, markerIndex).trim();
   const withoutCompositeSuffix = value.replace(/-\d{6,}-.+$/u, "").trim();
-  return withoutCompositeSuffix.split(" - ")[0]?.trim() ?? "";
+  const projectSeparator = withoutCompositeSuffix.lastIndexOf(" - ");
+  return (
+    projectSeparator > 0
+      ? withoutCompositeSuffix.slice(0, projectSeparator)
+      : withoutCompositeSuffix
+  ).trim();
 }
 
 function findZohoOrganization(
