@@ -68,6 +68,9 @@ test("shows PDF-style motivator cells and downloads the report as PDF", async ({
       }),
     });
   });
+  await page.route("**/client/key-impact-analysis/downloaded?**", async (route) => {
+    await route.fulfill({ status: 204 });
+  });
 
   await page.goto("/key-impact-analysis");
 
@@ -92,8 +95,14 @@ test("shows PDF-style motivator cells and downloads the report as PDF", async ({
     }
   }
   const download = page.waitForEvent("download");
+  const activity = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      request.url().includes("/client/key-impact-analysis/downloaded?"),
+  );
   await page.getByRole("button", { name: "Download Report" }).click();
   const file = await download;
+  await activity;
   expect(file.suggestedFilename()).toBe("Key_Impact_Analysis_2026.pdf");
   const bytes = await readFile(await file.path());
   expect(bytes.toString("ascii", 0, 5)).toBe("%PDF-");

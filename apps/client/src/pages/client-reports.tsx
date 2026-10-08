@@ -3747,13 +3747,16 @@ export function KeyImpactAnalysisPage() {
       <div className="p-6">
         {analysis.data && !isDemo && entries.length > 0 ? (
           <DownloadReportButton
-            onDownload={() =>
-              downloadKeyImpactPdf(
+            onDownload={async () => {
+              await downloadKeyImpactPdf(
                 entries,
                 program?.organizationName ?? "",
                 program?.year,
-              )
-            }
+              );
+              await api.reports.recordKeyImpactAnalysisDownload(
+                program?.id ?? "",
+              );
+            }}
           />
         ) : null}
         {analysis.isPending ? (

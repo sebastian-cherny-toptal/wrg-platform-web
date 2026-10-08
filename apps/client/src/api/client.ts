@@ -802,6 +802,11 @@ export const api = {
         `/client/getKeyImpactAnalysis?selectedProgramId=${encodeURIComponent(programId)}${dummyQuery(isDummy)}`,
         { schema: keyImpactAnalysisSchema },
       ),
+    recordKeyImpactAnalysisDownload: (programId: string) =>
+      request(
+        `/client/key-impact-analysis/downloaded?selectedProgramId=${encodeURIComponent(programId)}`,
+        { method: "POST", schema: z.undefined() },
+      ),
     downloadCustomReport: (url: string, filename: string) =>
       url.startsWith("/client/")
         ? downloadRequest(url, filename)
