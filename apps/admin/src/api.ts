@@ -279,6 +279,11 @@ export type HistoricalImportOrganizationSummary = {
   eaRespondents: number;
   efsRespondents: number;
   warnings: string[];
+  responseChanges?: {
+    changed: boolean;
+    previousRespondents: number;
+    uploadedRespondents: number;
+  };
 };
 
 export type HistoricalImportValidationSummary = {

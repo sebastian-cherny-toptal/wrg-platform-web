@@ -1320,6 +1320,13 @@ a {
   border-radius: 10px;
   background: white;
 }
+.wizard-panel.inset-panel {
+  padding: 16px;
+  background: #fafafa;
+}
+.wizard-panel.inset-panel h3 {
+  margin: 0;
+}
 .wizard-copy {
   margin: 0;
   color: #52525b;

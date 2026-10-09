@@ -1397,7 +1397,7 @@ export function UploadStep({
   };
 
   const continueToOrganizations = async () => {
-    if (Boolean(eaFile) !== Boolean(efsFile)) {
+    if (Boolean(eaFile) !== Boolean(efsFile) && !draft.metadata.programId) {
       setError("Upload both the EA and EFS workbooks, or leave both empty.");
       return;
     }
@@ -1522,13 +1522,12 @@ export function UploadStep({
     <div className="wizard-panel">
       {actions("top")}
       <p className="wizard-copy">
-        Upload one Employer Assessment workbook and one Employee Feedback Survey
-        workbook. Each file is analyzed as soon as you select it. The browser
-        compares their organization lists, and Continue loads the latest program
-        organizations from Zoho. You can review and adjust the combined data in
-        Step 4 before anything is saved.{" "}
+        Upload an Employer Assessment workbook, an Employee Feedback Survey
+        workbook, or both. Each selected file is analyzed immediately. Continue
+        loads the latest program organizations from Zoho, and you can review the
+        combined data before anything is saved.{" "}
         {draft.metadata.programId
-          ? "Both files are optional when only editing program details or store prices."
+          ? "For an existing program, uploading a new EFS replaces its current EFS data and highlights organizations whose responses changed."
           : "Both files are required for a new program."}
       </p>
       <div className="upload-grid">
@@ -1578,6 +1577,26 @@ export function UploadStep({
               </ul>
             </div>
           ))}
+        </div>
+      ) : null}
+      {validation?.organizations.some(
+        ({ responseChanges }) => responseChanges?.changed,
+      ) ? (
+        <div className="wizard-panel inset-panel">
+          <h3>Organizations with EFS response changes</h3>
+          <div className="summary-grid">
+            {validation.organizations
+              .filter(({ responseChanges }) => responseChanges?.changed)
+              .map(({ key, displayName, responseChanges }) => (
+                <div className="summary-card" key={key}>
+                  <strong>{displayName}</strong>
+                  <span>
+                    {responseChanges?.previousRespondents ?? 0} previous →{" "}
+                    {responseChanges?.uploadedRespondents ?? 0} uploaded
+                  </span>
+                </div>
+              ))}
+          </div>
         </div>
       ) : null}
       {validation ? <IssueList issues={validation.issues} /> : null}
@@ -2413,6 +2432,24 @@ export function ReviewStep({
           </strong>
         </div>
       </div>
+      {draft.validation?.organizations.some(
+        ({ responseChanges }) => responseChanges?.changed,
+      ) ? (
+        <div className="wizard-panel inset-panel">
+          <h3>Organizations with EFS response changes</h3>
+          <ul>
+            {draft.validation.organizations
+              .filter(({ responseChanges }) => responseChanges?.changed)
+              .map(({ key, displayName, responseChanges }) => (
+                <li key={key}>
+                  {displayName}: {responseChanges?.previousRespondents ?? 0}{" "}
+                  previous → {responseChanges?.uploadedRespondents ?? 0}{" "}
+                  uploaded
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
       {draft.validation ? <IssueList issues={draft.validation.issues} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}

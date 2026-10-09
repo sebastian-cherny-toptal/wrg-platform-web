@@ -372,6 +372,74 @@ describe("local workbook selection", () => {
     ).toBeTruthy();
   });
 
+  it("allows an existing program to replace only EFS and shows changed organizations", async () => {
+    const efsFile = new File(["efs"], "replacement.xlsx");
+    vi.spyOn(api, "prepareHistoricalImport").mockResolvedValue({
+      metadata: {
+        programId: "program-id",
+        programName: "Program 2026",
+      },
+      validation: {
+        issues: [],
+        workbooks: [
+          {
+            kind: "EFS",
+            fileName: "replacement.xlsx",
+            sha256: "replacement",
+            questions: 1,
+            organizations: 1,
+            respondents: 4,
+            responses: 4,
+          },
+        ],
+        organizations: [
+          {
+            key: "name:acme",
+            displayName: "Acme",
+            eaRespondents: 0,
+            efsRespondents: 4,
+            warnings: [],
+            responseChanges: {
+              changed: true,
+              previousRespondents: 3,
+              uploadedRespondents: 4,
+            },
+          },
+        ],
+        blockingErrorCount: 0,
+        warningCount: 0,
+      },
+    });
+    const onComplete = vi.fn();
+    const { container } = render(
+      <UploadStep
+        draft={{
+          metadata: {
+            programId: "program-id",
+            programName: "Program 2026",
+          },
+        }}
+        onBack={vi.fn()}
+        onComplete={onComplete}
+        onRestart={vi.fn()}
+      />,
+    );
+    const inputs =
+      container.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    fireEvent.change(inputs[1]!, { target: { files: [efsFile] } });
+
+    expect(
+      await screen.findByText("Organizations with EFS response changes"),
+    ).toBeTruthy();
+    expect(screen.getByText(/3 previous → 4 uploaded/u)).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ efsFile, eaFile: undefined }),
+    );
+  });
+
   it("allows an existing program to skip workbook uploads", async () => {
     const onComplete = vi.fn();
     vi.stubGlobal(
