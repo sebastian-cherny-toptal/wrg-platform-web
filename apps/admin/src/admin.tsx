@@ -2914,15 +2914,16 @@ function EditUserModal({
   onSaved: () => void;
 }) {
   const projects = useLoad(`edit-user-projects-${user.id}`, api.projects);
-  const assignedProjects = (projects.data ?? []).filter((project) =>
-    user.projects.some(({ id }) => id === project.id),
-  );
   const [form, setForm] = useState({
     fullName: user.fullName,
     email: user.email,
     username: user.username ?? "",
+    projects: user.projects.map(({ id }) => id),
     programs: user.programs ?? [],
   });
+  const assignedProjects = (projects.data ?? []).filter((project) =>
+    form.projects.includes(project.id),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const submit = async (event: FormEvent) => {
@@ -2934,6 +2935,7 @@ function EditUserModal({
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         username: form.username.trim(),
+        projects: form.projects,
         programs: form.programs,
       });
       onSaved();
@@ -2972,14 +2974,51 @@ function EditUserModal({
           }
         />
         <fieldset>
+          <legend>Assigned projects</legend>
+          <small>Select the projects this user can access.</small>
+          {projects.loading ? <p>Loading projects…</p> : null}
+          {projects.error ? (
+            <p className="form-error">{projects.error}</p>
+          ) : null}
+          {(projects.data ?? []).map((project) => (
+            <label key={project.id}>
+              <input
+                type="checkbox"
+                checked={form.projects.includes(project.id)}
+                onChange={(event) => {
+                  const selectedProjects = event.target.checked
+                    ? [...form.projects, project.id]
+                    : form.projects.filter((id) => id !== project.id);
+                  const availableProgramIds = new Set(
+                    (projects.data ?? [])
+                      .filter(({ id }) => selectedProjects.includes(id))
+                      .flatMap(({ programs }) =>
+                        programs.map(({ id }) => id),
+                      ),
+                  );
+                  setForm({
+                    ...form,
+                    projects: selectedProjects,
+                    programs: form.programs.filter((id) =>
+                      availableProgramIds.has(id),
+                    ),
+                  });
+                }}
+              />{" "}
+              {project.name}
+            </label>
+          ))}
+          {!projects.loading &&
+          !projects.error &&
+          !(projects.data ?? []).length ? (
+            <p>No projects are available.</p>
+          ) : null}
+        </fieldset>
+        <fieldset>
           <legend>Assigned programs</legend>
           <small>
             Select programs from the user's projects to compare different years.
           </small>
-          {projects.loading ? <p>Loading programs…</p> : null}
-          {projects.error ? (
-            <p className="form-error">{projects.error}</p>
-          ) : null}
           {assignedProjects.map((project) => (
             <div key={project.id}>
               <strong>{project.name}</strong>
@@ -3008,7 +3047,7 @@ function EditUserModal({
             </div>
           ))}
           {!projects.loading && !projects.error && !assignedProjects.length ? (
-            <p>No projects are assigned to this user.</p>
+            <p>Select a project to assign its programs.</p>
           ) : null}
         </fieldset>
         {error ? <p className="form-error">{error}</p> : null}

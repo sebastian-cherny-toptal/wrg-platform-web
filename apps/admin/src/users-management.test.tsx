@@ -370,9 +370,65 @@ it("retains earlier programs and adds new years only within assigned projects", 
       fullName: "Alex Example",
       email: "alex@example.com",
       username: "alex",
+      projects: ["p1", "p2"],
       programs: ["old", "new"],
     }),
   );
   await screen.findByText("Workforce (2026)");
   expect(screen.getByText("Workforce (2025)")).toBeTruthy();
+});
+
+it("assigns a project to a user whose previous project was removed", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([{ ...user, projects: [] }]);
+  vi.spyOn(api, "projects").mockResolvedValue([
+    {
+      id: "replacement-project",
+      name: "Replacement project",
+      createdAt: null,
+      programs: [
+        {
+          id: "replacement-program",
+          name: "Replacement program",
+          year: 2026,
+          createdAt: null,
+          organizationCount: 0,
+          winnersCount: 0,
+          categorySummaries: [],
+          latestZohoSync: null,
+        },
+      ],
+    },
+  ]);
+  const update = vi.spyOn(api, "updateUser").mockResolvedValue();
+
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Edit Alex Example" }),
+  );
+
+  const dialog = screen.getByRole("dialog", { name: "Edit Alex Example" });
+  const project = await within(dialog).findByRole("checkbox", {
+    name: "Replacement project",
+  });
+  fireEvent.click(project);
+  fireEvent.click(
+    within(dialog).getByRole("checkbox", {
+      name: "Replacement program (2026)",
+    }),
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+
+  await vi.waitFor(() =>
+    expect(update).toHaveBeenCalledWith("user-1", {
+      fullName: "Alex Example",
+      email: "alex@example.com",
+      username: "alex",
+      projects: ["replacement-project"],
+      programs: ["replacement-program"],
+    }),
+  );
 });
