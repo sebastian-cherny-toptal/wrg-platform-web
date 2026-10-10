@@ -298,6 +298,8 @@ export type HistoricalImportValidationSummary = {
 
 export type ProgramEfsJob = {
   jobId: string;
+  queueState?: string;
+  lastProgressAt?: string;
   startedAt?: string | null;
   finishedAt?: string | null;
   status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED";

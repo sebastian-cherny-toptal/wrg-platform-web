@@ -64,6 +64,10 @@ export function ProgramEfsReupload({
   }, [programId, storageKey]);
   const saving = job?.status === "PENDING" || job?.status === "RUNNING";
   const busy = action !== null || saving || checkingJob;
+  const progressDelayed =
+    saving &&
+    job?.lastProgressAt &&
+    Date.now() - Date.parse(job.lastProgressAt) > 120_000;
   useEffect(() => {
     if (!job?.jobId || !saving) return;
     let active = true;
@@ -185,6 +189,29 @@ export function ProgramEfsReupload({
             ? " · All organizations saved. Their uploaded data is now live."
             : ""}
           {job.status === "FAILED" ? " · Failed" : ""}
+        </p>
+      ) : null}
+      {saving && job.queueState === "unavailable" ? (
+        <p role="status">
+          Worker queue status is unavailable. The last reported progress is
+          shown below.
+        </p>
+      ) : null}
+      {saving &&
+      (job.queueState === "waiting" ||
+        job.queueState === "delayed" ||
+        job.queueState === "waiting-children") ? (
+        <p role="status">Waiting for a worker to continue this save.</p>
+      ) : null}
+      {progressDelayed ? (
+        <p role="status">
+          No progress has been reported for over two minutes. The save may be
+          slow or interrupted; this page is still checking the worker.
+        </p>
+      ) : null}
+      {job?.lastProgressAt ? (
+        <p>
+          Last progress update: {new Date(job.lastProgressAt).toLocaleString()}
         </p>
       ) : null}
       {saving ? (

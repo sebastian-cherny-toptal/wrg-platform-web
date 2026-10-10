@@ -294,3 +294,22 @@ it("discovers a job queued from another browser and shows when all organizations
   expect(await screen.findByText(/All organizations saved/u)).toBeTruthy();
   expect(screen.getByText(/job-id/u)).toBeTruthy();
 });
+
+it("warns when a running worker stops reporting progress without claiming it failed", async () => {
+  window.sessionStorage.setItem("efs-save:program-id", "job-id");
+  vi.spyOn(api, "programEfsJob").mockResolvedValue({
+    ...queued,
+    status: "RUNNING",
+    queueState: "active",
+    lastProgressAt: new Date(Date.now() - 600_000).toISOString(),
+  });
+  const onSaved = vi.fn();
+  render(<ProgramEfsReupload programId="program-id" onSaved={onSaved} />);
+  expect(
+    await screen.findByText(
+      /No progress has been reported for over two minutes/u,
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(onSaved).not.toHaveBeenCalled();
+});
