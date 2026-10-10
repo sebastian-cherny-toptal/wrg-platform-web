@@ -1261,6 +1261,16 @@ export function ProgramDetailPage() {
     <>
       <PageHeader
         title={program.name}
+        actions={
+          canUploadBenefits ? (
+            <Link
+              className="primary-button compact action-link"
+              to={`/admin/projects/${projectId}/programs/${program.id}/edit`}
+            >
+              <FileUp size={16} /> Re-upload EA/EFS
+            </Link>
+          ) : null
+        }
         breadcrumb={
           <>
             <Link to="/admin/projects">Projects</Link>

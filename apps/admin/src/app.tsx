@@ -50,7 +50,7 @@ export function App() {
         />
         <Route
           path="projects/:projectId/programs/:programId/edit"
-          element={<Navigate replace relative="path" to=".." />}
+          element={<HistoricalImportPage />}
         />
         <Route path="users" element={<UsersManagementPage />} />
         <Route

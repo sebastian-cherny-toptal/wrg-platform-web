@@ -95,6 +95,9 @@ describe("program configuration", () => {
 
     const detail = async (label: string) =>
       (await screen.findByText(`${label}:`)).closest(".detail")?.textContent;
+    expect(
+      (await screen.findByRole("link", { name: "Re-upload EA/EFS" })).getAttribute("href"),
+    ).toBe("/admin/projects/project-id/programs/program-id/edit");
     expect(await detail("Total # Organizations")).toBe(
       "Total # Organizations:3",
     );
