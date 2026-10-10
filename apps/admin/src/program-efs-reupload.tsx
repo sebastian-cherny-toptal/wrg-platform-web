@@ -1,6 +1,6 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FileUp } from "lucide-react";
-import { api } from "./api";
+import { api, type ProgramEfsJob } from "./api";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 
 export function ProgramEfsReupload({
@@ -18,9 +18,77 @@ export function ProgramEfsReupload({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
+  const storageKey = `efs-save:${programId}`;
+  const [job, setJob] = useState<ProgramEfsJob | null>(() => {
+    const jobId = window.sessionStorage.getItem(storageKey);
+    return jobId
+      ? {
+          jobId,
+          status: "RUNNING",
+          phase: "Reconnecting to save",
+          respondents: 0,
+          responses: 0,
+          error: null,
+          saved: false,
+        }
+      : null;
+  });
+  const saving = job?.status === "PENDING" || job?.status === "RUNNING";
+  const busy = action !== null || saving;
+  useEffect(() => {
+    if (!job?.jobId || !saving) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const next = await api.programEfsJob(programId, job.jobId);
+        if (!active) return;
+        setJob(next);
+        if (next.status === "SUCCEEDED" || next.status === "FAILED") {
+          window.sessionStorage.removeItem(storageKey);
+          setReview(null);
+          setNotice("");
+          if (next.status === "FAILED") {
+            setError(
+              next.error || "EFS save failed. Review the file and try again.",
+            );
+            return;
+          }
+          setFile(null);
+          if (input.current) input.current.value = "";
+          setNotice(
+            "EFS responses were saved. Program organizations now use the uploaded respondent data.",
+          );
+          try {
+            await onSavedRef.current();
+          } catch {
+            if (active)
+              setError(
+                "EFS was saved, but the program view could not refresh. Reload the page.",
+              );
+          }
+          return;
+        }
+        setNotice("");
+      } catch {
+        if (!active) return;
+        setNotice(
+          "The save is running in the background. Reconnecting to its progress…",
+        );
+      }
+      if (active) timer = setTimeout(() => void poll(), 3_000);
+    };
+    void poll();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [job?.jobId, programId, storageKey]);
   const preview = async (event: FormEvent) => {
     event.preventDefault();
-    if (!file || action) return;
+    if (!file || busy) return;
     setAction("preview");
     setError("");
     setNotice("");
@@ -36,24 +104,17 @@ export function ProgramEfsReupload({
     }
   };
   const save = async () => {
-    if (!file || !review || action) return;
+    if (!file || !review || busy) return;
     setAction("save");
     setError("");
     try {
-      const result = await api.reuploadProgramEfs(
+      const result = await api.startProgramEfsReupload(
         programId,
         file,
         review.revision,
       );
-      if (!result.saved)
-        throw new Error("The EFS was not saved. Review the file again.");
-      setReview(null);
-      setFile(null);
-      if (input.current) input.current.value = "";
-      setNotice(
-        "EFS responses were saved. Program organizations now use the uploaded respondent data.",
-      );
-      await onSaved();
+      window.sessionStorage.setItem(storageKey, result.jobId);
+      setJob(result);
     } catch (caught) {
       setReview(null);
       setError(
@@ -74,7 +135,7 @@ export function ProgramEfsReupload({
       className="program-sync-panel"
       aria-labelledby="program-efs-reupload-title"
     >
-      {action ? (
+      {action === "preview" ? (
         <LongRunningActionOverlay
           title={
             action === "preview"
@@ -82,6 +143,14 @@ export function ProgramEfsReupload({
               : "Saving EFS responses…"
           }
         />
+      ) : null}
+      {saving ? (
+        <p className="program-sync-status" role="status">
+          {job.phase} · {job.respondents.toLocaleString()} respondents and{" "}
+          {job.responses.toLocaleString()} responses imported. This save
+          continues in the background; you can return to this page to check
+          progress.
+        </p>
       ) : null}
       <div className="program-sync-heading">
         <div>
@@ -101,7 +170,7 @@ export function ProgramEfsReupload({
               ref={input}
               type="file"
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              disabled={action !== null}
+              disabled={busy}
               onChange={(event) => {
                 setFile(event.target.files?.[0] ?? null);
                 setReview(null);
@@ -113,7 +182,7 @@ export function ProgramEfsReupload({
           <button
             type="submit"
             className="primary-button compact"
-            disabled={!file || action !== null}
+            disabled={!file || busy}
           >
             <FileUp size={16} /> Upload and review EFS
           </button>
@@ -185,9 +254,7 @@ export function ProgramEfsReupload({
           <button
             type="button"
             className="primary-button compact"
-            disabled={
-              action !== null || review.validation.blockingErrorCount > 0
-            }
+            disabled={busy || review.validation.blockingErrorCount > 0}
             onClick={() => void save()}
           >
             Save program

@@ -12,6 +12,7 @@ import { ProgramEfsReupload } from "./program-efs-reupload";
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  window.sessionStorage.clear();
 });
 const review = {
   revision: "review-revision",
@@ -61,12 +62,32 @@ const review = {
     ],
   },
 };
+const queued = {
+  jobId: "job-id",
+  status: "PENDING" as const,
+  phase: "Queued",
+  respondents: 0,
+  responses: 0,
+  error: null,
+  saved: false,
+};
+const succeeded = {
+  ...queued,
+  status: "SUCCEEDED" as const,
+  phase: "Saved",
+  respondents: 83,
+  responses: 83,
+  saved: true,
+};
 
 it("reviews all organizations and requires Save program before replacing respondents", async () => {
   const upload = vi
     .spyOn(api, "reuploadProgramEfs")
-    .mockResolvedValueOnce(review)
-    .mockResolvedValueOnce({ ...review, saved: true });
+    .mockResolvedValueOnce(review);
+  const start = vi
+    .spyOn(api, "startProgramEfsReupload")
+    .mockResolvedValue(queued);
+  vi.spyOn(api, "programEfsJob").mockResolvedValue(succeeded);
   const onSaved = vi.fn().mockResolvedValue(undefined);
   render(<ProgramEfsReupload programId="program-id" onSaved={onSaved} />);
   expect(screen.queryByRole("button", { name: "Save program" })).toBeNull();
@@ -86,11 +107,7 @@ it("reviews all organizations and requires Save program before replacing respond
   expect(onSaved).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Save program" }));
   await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
-  expect(upload).toHaveBeenLastCalledWith(
-    "program-id",
-    file,
-    "review-revision",
-  );
+  expect(start).toHaveBeenLastCalledWith("program-id", file, "review-revision");
   expect(screen.queryByRole("button", { name: "Save program" })).toBeNull();
 });
 
@@ -133,11 +150,10 @@ it("blocks saving when organization matching or workbook validation fails", asyn
 });
 
 it("keeps the file available after a failed save and requires a fresh review", async () => {
-  vi.spyOn(api, "reuploadProgramEfs")
-    .mockResolvedValueOnce(review)
-    .mockRejectedValueOnce(
-      new Error("The program changed. Review the EFS again."),
-    );
+  vi.spyOn(api, "reuploadProgramEfs").mockResolvedValueOnce(review);
+  vi.spyOn(api, "startProgramEfsReupload").mockRejectedValueOnce(
+    new Error("The program changed. Review the EFS again."),
+  );
   const onSaved = vi.fn();
   render(<ProgramEfsReupload programId="program-id" onSaved={onSaved} />);
   fireEvent.change(screen.getByLabelText("New EFS respondents XLSX"), {
@@ -160,4 +176,62 @@ it("keeps the file available after a failed save and requires a fresh review", a
     ).disabled,
   ).toBe(false);
   expect(onSaved).not.toHaveBeenCalled();
+});
+
+it("shows background progress while the job runs and does not report an early success", async () => {
+  vi.spyOn(api, "reuploadProgramEfs").mockResolvedValue(review);
+  vi.spyOn(api, "startProgramEfsReupload").mockResolvedValue(queued);
+  vi.spyOn(api, "programEfsJob").mockResolvedValue({
+    ...queued,
+    status: "RUNNING",
+    phase: "Importing responses",
+    respondents: 40,
+    responses: 3600,
+  });
+  const onSaved = vi.fn();
+  render(<ProgramEfsReupload programId="program-id" onSaved={onSaved} />);
+  fireEvent.change(screen.getByLabelText("New EFS respondents XLSX"), {
+    target: { files: [new File(["efs"], "efs.xlsx")] },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Upload and review EFS" }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Save program" }));
+  expect(
+    await screen.findByText(/40 respondents and 3,600 responses imported/u),
+  ).toBeTruthy();
+  expect(onSaved).not.toHaveBeenCalled();
+  expect(window.sessionStorage.getItem("efs-save:program-id")).toBe("job-id");
+  expect(
+    (screen.getByRole("button", { name: "Save program" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+});
+
+it("reconnects after a page refresh and reloads program data when the saved job succeeds", async () => {
+  window.sessionStorage.setItem("efs-save:program-id", "job-id");
+  const status = vi.spyOn(api, "programEfsJob").mockResolvedValue(succeeded);
+  const onSaved = vi.fn().mockResolvedValue(undefined);
+  render(<ProgramEfsReupload programId="program-id" onSaved={onSaved} />);
+  await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  expect(status).toHaveBeenCalledWith("program-id", "job-id");
+  expect(window.sessionStorage.getItem("efs-save:program-id")).toBeNull();
+});
+
+it("shows a failed background job without claiming that the EFS was saved", async () => {
+  window.sessionStorage.setItem("efs-save:program-id", "job-id");
+  vi.spyOn(api, "programEfsJob").mockResolvedValue({
+    ...queued,
+    status: "FAILED",
+    phase: "Importing responses",
+    error: "Database insert failed",
+  });
+  const onSaved = vi.fn();
+  render(<ProgramEfsReupload programId="program-id" onSaved={onSaved} />);
+  expect(await screen.findByRole("alert")).toHaveProperty(
+    "textContent",
+    "Database insert failed",
+  );
+  expect(onSaved).not.toHaveBeenCalled();
+  expect(window.sessionStorage.getItem("efs-save:program-id")).toBeNull();
 });

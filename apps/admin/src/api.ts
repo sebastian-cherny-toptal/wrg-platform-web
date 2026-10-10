@@ -296,6 +296,16 @@ export type HistoricalImportValidationSummary = {
   warningCount: number;
 };
 
+export type ProgramEfsJob = {
+  jobId: string;
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED";
+  phase: string;
+  respondents: number;
+  responses: number;
+  error: string | null;
+  saved: boolean;
+};
+
 export type HistoricalImportStatus = {
   importId: string;
   status: "draft" | "validated" | "committing" | "succeeded" | "failed";
@@ -1145,7 +1155,6 @@ export const api = {
   async reuploadProgramEfs(
     id: string,
     file: File,
-    revision?: string,
   ): Promise<{
     validation: HistoricalImportValidationSummary;
     revision: string;
@@ -1154,9 +1163,8 @@ export const api = {
     const auth = readAuth();
     const formData = new FormData();
     formData.append("efsFile", file);
-    if (revision !== undefined) formData.append("revision", revision);
     const response = await fetch(
-      `${apiBaseUrl}/admin/programs/${encodeURIComponent(id)}/efs${revision === undefined ? "/preview" : ""}`,
+      `${apiBaseUrl}/admin/programs/${encodeURIComponent(id)}/efs/preview`,
       {
         method: "POST",
         headers: {
@@ -1179,6 +1187,42 @@ export const api = {
       revision: string;
       saved: boolean;
     };
+  },
+
+  async startProgramEfsReupload(
+    id: string,
+    file: File,
+    revision: string,
+  ): Promise<ProgramEfsJob> {
+    const auth = readAuth();
+    const body = new FormData();
+    body.append("efsFile", file);
+    body.append("revision", revision);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/programs/${encodeURIComponent(id)}/efs`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok)
+      throw new ApiError(
+        stringValue(object(payload).message) || "EFS save could not be queued",
+        response.status,
+      );
+    return object(object(payload).data) as ProgramEfsJob;
+  },
+
+  async programEfsJob(id: string, jobId: string): Promise<ProgramEfsJob> {
+    const response = await request<{ data: ProgramEfsJob }>(
+      `/admin/programs/${encodeURIComponent(id)}/efs/jobs/${encodeURIComponent(jobId)}`,
+    );
+    return response.data;
   },
 
   async uploadProgramEmployerAssessmentDefinition(
