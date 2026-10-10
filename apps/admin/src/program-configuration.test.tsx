@@ -95,9 +95,24 @@ describe("program configuration", () => {
 
     const detail = async (label: string) =>
       (await screen.findByText(`${label}:`)).closest(".detail")?.textContent;
+    const reuploadsTab = await screen.findByRole("tab", { name: "Re-uploads" });
     expect(
-      (await screen.findByRole("link", { name: "Re-upload EA/EFS" })).getAttribute("href"),
-    ).toBe("/admin/projects/project-id/programs/program-id/edit");
+      screen.queryByRole("button", { name: "Upload Questions and Answers" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Upload and review EFS" }),
+    ).toBeNull();
+    fireEvent.click(reuploadsTab);
+    expect(
+      screen.getByRole("button", { name: "Upload Questions and Answers" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Upload EA labels" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Upload and review EFS" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Program Details" }));
     expect(await detail("Total # Organizations")).toBe(
       "Total # Organizations:3",
     );
@@ -196,16 +211,16 @@ describe("program configuration", () => {
       await screen.findByRole("tab", { name: "Report pricing" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("tab", { name: "Program Details" }).getAttribute(
-        "aria-selected",
-      ),
+      screen
+        .getByRole("tab", { name: "Program Details" })
+        .getAttribute("aria-selected"),
     ).toBe("true");
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     fireEvent.click(screen.getByRole("tab", { name: "Report pricing" }));
     expect(
-      screen.getByRole("tab", { name: "Report pricing" }).getAttribute(
-        "aria-selected",
-      ),
+      screen
+        .getByRole("tab", { name: "Report pricing" })
+        .getAttribute("aria-selected"),
     ).toBe("true");
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(screen.getByText("15-24")).toBeTruthy();

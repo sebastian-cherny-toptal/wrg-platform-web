@@ -65,6 +65,7 @@ import { useAuth } from "./auth";
 import { CatalogEditor, MoneyInput } from "./catalog-editor";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 import { BulkUserCreation } from "./bulk-user-creation";
+import { ProgramEfsReupload } from "./program-efs-reupload";
 import { bulkUsersCsv } from "./bulk-users";
 
 const permissionLabels: Record<string, string> = {
@@ -915,7 +916,7 @@ export function ProgramDetailPage() {
   const [sort, setSort] = useState("id:asc");
   const [page, setPage] = useState(1);
   const [activeProgramSection, setActiveProgramSection] = useState<
-    "details" | "pricing" | "store"
+    "details" | "pricing" | "store" | "reuploads"
   >("details");
   const [categoryPricing, setCategoryPricing] = useState<CategoryPricing[]>([]);
   const [products, setProducts] = useState<ReportProduct[]>([]);
@@ -1261,16 +1262,6 @@ export function ProgramDetailPage() {
     <>
       <PageHeader
         title={program.name}
-        actions={
-          canUploadBenefits ? (
-            <Link
-              className="primary-button compact action-link"
-              to={`/admin/projects/${projectId}/programs/${program.id}/edit`}
-            >
-              <FileUp size={16} /> Re-upload EA/EFS
-            </Link>
-          ) : null
-        }
         breadcrumb={
           <>
             <Link to="/admin/projects">Projects</Link>
@@ -1293,6 +1284,7 @@ export function ProgramDetailPage() {
             ["details", "Program Details"],
             ["pricing", "Report pricing"],
             ["store", "Store"],
+            ["reuploads", "Re-uploads"],
           ] as const
         ).map(([section, label]) => (
           <button
@@ -1480,144 +1472,168 @@ export function ProgramDetailPage() {
         </form>
       ) : null}
       {notice ? <div className="notice">{notice}</div> : null}
-      <section
-        className="program-sync-panel"
-        aria-labelledby="program-survey-definition-title"
+      <div
+        aria-labelledby="program-reuploads-tab"
+        className="program-tab-panel"
+        hidden={activeProgramSection !== "reuploads"}
+        id="program-reuploads-panel"
+        role="tabpanel"
       >
-        <div className="program-sync-heading">
-          <div>
-            <h3 id="program-survey-definition-title">Questions and Answers</h3>
-            <p>
-              Download this program's current EFS labels, edit the Questions and
-              Answers sheets, then upload the XLSX. Only listed questions in
-              this program are updated. Include every answer value for each
-              answer list you change.
-            </p>
+        <section
+          className="program-sync-panel"
+          aria-labelledby="program-survey-definition-title"
+        >
+          <div className="program-sync-heading">
+            <div>
+              <h3 id="program-survey-definition-title">
+                EFS Questions and Answers
+              </h3>
+              <p>
+                Download this program's current EFS labels, edit the Questions
+                and Answers sheets, then upload the XLSX. Only listed questions
+                in this program are updated. Include every answer value for each
+                answer list you change.
+              </p>
+            </div>
           </div>
-        </div>
-        <form onSubmit={(event) => void uploadSurveyDefinition(event)}>
-          <div className="program-sync-actions">
-            <button
-              className="secondary-button compact action-link"
-              type="button"
-              disabled={surveyDefinitionAction !== null}
-              onClick={() => void downloadSurveyDefinition()}
-            >
-              <Download size={16} />{" "}
-              {surveyDefinitionAction === "download"
-                ? "Downloading…"
-                : "Download Questions and Answers XLSX"}
-            </button>
-            {canUploadBenefits ? (
-              <>
-                <label>
-                  New Questions and Answers XLSX
-                  <input
-                    ref={surveyDefinitionInput}
-                    type="file"
-                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    disabled={surveyDefinitionAction !== null}
-                    onChange={(event) => {
-                      setSurveyDefinitionFile(event.target.files?.[0] ?? null);
-                      setSurveyDefinitionError("");
-                      setSurveyDefinitionNotice("");
-                    }}
-                  />
-                </label>
-                <button
-                  className="primary-button compact"
-                  type="submit"
-                  disabled={
-                    !surveyDefinitionFile || surveyDefinitionAction !== null
-                  }
-                >
-                  <FileUp size={16} />{" "}
-                  {surveyDefinitionAction === "upload"
-                    ? "Uploading…"
-                    : "Upload Questions and Answers"}
-                </button>
-              </>
+          <form onSubmit={(event) => void uploadSurveyDefinition(event)}>
+            <div className="program-sync-actions">
+              <button
+                className="secondary-button compact action-link"
+                type="button"
+                disabled={surveyDefinitionAction !== null}
+                onClick={() => void downloadSurveyDefinition()}
+              >
+                <Download size={16} />{" "}
+                {surveyDefinitionAction === "download"
+                  ? "Downloading…"
+                  : "Download Questions and Answers XLSX"}
+              </button>
+              {canUploadBenefits ? (
+                <>
+                  <label>
+                    New Questions and Answers XLSX
+                    <input
+                      ref={surveyDefinitionInput}
+                      type="file"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      disabled={surveyDefinitionAction !== null}
+                      onChange={(event) => {
+                        setSurveyDefinitionFile(
+                          event.target.files?.[0] ?? null,
+                        );
+                        setSurveyDefinitionError("");
+                        setSurveyDefinitionNotice("");
+                      }}
+                    />
+                  </label>
+                  <button
+                    className="primary-button compact"
+                    type="submit"
+                    disabled={
+                      !surveyDefinitionFile || surveyDefinitionAction !== null
+                    }
+                  >
+                    <FileUp size={16} />{" "}
+                    {surveyDefinitionAction === "upload"
+                      ? "Uploading…"
+                      : "Upload Questions and Answers"}
+                  </button>
+                </>
+              ) : null}
+            </div>
+            {surveyDefinitionError ? (
+              <p
+                className="form-error"
+                role="alert"
+                style={{ whiteSpace: "pre-line" }}
+              >
+                {surveyDefinitionError}
+              </p>
             ) : null}
-          </div>
-          {surveyDefinitionError ? (
-            <p
-              className="form-error"
-              role="alert"
-              style={{ whiteSpace: "pre-line" }}
-            >
-              {surveyDefinitionError}
-            </p>
-          ) : null}
-          {surveyDefinitionNotice ? (
-            <p className="program-sync-status" role="status">
-              {surveyDefinitionNotice}
-            </p>
-          ) : null}
-        </form>
-        <div className="program-sync-heading">
-          <div>
-            <h4>Benefits &amp; Best Practices labels (EA)</h4>
-            <p>
-              Optional. Download the default EA template, customize the
-              question, answer, and section labels, then upload it. If no file
-              is uploaded, the report keeps using its current built-in labels.
-            </p>
-          </div>
-        </div>
-        <form onSubmit={(event) => void uploadEaDefinition(event)}>
-          <div className="program-sync-actions">
-            <button
-              className="secondary-button compact action-link"
-              type="button"
-              disabled={eaDefinitionAction !== null}
-              onClick={() => void downloadEaDefinition()}
-            >
-              <Download size={16} />{" "}
-              {eaDefinitionAction === "download"
-                ? "Downloading…"
-                : "Download EA labels template"}
-            </button>
-            {canUploadBenefits ? (
-              <>
-                <label>
-                  New EA Questions and Answers XLSX
-                  <input
-                    ref={eaDefinitionInput}
-                    type="file"
-                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    disabled={eaDefinitionAction !== null}
-                    onChange={(event) => {
-                      setEaDefinitionFile(event.target.files?.[0] ?? null);
-                      setEaDefinitionError("");
-                      setEaDefinitionNotice("");
-                    }}
-                  />
-                </label>
-                <button
-                  className="primary-button compact"
-                  type="submit"
-                  disabled={!eaDefinitionFile || eaDefinitionAction !== null}
-                >
-                  <FileUp size={16} />{" "}
-                  {eaDefinitionAction === "upload"
-                    ? "Uploading…"
-                    : "Upload EA labels"}
-                </button>
-              </>
+            {surveyDefinitionNotice ? (
+              <p className="program-sync-status" role="status">
+                {surveyDefinitionNotice}
+              </p>
             ) : null}
+          </form>
+          <div className="program-sync-heading">
+            <div>
+              <h4>Benefits &amp; Best Practices labels (EA)</h4>
+              <p>
+                Optional. Download the default EA template, customize the
+                question, answer, and section labels, then upload it. If no file
+                is uploaded, the report keeps using its current built-in labels.
+              </p>
+            </div>
           </div>
-          {eaDefinitionError ? (
-            <p className="form-error" role="alert">
-              {eaDefinitionError}
-            </p>
-          ) : null}
-          {eaDefinitionNotice ? (
-            <p className="program-sync-status" role="status">
-              {eaDefinitionNotice}
-            </p>
-          ) : null}
-        </form>
-      </section>
+          <form onSubmit={(event) => void uploadEaDefinition(event)}>
+            <div className="program-sync-actions">
+              <button
+                className="secondary-button compact action-link"
+                type="button"
+                disabled={eaDefinitionAction !== null}
+                onClick={() => void downloadEaDefinition()}
+              >
+                <Download size={16} />{" "}
+                {eaDefinitionAction === "download"
+                  ? "Downloading…"
+                  : "Download EA labels template"}
+              </button>
+              {canUploadBenefits ? (
+                <>
+                  <label>
+                    New EA Questions and Answers XLSX
+                    <input
+                      ref={eaDefinitionInput}
+                      type="file"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      disabled={eaDefinitionAction !== null}
+                      onChange={(event) => {
+                        setEaDefinitionFile(event.target.files?.[0] ?? null);
+                        setEaDefinitionError("");
+                        setEaDefinitionNotice("");
+                      }}
+                    />
+                  </label>
+                  <button
+                    className="primary-button compact"
+                    type="submit"
+                    disabled={!eaDefinitionFile || eaDefinitionAction !== null}
+                  >
+                    <FileUp size={16} />{" "}
+                    {eaDefinitionAction === "upload"
+                      ? "Uploading…"
+                      : "Upload EA labels"}
+                  </button>
+                </>
+              ) : null}
+            </div>
+            {eaDefinitionError ? (
+              <p className="form-error" role="alert">
+                {eaDefinitionError}
+              </p>
+            ) : null}
+            {eaDefinitionNotice ? (
+              <p className="program-sync-status" role="status">
+                {eaDefinitionNotice}
+              </p>
+            ) : null}
+          </form>
+        </section>
+        {canUploadBenefits ? (
+          <ProgramEfsReupload
+            key={programId}
+            programId={program.id}
+            onSaved={async () => {
+              await Promise.all([
+                programLoaded.reload(),
+                organizationsLoaded.reload(),
+              ]);
+            }}
+          />
+        ) : null}
+      </div>
       <h2 className="section-title">Organization</h2>
       <Toolbar
         search={search}
@@ -3002,9 +3018,7 @@ function EditUserModal({
                   const availableProgramIds = new Set(
                     (projects.data ?? [])
                       .filter(({ id }) => selectedProjects.includes(id))
-                      .flatMap(({ programs }) =>
-                        programs.map(({ id }) => id),
-                      ),
+                      .flatMap(({ programs }) => programs.map(({ id }) => id)),
                   );
                   setForm({
                     ...form,

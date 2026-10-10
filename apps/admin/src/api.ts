@@ -283,6 +283,8 @@ export type HistoricalImportOrganizationSummary = {
     changed: boolean;
     previousRespondents: number;
     uploadedRespondents: number;
+    previousCompleted?: number;
+    uploadedCompleted?: number;
   };
 };
 
@@ -1137,6 +1139,45 @@ export const api = {
     return {
       updatedQuestions: Number(data.updatedQuestions ?? 0),
       unchanged: data.unchanged === true,
+    };
+  },
+
+  async reuploadProgramEfs(
+    id: string,
+    file: File,
+    revision?: string,
+  ): Promise<{
+    validation: HistoricalImportValidationSummary;
+    revision: string;
+    saved: boolean;
+  }> {
+    const auth = readAuth();
+    const formData = new FormData();
+    formData.append("efsFile", file);
+    if (revision !== undefined) formData.append("revision", revision);
+    const response = await fetch(
+      `${apiBaseUrl}/admin/programs/${encodeURIComponent(id)}/efs${revision === undefined ? "/preview" : ""}`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...authHeaders(auth?.accessToken),
+        },
+        body: formData,
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401 && auth?.accessToken) persistAuth(null);
+      throw new ApiError(
+        stringValue(object(payload).message) || "EFS could not be processed",
+        response.status,
+      );
+    }
+    return object(object(payload).data) as {
+      validation: HistoricalImportValidationSummary;
+      revision: string;
+      saved: boolean;
     };
   },
 
