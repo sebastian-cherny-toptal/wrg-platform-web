@@ -35,8 +35,35 @@ export function ProgramEfsReupload({
         }
       : null;
   });
+  const [checkingJob, setCheckingJob] = useState(!job);
+  useEffect(() => {
+    if (window.sessionStorage.getItem(storageKey)) return;
+    let active = true;
+    void api
+      .latestProgramEfsJob(programId)
+      .then((latest) => {
+        if (!active) return;
+        setJob(latest);
+        if (latest?.status === "PENDING" || latest?.status === "RUNNING")
+          window.sessionStorage.setItem(storageKey, latest.jobId);
+        if (latest?.status === "FAILED")
+          setError(latest.error || "EFS save failed.");
+      })
+      .catch(() => {
+        if (active)
+          setError(
+            "Could not check the last EFS save. Reload the page to check its status.",
+          );
+      })
+      .finally(() => {
+        if (active) setCheckingJob(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [programId, storageKey]);
   const saving = job?.status === "PENDING" || job?.status === "RUNNING";
-  const busy = action !== null || saving;
+  const busy = action !== null || saving || checkingJob;
   useEffect(() => {
     if (!job?.jobId || !saving) return;
     let active = true;
@@ -144,12 +171,29 @@ export function ProgramEfsReupload({
           }
         />
       ) : null}
+      {checkingJob ? <p role="status">Checking the last EFS save…</p> : null}
+      {job ? (
+        <p className="program-sync-status">
+          Save job: {job.jobId}
+          {job.startedAt
+            ? ` · Started ${new Date(job.startedAt).toLocaleString()}`
+            : ""}
+          {job.finishedAt
+            ? ` · Finished ${new Date(job.finishedAt).toLocaleString()}`
+            : ""}
+          {job.status === "SUCCEEDED"
+            ? " · All organizations saved. Their uploaded data is now live."
+            : ""}
+          {job.status === "FAILED" ? " · Failed" : ""}
+        </p>
+      ) : null}
       {saving ? (
         <p className="program-sync-status" role="status">
           {job.phase} · {job.respondents.toLocaleString()} respondents and{" "}
           {job.responses.toLocaleString()} responses imported. This save
           continues in the background; you can return to this page to check
-          progress.
+          progress. All organizations become available together after the save
+          succeeds.
         </p>
       ) : null}
       <div className="program-sync-heading">

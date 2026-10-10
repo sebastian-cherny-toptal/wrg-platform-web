@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -2437,7 +2438,7 @@ export function Modal({
   children: ReactNode;
   onClose: () => void;
 }) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };

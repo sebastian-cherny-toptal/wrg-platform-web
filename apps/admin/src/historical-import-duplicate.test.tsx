@@ -5,6 +5,8 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { useLayoutEffect, useState } from "react";
+import { Modal } from "./admin";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, type ProgramRecord, type ProjectRecord } from "./api";
@@ -121,7 +123,7 @@ describe("historical import duplicate program check", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
     await screen.findByRole("dialog", { name: "Program already imported" });
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("opens the existing program edit page when Accept is clicked", async () => {
@@ -143,4 +145,20 @@ describe("historical import duplicate program check", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+});
+
+it("handles Escape as soon as the dialog is mounted", () => {
+  function ImmediatelyDismissedModal() {
+    const [open, setOpen] = useState(true);
+    useLayoutEffect(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    }, []);
+    return open ? (
+      <Modal title="Immediate Escape" onClose={() => setOpen(false)}>
+        Dialog content
+      </Modal>
+    ) : null;
+  }
+  render(<ImmediatelyDismissedModal />);
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

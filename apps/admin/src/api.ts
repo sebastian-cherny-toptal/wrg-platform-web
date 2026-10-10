@@ -298,6 +298,8 @@ export type HistoricalImportValidationSummary = {
 
 export type ProgramEfsJob = {
   jobId: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
   status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED";
   phase: string;
   respondents: number;
@@ -1216,6 +1218,13 @@ export const api = {
         response.status,
       );
     return object(object(payload).data) as ProgramEfsJob;
+  },
+
+  async latestProgramEfsJob(id: string): Promise<ProgramEfsJob | null> {
+    const response = await request<{ data: ProgramEfsJob | null }>(
+      `/admin/programs/${encodeURIComponent(id)}/efs/jobs/latest`,
+    );
+    return response.data;
   },
 
   async programEfsJob(id: string, jobId: string): Promise<ProgramEfsJob> {

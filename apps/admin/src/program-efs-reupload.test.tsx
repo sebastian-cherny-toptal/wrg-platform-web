@@ -5,9 +5,13 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "./api";
 import { ProgramEfsReupload } from "./program-efs-reupload";
+
+beforeEach(() => {
+  vi.spyOn(api, "latestProgramEfsJob").mockResolvedValue(null);
+});
 
 afterEach(() => {
   cleanup();
@@ -95,6 +99,15 @@ it("reviews all organizations and requires Save program before replacing respond
   fireEvent.change(screen.getByLabelText("New EFS respondents XLSX"), {
     target: { files: [file] },
   });
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Upload and review EFS",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false),
+  );
   fireEvent.click(
     screen.getByRole("button", { name: "Upload and review EFS" }),
   );
@@ -118,6 +131,15 @@ it("changing files discards the previous review", async () => {
   fireEvent.change(input, {
     target: { files: [new File(["one"], "one.xlsx")] },
   });
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Upload and review EFS",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false),
+  );
   fireEvent.click(
     screen.getByRole("button", { name: "Upload and review EFS" }),
   );
@@ -141,6 +163,15 @@ it("blocks saving when organization matching or workbook validation fails", asyn
   fireEvent.change(screen.getByLabelText("New EFS respondents XLSX"), {
     target: { files: [new File(["efs"], "efs.xlsx")] },
   });
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Upload and review EFS",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false),
+  );
   fireEvent.click(
     screen.getByRole("button", { name: "Upload and review EFS" }),
   );
@@ -159,6 +190,15 @@ it("keeps the file available after a failed save and requires a fresh review", a
   fireEvent.change(screen.getByLabelText("New EFS respondents XLSX"), {
     target: { files: [new File(["efs"], "efs.xlsx")] },
   });
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Upload and review EFS",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false),
+  );
   fireEvent.click(
     screen.getByRole("button", { name: "Upload and review EFS" }),
   );
@@ -193,6 +233,15 @@ it("shows background progress while the job runs and does not report an early su
   fireEvent.change(screen.getByLabelText("New EFS respondents XLSX"), {
     target: { files: [new File(["efs"], "efs.xlsx")] },
   });
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Upload and review EFS",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false),
+  );
   fireEvent.click(
     screen.getByRole("button", { name: "Upload and review EFS" }),
   );
@@ -234,4 +283,14 @@ it("shows a failed background job without claiming that the EFS was saved", asyn
   );
   expect(onSaved).not.toHaveBeenCalled();
   expect(window.sessionStorage.getItem("efs-save:program-id")).toBeNull();
+});
+
+it("discovers a job queued from another browser and shows when all organizations are saved", async () => {
+  vi.mocked(api.latestProgramEfsJob).mockResolvedValue({
+    ...succeeded,
+    finishedAt: "2026-10-10T17:00:00.000Z",
+  });
+  render(<ProgramEfsReupload programId="program-id" onSaved={vi.fn()} />);
+  expect(await screen.findByText(/All organizations saved/u)).toBeTruthy();
+  expect(screen.getByText(/job-id/u)).toBeTruthy();
 });
