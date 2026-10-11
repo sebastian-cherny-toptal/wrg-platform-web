@@ -313,3 +313,20 @@ it("warns when a running worker stops reporting progress without claiming it fai
   expect(screen.queryByRole("alert")).toBeNull();
   expect(onSaved).not.toHaveBeenCalled();
 });
+
+it("makes a restarted attempt waiting for worker recovery explicit", async () => {
+  window.sessionStorage.setItem("efs-save:program-id", "job-id");
+  vi.spyOn(api, "programEfsJob").mockResolvedValue({
+    ...queued,
+    attempts: 2,
+    queueState: "waiting",
+    phase: "Waiting for worker recovery",
+  });
+  const onSaved = vi.fn();
+  render(<ProgramEfsReupload programId="program-id" onSaved={onSaved} />);
+  expect(
+    await screen.findByText(/Attempt 2: this import restarted/u),
+  ).toBeTruthy();
+  expect(screen.getByText(/Waiting for worker recovery/u)).toBeTruthy();
+  expect(onSaved).not.toHaveBeenCalled();
+});

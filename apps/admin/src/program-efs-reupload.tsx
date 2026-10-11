@@ -191,6 +191,12 @@ export function ProgramEfsReupload({
           {job.status === "FAILED" ? " · Failed" : ""}
         </p>
       ) : null}
+      {saving && (job.attempts ?? 0) > 1 ? (
+        <p role="status">
+          Attempt {job.attempts}: this import restarted after a worker
+          interruption.
+        </p>
+      ) : null}
       {saving && job.queueState === "unavailable" ? (
         <p role="status">
           Worker queue status is unavailable. The last reported progress is
