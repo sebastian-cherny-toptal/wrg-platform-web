@@ -5,6 +5,51 @@ import { describe, expect, it } from "vitest";
 import { BenefitsBenchmarkTable } from "./benefits-benchmark-table";
 
 describe("BenefitsBenchmarkTable", () => {
+  it("keeps matrix item headings with their ordinal response percentages", async () => {
+    render(
+      <BenefitsBenchmarkTable
+        headers={[{ title: "All", type: "All_Yes" }]}
+        questions={[
+          {
+            title: "Supplementary benefits",
+            nestedData: [
+              {
+                title: "Standard Offering",
+                groupLabel: "Life Assurance",
+                type: "%",
+                dataValues: [63],
+              },
+              {
+                title: "Not Offered",
+                groupLabel: "Life Assurance",
+                type: "%",
+                dataValues: [37],
+              },
+              {
+                title: "Standard Offering",
+                groupLabel: "Health Cash Plan",
+                type: "%",
+                dataValues: [31],
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    const button = screen.getAllByRole("button", {
+      name: "Supplementary benefits",
+    })[0];
+    if (!button) throw new Error("Matrix disclosure was not rendered");
+    await userEvent.click(button);
+    expect(
+      screen.getAllByRole("heading", { name: "Life Assurance" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("heading", { name: "Health Cash Plan" }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("63%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("31%").length).toBeGreaterThan(0);
+  });
   it("reveals workbook percentages when a question is expanded", async () => {
     const user = userEvent.setup();
     render(

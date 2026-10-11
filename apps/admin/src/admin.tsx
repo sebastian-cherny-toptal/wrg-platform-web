@@ -1560,11 +1560,13 @@ export function ProgramDetailPage() {
           </form>
           <div className="program-sync-heading">
             <div>
-              <h4>Benefits &amp; Best Practices labels (EA)</h4>
+              <h4>Benefits &amp; Best Practices definition (EA)</h4>
               <p>
-                Optional. Download the default EA template, customize the
-                question, answer, and section labels, then upload it. If no file
-                is uploaded, the report keeps using its current built-in labels.
+                Optional. Download the current EA definition to edit labels or
+                upload a custom report definition with source columns and
+                calculation mappings. raw_answer is the exported code;
+                answer_label is the display text. Custom definitions replace the
+                previous custom report rows.
               </p>
             </div>
           </div>
@@ -2848,7 +2850,12 @@ function AddUserModal({
                   }
                   options={availableOrganizations.map((organization) => ({
                     value: organization.id,
-                    label: organization.name,
+                    label:
+                      availableOrganizations.filter(
+                        ({ name }) => name === organization.name,
+                      ).length > 1
+                        ? `${organization.name} (${organization.id.slice(-8)})`
+                        : organization.name,
                   }))}
                   placeholder={
                     organizations.loading
@@ -2940,6 +2947,11 @@ function EditUserModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const role = user.roles?.[0] ?? user.role;
+  const organizationAccess = role === "client" || role === "promotional";
+  const organizations = useLoad(`edit-user-organizations-${user.id}`, () =>
+    organizationAccess ? api.organizationOptions() : Promise.resolve([]),
+  );
   const projects = useLoad(`edit-user-projects-${user.id}`, api.projects);
   const [form, setForm] = useState({
     fullName: user.fullName,
@@ -2947,14 +2959,66 @@ function EditUserModal({
     username: user.username ?? "",
     projects: user.projects.map(({ id }) => id),
     programs: user.programs ?? [],
+    organizationId: user.organization?.id ?? "",
   });
-  const assignedProjects = (projects.data ?? []).filter((project) =>
-    form.projects.includes(project.id),
+  useEffect(() => {
+    if (!organizationAccess || !organizations.data) return;
+    setForm((current) => {
+      if (!current.organizationId) return current;
+      const allowed = new Set(
+        organizations.data?.find(({ id }) => id === current.organizationId)
+          ?.programIds ?? [],
+      );
+      const programs = current.programs.filter((id) => allowed.has(id));
+      return programs.length === current.programs.length
+        ? current
+        : { ...current, programs };
+    });
+  }, [organizationAccess, organizations.data]);
+  const organizationOptions = [...(organizations.data ?? [])];
+  if (
+    user.organization &&
+    !organizationOptions.some(({ id }) => id === user.organization?.id)
+  ) {
+    organizationOptions.push({
+      ...user.organization,
+      programIds: [],
+    });
+  }
+  const selectedOrganization = organizationOptions.find(
+    ({ id }) => id === form.organizationId,
+  );
+  const availableProgramIds = new Set(selectedOrganization?.programIds ?? []);
+  const assignedProjects = (projects.data ?? [])
+    .filter((project) =>
+      organizationAccess && form.organizationId
+        ? project.programs.some(({ id }) => availableProgramIds.has(id))
+        : form.projects.includes(project.id),
+    )
+    .map((project) => ({
+      ...project,
+      programs:
+        organizationAccess && form.organizationId
+          ? project.programs.filter(({ id }) => availableProgramIds.has(id))
+          : project.programs,
+    }));
+  const removedPrograms = (user.programs ?? []).filter(
+    (id) => !form.programs.includes(id),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (
+      organizationAccess &&
+      role === "client" &&
+      (!form.organizationId || !form.programs.length)
+    ) {
+      setError(
+        "Select an organization and at least one program for the client user.",
+      );
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -2962,7 +3026,17 @@ function EditUserModal({
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         username: form.username.trim(),
-        projects: form.projects,
+        projects:
+          organizationAccess && form.organizationId
+            ? assignedProjects
+                .filter((project) =>
+                  project.programs.some(({ id }) => form.programs.includes(id)),
+                )
+                .map(({ id }) => id)
+            : form.projects,
+        ...(organizationAccess && form.organizationId
+          ? { organizationId: form.organizationId }
+          : {}),
         programs: form.programs,
       });
       onSaved();
@@ -3000,49 +3074,89 @@ function EditUserModal({
             setForm({ ...form, username: event.target.value })
           }
         />
-        <fieldset>
-          <legend>Assigned projects</legend>
-          <small>Select the projects this user can access.</small>
-          {projects.loading ? <p>Loading projects…</p> : null}
-          {projects.error ? (
-            <p className="form-error">{projects.error}</p>
-          ) : null}
-          {(projects.data ?? []).map((project) => (
-            <label key={project.id}>
-              <input
-                type="checkbox"
-                checked={form.projects.includes(project.id)}
-                onChange={(event) => {
-                  const selectedProjects = event.target.checked
-                    ? [...form.projects, project.id]
-                    : form.projects.filter((id) => id !== project.id);
-                  const availableProgramIds = new Set(
-                    (projects.data ?? [])
-                      .filter(({ id }) => selectedProjects.includes(id))
-                      .flatMap(({ programs }) => programs.map(({ id }) => id)),
-                  );
-                  setForm({
-                    ...form,
-                    projects: selectedProjects,
-                    programs: form.programs.filter((id) =>
-                      availableProgramIds.has(id),
-                    ),
-                  });
-                }}
-              />{" "}
-              {project.name}
-            </label>
-          ))}
-          {!projects.loading &&
-          !projects.error &&
-          !(projects.data ?? []).length ? (
-            <p>No projects are available.</p>
-          ) : null}
-        </fieldset>
+        {organizationAccess ? (
+          <div className="organization-picker">
+            <label>Organization</label>
+            <SearchableSelect
+              ariaLabel="Organization"
+              value={form.organizationId}
+              onChange={(organizationId) => {
+                const allowed = new Set(
+                  organizationOptions.find(({ id }) => id === organizationId)
+                    ?.programIds ?? [],
+                );
+                setForm({
+                  ...form,
+                  organizationId,
+                  programs: form.programs.filter((id) => allowed.has(id)),
+                });
+              }}
+              options={organizationOptions.map((organization) => ({
+                value: organization.id,
+                label:
+                  organizationOptions.filter(
+                    ({ name }) => name === organization.name,
+                  ).length > 1
+                    ? `${organization.name} (${organization.id.slice(-8)})`
+                    : organization.name,
+              }))}
+              placeholder="Choose an organization…"
+              searchPlaceholder="Search organizations…"
+              disabled={organizations.loading}
+              required={role === "client"}
+            />
+            {organizations.error ? (
+              <p className="form-error">{organizations.error}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {!(organizationAccess && form.organizationId) ? (
+          <fieldset>
+            <legend>Assigned projects</legend>
+            <small>Select the projects this user can access.</small>
+            {projects.loading ? <p>Loading projects…</p> : null}
+            {projects.error ? (
+              <p className="form-error">{projects.error}</p>
+            ) : null}
+            {(projects.data ?? []).map((project) => (
+              <label key={project.id}>
+                <input
+                  type="checkbox"
+                  checked={form.projects.includes(project.id)}
+                  onChange={(event) => {
+                    const selectedProjects = event.target.checked
+                      ? [...form.projects, project.id]
+                      : form.projects.filter((id) => id !== project.id);
+                    const availableProgramIds = new Set(
+                      (projects.data ?? [])
+                        .filter(({ id }) => selectedProjects.includes(id))
+                        .flatMap(({ programs }) =>
+                          programs.map(({ id }) => id),
+                        ),
+                    );
+                    setForm({
+                      ...form,
+                      projects: selectedProjects,
+                      programs: form.programs.filter((id) =>
+                        availableProgramIds.has(id),
+                      ),
+                    });
+                  }}
+                />{" "}
+                {project.name}
+              </label>
+            ))}
+            {!projects.loading &&
+            !projects.error &&
+            !(projects.data ?? []).length ? (
+              <p>No projects are available.</p>
+            ) : null}
+          </fieldset>
+        ) : null}
         <fieldset>
           <legend>Assigned programs</legend>
           <small>
-            Select programs from the user's projects to compare different years.
+            Select programs available to this user to compare different years.
           </small>
           {assignedProjects.map((project) => (
             <div key={project.id}>
@@ -3075,6 +3189,22 @@ function EditUserModal({
             <p>Select a project to assign its programs.</p>
           ) : null}
         </fieldset>
+        {removedPrograms.length ? (
+          <p role="status">
+            Programs to remove:{" "}
+            {removedPrograms
+              .map((id) => {
+                const program = user.programDetails.find(
+                  (item) => item.id === id,
+                );
+                return program
+                  ? `${program.name}${program.year ? ` (${program.year})` : ""}`
+                  : id;
+              })
+              .join(", ")}
+            . Review these removals before saving.
+          </p>
+        ) : null}
         {error ? <p className="form-error">{error}</p> : null}
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>
@@ -3082,7 +3212,13 @@ function EditUserModal({
           </button>
           <button
             className="primary-button compact"
-            disabled={saving || projects.loading || Boolean(projects.error)}
+            disabled={
+              saving ||
+              projects.loading ||
+              Boolean(projects.error) ||
+              (organizationAccess &&
+                (organizations.loading || Boolean(organizations.error)))
+            }
           >
             {saving ? "Saving…" : "Save changes"}
           </button>

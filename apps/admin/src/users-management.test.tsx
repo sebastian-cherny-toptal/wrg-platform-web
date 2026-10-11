@@ -432,3 +432,133 @@ it("assigns a project to a user whose previous project was removed", async () =>
     }),
   );
 });
+
+it("repairs a legacy client's organization and shows incompatible program removals", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([
+    {
+      ...user,
+      role: "client",
+      projects: [],
+      organization: { id: "legacy", name: "Tri Arrows Aluminum" },
+      programs: ["old"],
+      programDetails: [{ id: "old", name: "Historical program", year: 2025 }],
+    },
+  ]);
+  vi.spyOn(api, "organizationOptions").mockResolvedValue([
+    { id: "correct", name: "Tri-Arrows Aluminum, Inc.", programIds: ["new"] },
+    { id: "unrelated", name: "Other Company", programIds: ["other"] },
+  ]);
+  vi.spyOn(api, "projects").mockResolvedValue([
+    {
+      id: "project",
+      name: "Workforce",
+      createdAt: null,
+      programs: ["new", "other"].map((id) => ({
+        id,
+        name: id === "new" ? "New program" : "Other program",
+        year: 2026,
+        createdAt: null,
+        organizationCount: 1,
+        winnersCount: 0,
+        categorySummaries: [],
+        latestZohoSync: null,
+      })),
+    },
+  ]);
+  const update = vi.spyOn(api, "updateUser").mockResolvedValue();
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Edit Alex Example" }),
+  );
+  const dialog = screen.getByRole("dialog");
+  const selector = within(dialog).getByRole("button", { name: "Organization" });
+  await waitFor(() =>
+    expect((selector as HTMLButtonElement).disabled).toBe(false),
+  );
+  fireEvent.click(selector);
+  fireEvent.click(
+    await screen.findByRole("option", { name: "Tri-Arrows Aluminum, Inc." }),
+  );
+  expect(within(dialog).getByRole("status").textContent).toContain(
+    "Historical program (2025)",
+  );
+  expect(
+    within(dialog).queryByRole("checkbox", { name: "Other program (2026)" }),
+  ).toBeNull();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+  expect(update).not.toHaveBeenCalled();
+  expect(
+    within(dialog).getByText(
+      "Select an organization and at least one program for the client user.",
+    ),
+  ).toBeTruthy();
+  fireEvent.click(
+    within(dialog).getByRole("checkbox", { name: "New program (2026)" }),
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(update).toHaveBeenCalledWith("user-1", {
+      fullName: "Alex Example",
+      email: "alex@example.com",
+      username: "alex",
+      organizationId: "correct",
+      programs: ["new"],
+      projects: ["project"],
+    }),
+  );
+});
+
+it("keeps a failed organization reassignment open and preserves the user's selections", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([
+    { ...user, role: "client", programs: ["old"] },
+  ]);
+  vi.spyOn(api, "organizationOptions").mockResolvedValue([
+    { id: "org-1", name: "Acme", programIds: ["old"] },
+  ]);
+  vi.spyOn(api, "projects").mockResolvedValue([
+    {
+      id: "p1",
+      name: "Workforce",
+      createdAt: null,
+      programs: [
+        {
+          id: "old",
+          name: "Workforce",
+          year: 2025,
+          createdAt: null,
+          organizationCount: 1,
+          winnersCount: 0,
+          categorySummaries: [],
+          latestZohoSync: null,
+        },
+      ],
+    },
+  ]);
+  vi.spyOn(api, "updateUser").mockRejectedValue(
+    new Error("Organization changed; refresh the selection"),
+  );
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Edit Alex Example" }),
+  );
+  const program = await screen.findByRole("checkbox", {
+    name: "Workforce (2025)",
+  });
+  expect((program as HTMLInputElement).checked).toBe(true);
+  const save = screen.getByRole("button", { name: "Save changes" });
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(save);
+  expect(
+    await screen.findByText("Organization changed; refresh the selection"),
+  ).toBeTruthy();
+  expect((program as HTMLInputElement).checked).toBe(true);
+  expect(screen.getByRole("dialog")).toBeTruthy();
+});

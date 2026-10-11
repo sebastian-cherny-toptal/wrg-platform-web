@@ -54,7 +54,7 @@ describe("organization options", () => {
     ).toEqual(["2"]);
   });
 
-  it("merges programs belonging to the same source organization", () => {
+  it("merges repeated projections of the same database organization", () => {
     const first = organization("database-1", "Example Company");
     first.sourceId = "source-19";
     first.programs = [
@@ -66,7 +66,7 @@ describe("organization options", () => {
         projectName: "Project 1",
       },
     ];
-    const second = organization("database-2", "Example Company");
+    const second = organization("database-1", "Example Company");
     second.sourceId = "source-19";
     second.programs = [
       {
@@ -84,6 +84,13 @@ describe("organization options", () => {
       "program-1",
       "program-2",
     ]);
+  });
+
+  it("keeps different companies separate even when their names and source IDs match", () => {
+    const first = organization("database-1", "Acme");
+    const second = organization("database-2", "Acme");
+    first.sourceId = second.sourceId = "program-local-1";
+    expect(mergeOrganizations([first, second])).toHaveLength(2);
   });
 
   it("does not merge program-local source IDs belonging to different companies", () => {

@@ -40,6 +40,31 @@ test("shows sticky cohorts and expands workbook percentages", async ({
                     { title: "No", type: "%", dataValues: [12, 49] },
                   ],
                 },
+                {
+                  id: "custom-matrix",
+                  title: "Supplementary benefits",
+                  type: "%",
+                  nestedData: [
+                    {
+                      title: "Standard Offering",
+                      groupLabel: "Life Assurance",
+                      type: "%",
+                      dataValues: [63, 42],
+                    },
+                    {
+                      title: "Not Offered",
+                      groupLabel: "Life Assurance",
+                      type: "%",
+                      dataValues: [37, 58],
+                    },
+                    {
+                      title: "Standard Offering",
+                      groupLabel: "Health Cash Plan",
+                      type: "%",
+                      dataValues: [31, 25],
+                    },
+                  ],
+                },
               ],
             },
           ],
@@ -47,12 +72,16 @@ test("shows sticky cohorts and expands workbook percentages", async ({
       }),
     });
   });
-  await page.route("**/client/employerBenchmarkReportExcel?**", async (route) => {
-    await route.fulfill({
-      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      body: "workbook fixture",
-    });
-  });
+  await page.route(
+    "**/client/employerBenchmarkReportExcel?**",
+    async (route) => {
+      await route.fulfill({
+        contentType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        body: "workbook fixture",
+      });
+    },
+  );
 
   await page.goto("/login");
   await page.getByLabel("Username").fill(clientFixtureUsername);
@@ -68,10 +97,10 @@ test("shows sticky cohorts and expands workbook percentages", async ({
     .locator("..");
   await expect(stickyHeader).toHaveCSS("position", "sticky");
   await expect(
-    page.getByText("Winners", { exact: true }).first(),
+    page.getByText("Winners", { exact: true }).and(page.locator(":visible")).first(),
   ).toBeVisible();
   await expect(
-    page.getByText("Non-Winners", { exact: true }).first(),
+    page.getByText("Non-Winners", { exact: true }).and(page.locator(":visible")).first(),
   ).toBeVisible();
 
   await page
@@ -79,15 +108,27 @@ test("shows sticky cohorts and expands workbook percentages", async ({
       name: "Does your organization recognize milestones?",
     })
     .click();
-  await expect(page.getByText("88%").first()).toBeVisible();
-  await expect(page.getByText("51%").first()).toBeVisible();
+  await expect(page.getByText("88%").and(page.locator(":visible")).first()).toBeVisible();
+  await expect(page.getByText("51%").and(page.locator(":visible")).first()).toBeVisible();
+  await page.getByRole("button", { name: "Supplementary benefits" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Life Assurance" }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Health Cash Plan" }).first(),
+  ).toBeVisible();
+  await expect(page.getByText("63%").and(page.locator(":visible")).first()).toBeVisible();
 
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download Report" }).click();
-  expect((await download).suggestedFilename()).toBe("Benefits_&_Best_Practices.xlsx");
+  expect((await download).suggestedFilename()).toBe(
+    "Benefits_&_Best_Practices.xlsx",
+  );
 });
 
-test("shows the source-data error without a download when no EA report exists", async ({ page }) => {
+test("shows the source-data error without a download when no EA report exists", async ({
+  page,
+}) => {
   await installClientApiFixture(page, { dashboard: true });
   await page.route("**/client/employerBenchmarkReport?**", async (route) => {
     await route.fulfill({
@@ -110,5 +151,7 @@ test("shows the source-data error without a download when no EA report exists", 
   await expect(page.getByRole("alert")).toContainText(
     "Benefits & Best Practices is not available for this program",
   );
-  await expect(page.getByRole("button", { name: "Download Report" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Download Report" }),
+  ).toHaveCount(0);
 });

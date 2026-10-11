@@ -61,6 +61,56 @@ const preparedResponse = (
 });
 
 describe("local workbook selection", () => {
+  it("validates EA source mappings against EA and recovers after replacing the definition", async () => {
+    const eaFile = new File(["ea"], "ea.xlsx");
+    const efsFile = new File(["efs"], "efs.xlsx");
+    const definition = new File(["bad"], "custom-ea.xlsx");
+    const validation = {
+      issues: [
+        { level: "error" as const, message: "Missing EA source column" },
+      ],
+      workbooks: [],
+      organizations: [],
+      blockingErrorCount: 1,
+      warningCount: 0,
+    };
+    const prepare = vi
+      .spyOn(api, "prepareHistoricalImport")
+      .mockResolvedValue({ metadata: draft.metadata, validation });
+    const complete = vi.fn();
+    const { container } = render(
+      <SurveyDefinitionStep
+        draft={{ metadata: draft.metadata, eaFile, efsFile }}
+        onComplete={complete}
+        onBack={vi.fn()}
+        onRestart={vi.fn()}
+      />,
+    );
+    fireEvent.change(container.querySelectorAll('input[type="file"]')[1]!, {
+      target: { files: [definition] },
+    });
+    await waitFor(() =>
+      expect(prepare).toHaveBeenCalledWith(draft.metadata, {
+        eaFile,
+        employerAssessmentDefinitionFile: definition,
+      }),
+    );
+    await screen.findByText("Missing EA source column");
+    fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
+    expect(complete).not.toHaveBeenCalled();
+    prepare.mockResolvedValue({
+      metadata: draft.metadata,
+      validation: { ...validation, issues: [], blockingErrorCount: 0 },
+    });
+    fireEvent.change(container.querySelectorAll('input[type="file"]')[1]!, {
+      target: { files: [new File(["good"], "fixed-ea.xlsx")] },
+    });
+    await waitFor(() =>
+      expect(screen.queryByText("Missing EA source column")).toBeNull(),
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
   it("moves unresolved questions to the survey definition step for correction", async () => {
     const onComplete = vi.fn();
     render(

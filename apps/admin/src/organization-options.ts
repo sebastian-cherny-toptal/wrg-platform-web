@@ -1,11 +1,7 @@
 import type { OrganizationRecord } from "./api";
 
 function organizationIdentity(organization: OrganizationRecord): string {
-  return `name:${organization.name
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/gu, " ")
-    .trim()}`;
+  return organization.id;
 }
 
 export function mergeOrganizations(

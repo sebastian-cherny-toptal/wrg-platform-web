@@ -4,11 +4,15 @@ import {
   render,
   screen,
   within,
+  waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CategoryPricing } from "./api";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { api, type CategoryPricing } from "./api";
 import { WinnersStep } from "./historical-import";
 
+beforeEach(() => {
+  vi.spyOn(api, "organizationOptions").mockResolvedValue([]);
+});
 afterEach(cleanup);
 
 const categoryPricing: CategoryPricing[] = [
@@ -80,7 +84,7 @@ describe("WinnersStep benchmark category choices", () => {
 });
 
 for (const categories of [undefined, [], ["Default"]]) {
-  it(`assigns every organization to Default for ${JSON.stringify(categories)}`, () => {
+  it(`assigns every organization to Default for ${JSON.stringify(categories)}`, async () => {
     const onComplete = vi.fn();
     render(
       <WinnersStep
@@ -91,6 +95,7 @@ for (const categories of [undefined, [], ["Default"]]) {
             organizationPrograms: [
               {
                 organizationKey: "acme",
+                canonicalOrganizationId: "new",
                 organizationName: "Acme",
                 surveysSent: 20,
                 isWinner: "Y",
@@ -110,6 +115,15 @@ for (const categories of [undefined, [], ["Default"]]) {
         .checked,
     ).toBe(true);
     expect(screen.queryByRole("radio", { name: "Large" })).toBeNull();
+    await waitFor(() =>
+      expect(
+        (
+          screen.getAllByRole("button", {
+            name: /Continue/,
+          })[0] as HTMLButtonElement
+        ).disabled,
+      ).toBe(false),
+    );
     fireEvent.click(screen.getAllByRole("button", { name: /Continue/ })[0]!);
     expect(
       onComplete.mock.calls[0]?.[0].metadata.organizationPrograms[0],

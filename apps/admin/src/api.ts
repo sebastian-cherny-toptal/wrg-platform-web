@@ -103,6 +103,7 @@ export type WinnerStatus = "Y" | "N";
 
 export type ZohoOrganizationInfo = {
   organizationId: string;
+  zohoAccountId?: string;
   organizationName: string | null;
   isWinner: WinnerStatus | null;
   surveysSent: number;
@@ -120,6 +121,7 @@ export type ZohoOrganizationInfo = {
 
 export type ZohoWinnerOrganization = {
   organizationId: string;
+  zohoAccountId?: string;
   organizationName: string | null;
   currentZohoCategory: string | null;
 };
@@ -222,6 +224,8 @@ export type HistoricalImportMetadata = {
   organizationPrograms?: Array<{
     organizationProgramId?: string;
     organizationKey?: string;
+    canonicalOrganizationId?: string;
+    zohoAccountId?: string;
     sourceOrganizationId?: string;
     organizationName?: string;
     surveysSent: number;
@@ -372,6 +376,7 @@ export type BulkUserCatalog = {
     id: string;
     name: string;
     programIds: string[];
+    zohoAccountId?: string;
   }>;
   users: Array<{
     id: string;
@@ -435,6 +440,7 @@ export type CustomReportCatalog = {
 };
 
 export type ProgramZohoResyncField =
+  | "zohoAccountId"
   | "organizationName"
   | "stage"
   | "isWinner"
@@ -1364,11 +1370,11 @@ export const api = {
   },
 
   async organizationOptions(
-    projectId: string,
+    projectId?: string,
   ): Promise<BulkUserCatalog["organizations"]> {
-    const query = new URLSearchParams({ projectId });
+    const query = projectId ? `?${new URLSearchParams({ projectId })}` : "";
     const response = await request<unknown>(
-      `/admin/organization-options?${query.toString()}`,
+      `/admin/organization-options${query}`,
     );
     return array(object(response).data).map((entry) => {
       const organization = object(entry);
@@ -1376,6 +1382,9 @@ export const api = {
         id: stringValue(organization.id),
         name: stringValue(organization.name),
         programIds: array(organization.programIds).map((id) => stringValue(id)),
+        ...(stringValue(organization.zohoAccountId)
+          ? { zohoAccountId: stringValue(organization.zohoAccountId) }
+          : {}),
       };
     });
   },
@@ -1800,6 +1809,9 @@ export const api = {
           const surveysSent = Number(organization.surveysSent);
           return {
             organizationId: stringValue(organization.organizationId),
+            ...(stringValue(organization.zohoAccountId)
+              ? { zohoAccountId: stringValue(organization.zohoAccountId) }
+              : {}),
             organizationName:
               stringValue(organization.organizationName) || null,
             isWinner: winnerStatus(organization.isWinner),
@@ -1860,6 +1872,9 @@ export const api = {
       const surveysSent = Number(organization.surveysSent);
       return {
         organizationId: stringValue(organization.organizationId),
+        ...(stringValue(organization.zohoAccountId)
+          ? { zohoAccountId: stringValue(organization.zohoAccountId) }
+          : {}),
         organizationName: stringValue(organization.organizationName) || null,
         isWinner: winnerStatus(organization.isWinner),
         surveysSent:

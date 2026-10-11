@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { cn } from "./ui";
 
 type BenefitsHeader = {
@@ -9,6 +9,7 @@ type BenefitsHeader = {
 };
 
 type BenefitsResponse = {
+  groupLabel?: string | undefined;
   title: string;
   type?: string | undefined;
   dataValues?: (number | string)[] | undefined;
@@ -157,6 +158,11 @@ function MobileResponse({
 }) {
   return (
     <div className="rounded-2xl border border-[#e9e4ff] bg-[#f6f4ff] p-5">
+      {response.groupLabel ? (
+        <h3 className="mb-2 text-base font-bold text-zinc-900">
+          {response.groupLabel}
+        </h3>
+      ) : null}
       {response.title ? (
         <h3 className="mb-6 text-base font-bold text-zinc-900">
           {response.title}
@@ -198,7 +204,7 @@ function BenefitsQuestionRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const responses = visibleResponses(question);
-  const flatResponse =
+  const flatResponse: BenefitsResponse[] =
     question.dataValues && question.dataValues.length > 0
       ? [{ title: "", type: question.type, dataValues: question.dataValues }]
       : [];
@@ -244,19 +250,29 @@ function BenefitsQuestionRow({
             <div className="px-5 pb-7">
               <div className="rounded-2xl border border-[#e9e4ff] bg-[#f6f4ff] px-4 py-3">
                 {rows.map((response, index) => (
-                  <div
-                    className={cn(
-                      "flex min-h-14 items-center",
-                      index > 0 && "border-t border-[#e9e4ff]",
-                    )}
-                    key={`${response.title}-${index}`}
+                  <Fragment
+                    key={`${response.groupLabel ?? ""}-${response.title}-${index}`}
                   >
-                    <strong className="w-[100px] shrink-0 break-words px-2 text-sm text-zinc-900">
-                      {response.title}
-                    </strong>
-                    <ValueColumns headers={headers} response={response} />
-                    <div className="w-10 shrink-0" />
-                  </div>
+                    {response.groupLabel &&
+                    response.groupLabel !== rows[index - 1]?.groupLabel ? (
+                      <h3 className="pt-4 pb-2 text-sm font-bold text-zinc-900">
+                        {response.groupLabel}
+                      </h3>
+                    ) : null}
+                    <div
+                      className={cn(
+                        "flex min-h-14 items-center",
+                        index > 0 && "border-t border-[#e9e4ff]",
+                      )}
+                      key={`${response.title}-${index}`}
+                    >
+                      <strong className="w-[100px] shrink-0 break-words px-2 text-sm text-zinc-900">
+                        {response.title}
+                      </strong>
+                      <ValueColumns headers={headers} response={response} />
+                      <div className="w-10 shrink-0" />
+                    </div>
+                  </Fragment>
                 ))}
               </div>
             </div>

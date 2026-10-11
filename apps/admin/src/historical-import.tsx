@@ -442,7 +442,10 @@ function stripProjectSuffix(value: string, projectName?: string): string {
   if (!normalizedProjectName) return value;
   const projectSeparator = value.lastIndexOf(" - ");
   if (projectSeparator <= 0) return value;
-  const suffix = value.slice(projectSeparator + 3).trim().toLowerCase();
+  const suffix = value
+    .slice(projectSeparator + 3)
+    .trim()
+    .toLowerCase();
   return suffix === normalizedProjectName
     ? value.slice(0, projectSeparator).trim()
     : value;
@@ -501,6 +504,9 @@ export function applyZohoOrganizations(
     return {
       ...entry,
       isIncluded: entry.isIncluded !== false,
+      ...(organization.zohoAccountId
+        ? { zohoAccountId: organization.zohoAccountId }
+        : {}),
       isWinner: organization.isWinner,
       surveysSent: organization.surveysSent,
       ...(organization.stage ? { stage: organization.stage } : {}),
@@ -530,6 +536,9 @@ export function organizationProgramsFromZoho(
     return {
       organizationKey: `name:${normalizeOrganizationIdentity(organizationName)}`,
       sourceOrganizationId: organization.organizationId,
+      ...(organization.zohoAccountId
+        ? { zohoAccountId: organization.zohoAccountId }
+        : {}),
       organizationName,
       surveysSent: organization.surveysSent,
       isWinner: organization.isWinner,
@@ -570,11 +579,7 @@ export function refreshOrganizationProgramsFromZoho(
   organizations: ZohoOrganizationInfo[],
   projectName?: string,
 ): OrganizationProgramDraft[] {
-  const refreshed = applyZohoOrganizations(
-    entries,
-    organizations,
-    projectName,
-  );
+  const refreshed = applyZohoOrganizations(entries, organizations, projectName);
   const additions = organizationProgramsFromZoho(
     organizations,
     projectName,
@@ -1655,11 +1660,15 @@ export function SurveyDefinitionStep({
       const prepared = await api.prepareHistoricalImport(draft.metadata, {
         ...(draft.efsFile ? { efsFile: draft.efsFile } : {}),
         ...(nextFile ? { surveyDefinitionFile: nextFile } : {}),
-        ...(eaFile ? { employerAssessmentDefinitionFile: eaFile } : {}),
       });
       if (currentRequest !== requestId.current) return;
       const workbookPreviews = draft.efsFile
-        ? { ...draft.workbookPreviews, EFS: prepared.validation }
+        ? {
+            ...(draft.workbookPreviews ?? {
+              EA: workbookPreviewFromCombined(draft.validation, "EA"),
+            }),
+            EFS: prepared.validation,
+          }
         : (draft.workbookPreviews ?? {});
       const nextValidation = draft.efsFile
         ? combineWorkbookPreviews(workbookPreviews)
@@ -1697,21 +1706,26 @@ export function SurveyDefinitionStep({
     };
     onDraftChange?.(next);
     try {
-      if (!draft.efsFile && !nextFile && !file) {
+      if (!draft.eaFile && !nextFile && !file) {
         setValidation(undefined);
         onDraftChange?.({ ...next, validation: undefined });
         return;
       }
       const prepared = await api.prepareHistoricalImport(draft.metadata, {
-        ...(draft.efsFile ? { efsFile: draft.efsFile } : {}),
-        ...(file ? { surveyDefinitionFile: file } : {}),
+        ...(draft.eaFile ? { eaFile: draft.eaFile } : {}),
+
         ...(nextFile ? { employerAssessmentDefinitionFile: nextFile } : {}),
       });
       if (currentRequest !== requestId.current) return;
-      const workbookPreviews = draft.efsFile
-        ? { ...draft.workbookPreviews, EFS: prepared.validation }
+      const workbookPreviews = draft.eaFile
+        ? {
+            ...(draft.workbookPreviews ?? {
+              EFS: workbookPreviewFromCombined(draft.validation, "EFS"),
+            }),
+            EA: prepared.validation,
+          }
         : (draft.workbookPreviews ?? {});
-      const nextValidation = draft.efsFile
+      const nextValidation = draft.eaFile
         ? combineWorkbookPreviews(workbookPreviews)
         : prepared.validation;
       setValidation(nextValidation);
@@ -1882,8 +1896,9 @@ export function SurveyDefinitionStep({
       </p>
       <h3>Benefits &amp; Best Practices labels</h3>
       <p className="wizard-copy">
-        The EA label file is optional. Without it, Benefits &amp; Best Practices
-        uses exactly the current built-in question, answer, and section labels.
+        The EA definition is optional. Without it, Benefits &amp; Best Practices
+        uses the standard report. A custom definition supplies the report
+        questions, answers, groups, and calculation mappings for this program.
       </p>
       <button
         type="button"
@@ -1921,6 +1936,13 @@ export function SurveyDefinitionStep({
           Use built-in EA labels
         </button>
       ) : null}
+      <p className="wizard-copy">
+        Keep raw_answer as the exported answer code and answer_label as the
+        display text. display_order controls presentation only. Holiday checkbox
+        columns use 1 for selected; matrix columns use their actual ordinal
+        codes. Custom definitions also include calculation and source_column
+        mappings. Upload the definition with its matching EA export.
+      </p>
       {validation ? <IssueList issues={validation.issues} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
@@ -1945,6 +1967,49 @@ export function WinnersStep({
       draft.metadata.benchmarkCategories,
     ),
   );
+  const [canonicalOrganizations, setCanonicalOrganizations] = useState<
+    Awaited<ReturnType<typeof api.organizationOptions>>
+  >([]);
+  const [identityLoading, setIdentityLoading] = useState(true);
+  const [identityError, setIdentityError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api
+      .organizationOptions()
+      .then((organizations) => {
+        if (!active) return;
+        setCanonicalOrganizations(organizations);
+        setOrganizationPrograms((entries) =>
+          entries.map((entry) => {
+            if (entry.canonicalOrganizationId || entry.organizationProgramId)
+              return entry;
+            const matched = entry.zohoAccountId
+              ? organizations.find(
+                  (organization) =>
+                    organization.zohoAccountId === entry.zohoAccountId,
+                )
+              : undefined;
+            return matched
+              ? { ...entry, canonicalOrganizationId: matched.id }
+              : entry;
+          }),
+        );
+      })
+      .catch((caught) => {
+        if (active)
+          setIdentityError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load organizations",
+          );
+      })
+      .finally(() => {
+        if (active) setIdentityLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [rankingSummary, setRankingSummary] = useState<{
     fileName: string;
     matchedOrganizations: number;
@@ -2024,6 +2089,17 @@ export function WinnersStep({
   };
 
   const save = () => {
+    if (
+      organizationPrograms.some(
+        (entry) =>
+          !entry.organizationProgramId && !entry.canonicalOrganizationId,
+      )
+    ) {
+      setError(
+        "Choose an existing company or Create new for each organization.",
+      );
+      return;
+    }
     onComplete({
       ...draft,
       metadata: { ...draft.metadata, organizationPrograms },
@@ -2045,7 +2121,12 @@ export function WinnersStep({
       <button
         type="button"
         className="primary-button compact"
-        disabled={working || !organizationPrograms.length}
+        disabled={
+          working ||
+          identityLoading ||
+          Boolean(identityError) ||
+          !organizationPrograms.length
+        }
         onClick={save}
       >
         {working ? "Matching…" : "Continue"} <ChevronRight size={16} />
@@ -2176,6 +2257,35 @@ export function WinnersStep({
                         <strong>
                           {entry.organizationName ?? "Organization"}
                         </strong>
+                        {entry.organizationProgramId ? (
+                          <small>
+                            Existing enrollment identity is retained.
+                          </small>
+                        ) : (
+                          <SearchableSelect
+                            ariaLabel={`Company identity for ${entry.organizationName ?? "organization"}`}
+                            value={entry.canonicalOrganizationId ?? ""}
+                            onChange={(canonicalOrganizationId) =>
+                              updateOrganization(key, {
+                                canonicalOrganizationId,
+                              })
+                            }
+                            options={[
+                              { value: "new", label: "Create new company" },
+                              ...canonicalOrganizations.map((organization) => ({
+                                value: organization.id,
+                                label: `${organization.name} (${organization.id.slice(-8)})`,
+                              })),
+                            ]}
+                            placeholder="Choose company identity…"
+                            searchPlaceholder="Search existing companies…"
+                            disabled={identityLoading}
+                            required
+                          />
+                        )}
+                        {identityError ? (
+                          <p className="form-error">{identityError}</p>
+                        ) : null}
                         {!isIncluded ? (
                           <span className="organization-not-included-message">
                             Not included

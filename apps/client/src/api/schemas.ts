@@ -358,6 +358,7 @@ export const openResponseAnswersSchema = z.object({
 type EmployerBenchmarkNode = {
   id?: string | number | undefined;
   title: string;
+  groupLabel?: string | undefined;
   type?: string | undefined;
   dataValues?: (number | string)[] | undefined;
   nestedData?: EmployerBenchmarkNode[] | undefined;
@@ -368,6 +369,7 @@ const employerBenchmarkNodeSchema: z.ZodType<EmployerBenchmarkNode> = z.lazy(
     z.object({
       id: z.union([z.string(), z.number()]).optional(),
       title: z.string(),
+      groupLabel: z.string().optional(),
       type: z.string().optional(),
       dataValues: z.array(z.union([z.number(), z.string()])).optional(),
       nestedData: z.array(employerBenchmarkNodeSchema).optional(),
