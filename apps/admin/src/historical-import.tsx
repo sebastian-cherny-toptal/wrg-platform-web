@@ -1972,6 +1972,13 @@ export function WinnersStep({
   >([]);
   const [identityLoading, setIdentityLoading] = useState(true);
   const [identityError, setIdentityError] = useState("");
+  const organizationRows = useRef(new Map<string, HTMLTableRowElement>());
+  const [assignmentNotice, setAssignmentNotice] = useState(0);
+  useEffect(() => {
+    if (!assignmentNotice) return;
+    const timeout = window.setTimeout(() => setAssignmentNotice(0), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [assignmentNotice]);
   useEffect(() => {
     let active = true;
     api
@@ -1983,12 +1990,21 @@ export function WinnersStep({
           entries.map((entry) => {
             if (entry.canonicalOrganizationId || entry.organizationProgramId)
               return entry;
-            const matched = entry.zohoAccountId
+            const accountMatch = entry.zohoAccountId
               ? organizations.find(
                   (organization) =>
                     organization.zohoAccountId === entry.zohoAccountId,
                 )
               : undefined;
+            const name = entry.organizationName?.trim().toLowerCase();
+            const matched =
+              accountMatch ??
+              (name
+                ? organizations.find(
+                    (organization) =>
+                      organization.name.trim().toLowerCase() === name,
+                  )
+                : undefined);
             return matched
               ? { ...entry, canonicalOrganizationId: matched.id }
               : entry;
@@ -2089,15 +2105,18 @@ export function WinnersStep({
   };
 
   const save = () => {
-    if (
-      organizationPrograms.some(
-        (entry) =>
-          !entry.organizationProgramId && !entry.canonicalOrganizationId,
-      )
-    ) {
-      setError(
-        "Choose an existing company or Create new for each organization.",
+    const unassigned = sortedOrganizationPrograms.find(
+      (entry) => !entry.organizationProgramId && !entry.canonicalOrganizationId,
+    );
+    if (unassigned) {
+      const row = organizationRows.current.get(
+        organizationProgramKey(unassigned),
       );
+      row?.scrollIntoView({ behavior: "smooth", block: "center" });
+      row
+        ?.querySelector<HTMLButtonElement>("button")
+        ?.focus({ preventScroll: true });
+      setAssignmentNotice((current) => current + 1);
       return;
     }
     onComplete({
@@ -2180,6 +2199,11 @@ export function WinnersStep({
         ) : null}
       </section>
       {error ? <p className="form-error">{error}</p> : null}
+      {assignmentNotice ? (
+        <div className="organization-assignment-notice" role="alert">
+          Assign an organization from the project to every organization's row
+        </div>
+      ) : null}
       {organizationPrograms.length ? (
         <>
           <section
@@ -2248,11 +2272,22 @@ export function WinnersStep({
                     [
                       matched ? "" : "zoho-unmatched-row",
                       isIncluded ? "" : "organization-not-included-row",
+                      !entry.organizationProgramId &&
+                      !entry.canonicalOrganizationId
+                        ? "organization-unassigned-row"
+                        : "",
                     ]
                       .filter(Boolean)
                       .join(" ") || undefined;
                   return (
-                    <tr className={rowClassName} key={key}>
+                    <tr
+                      className={rowClassName}
+                      key={key}
+                      ref={(row) => {
+                        if (row) organizationRows.current.set(key, row);
+                        else organizationRows.current.delete(key);
+                      }}
+                    >
                       <td>
                         <strong>
                           {entry.organizationName ?? "Organization"}

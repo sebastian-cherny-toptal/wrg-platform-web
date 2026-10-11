@@ -1435,14 +1435,30 @@ a {
 .organization-config-table table {
   min-width: 1180px;
 }
-.table-card tbody tr.zoho-unmatched-row,
-.table-card tbody tr.zoho-unmatched-row:hover {
-  background: #fef2f2;
-}
 .table-card tbody tr.organization-not-included-row,
 .table-card tbody tr.organization-not-included-row:hover {
   background: #3f3f46;
   color: #f4f4f5;
+}
+.table-card tbody tr.organization-unassigned-row,
+.table-card tbody tr.organization-unassigned-row:hover {
+  background: #fef2f2;
+  color: #18181b;
+}
+.organization-assignment-notice {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 14px 20px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  box-shadow: 0 4px 16px #0002;
 }
 .organization-not-included-row .organization-not-included-message {
   display: block;
