@@ -6,13 +6,10 @@ import {
   within,
   waitFor,
 } from "@testing-library/react";
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { api, type CategoryPricing } from "./api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { type CategoryPricing } from "./api";
 import { WinnersStep } from "./historical-import";
 
-beforeEach(() => {
-  vi.spyOn(api, "organizationOptions").mockResolvedValue([]);
-});
 afterEach(cleanup);
 
 const categoryPricing: CategoryPricing[] = [
@@ -95,7 +92,6 @@ for (const categories of [undefined, [], ["Default"]]) {
             organizationPrograms: [
               {
                 organizationKey: "acme",
-                canonicalOrganizationId: "new",
                 organizationName: "Acme",
                 surveysSent: 20,
                 isWinner: "Y",

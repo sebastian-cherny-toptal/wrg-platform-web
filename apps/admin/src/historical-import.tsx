@@ -1965,67 +1965,12 @@ export function WinnersStep({
     normalizeOrganizationPrograms(
       draft.metadata.organizationPrograms ?? [],
       draft.metadata.benchmarkCategories,
-    ),
+    ).map((entry) => {
+      const organization = { ...entry };
+      delete organization.canonicalOrganizationId;
+      return organization;
+    }),
   );
-  const [canonicalOrganizations, setCanonicalOrganizations] = useState<
-    Awaited<ReturnType<typeof api.organizationOptions>>
-  >([]);
-  const [identityLoading, setIdentityLoading] = useState(true);
-  const [identityError, setIdentityError] = useState("");
-  const organizationRows = useRef(new Map<string, HTMLTableRowElement>());
-  const [assignmentNotice, setAssignmentNotice] = useState(0);
-  useEffect(() => {
-    if (!assignmentNotice) return;
-    const timeout = window.setTimeout(() => setAssignmentNotice(0), 5000);
-    return () => window.clearTimeout(timeout);
-  }, [assignmentNotice]);
-  useEffect(() => {
-    let active = true;
-    api
-      .organizationOptions()
-      .then((organizations) => {
-        if (!active) return;
-        setCanonicalOrganizations(organizations);
-        setOrganizationPrograms((entries) =>
-          entries.map((entry) => {
-            if (entry.canonicalOrganizationId || entry.organizationProgramId)
-              return entry;
-            const accountMatch = entry.zohoAccountId
-              ? organizations.find(
-                  (organization) =>
-                    organization.zohoAccountId === entry.zohoAccountId,
-                )
-              : undefined;
-            const name = entry.organizationName?.trim().toLowerCase();
-            const matched =
-              accountMatch ??
-              (name
-                ? organizations.find(
-                    (organization) =>
-                      organization.name.trim().toLowerCase() === name,
-                  )
-                : undefined);
-            return matched
-              ? { ...entry, canonicalOrganizationId: matched.id }
-              : entry;
-          }),
-        );
-      })
-      .catch((caught) => {
-        if (active)
-          setIdentityError(
-            caught instanceof Error
-              ? caught.message
-              : "Unable to load organizations",
-          );
-      })
-      .finally(() => {
-        if (active) setIdentityLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
   const [rankingSummary, setRankingSummary] = useState<{
     fileName: string;
     matchedOrganizations: number;
@@ -2105,20 +2050,6 @@ export function WinnersStep({
   };
 
   const save = () => {
-    const unassigned = sortedOrganizationPrograms.find(
-      (entry) => !entry.organizationProgramId && !entry.canonicalOrganizationId,
-    );
-    if (unassigned) {
-      const row = organizationRows.current.get(
-        organizationProgramKey(unassigned),
-      );
-      row?.scrollIntoView({ behavior: "smooth", block: "center" });
-      row
-        ?.querySelector<HTMLButtonElement>("button")
-        ?.focus({ preventScroll: true });
-      setAssignmentNotice((current) => current + 1);
-      return;
-    }
     onComplete({
       ...draft,
       metadata: { ...draft.metadata, organizationPrograms },
@@ -2140,12 +2071,7 @@ export function WinnersStep({
       <button
         type="button"
         className="primary-button compact"
-        disabled={
-          working ||
-          identityLoading ||
-          Boolean(identityError) ||
-          !organizationPrograms.length
-        }
+        disabled={working || !organizationPrograms.length}
         onClick={save}
       >
         {working ? "Matching…" : "Continue"} <ChevronRight size={16} />
@@ -2199,11 +2125,6 @@ export function WinnersStep({
         ) : null}
       </section>
       {error ? <p className="form-error">{error}</p> : null}
-      {assignmentNotice ? (
-        <div className="organization-assignment-notice" role="alert">
-          Assign an organization from the project to every organization's row
-        </div>
-      ) : null}
       {organizationPrograms.length ? (
         <>
           <section
@@ -2272,55 +2193,15 @@ export function WinnersStep({
                     [
                       matched ? "" : "zoho-unmatched-row",
                       isIncluded ? "" : "organization-not-included-row",
-                      !entry.organizationProgramId &&
-                      !entry.canonicalOrganizationId
-                        ? "organization-unassigned-row"
-                        : "",
                     ]
                       .filter(Boolean)
                       .join(" ") || undefined;
                   return (
-                    <tr
-                      className={rowClassName}
-                      key={key}
-                      ref={(row) => {
-                        if (row) organizationRows.current.set(key, row);
-                        else organizationRows.current.delete(key);
-                      }}
-                    >
+                    <tr className={rowClassName} key={key}>
                       <td>
                         <strong>
                           {entry.organizationName ?? "Organization"}
                         </strong>
-                        {entry.organizationProgramId ? (
-                          <small>
-                            Existing enrollment identity is retained.
-                          </small>
-                        ) : (
-                          <SearchableSelect
-                            ariaLabel={`Company identity for ${entry.organizationName ?? "organization"}`}
-                            value={entry.canonicalOrganizationId ?? ""}
-                            onChange={(canonicalOrganizationId) =>
-                              updateOrganization(key, {
-                                canonicalOrganizationId,
-                              })
-                            }
-                            options={[
-                              { value: "new", label: "Create new company" },
-                              ...canonicalOrganizations.map((organization) => ({
-                                value: organization.id,
-                                label: `${organization.name} (${organization.id.slice(-8)})`,
-                              })),
-                            ]}
-                            placeholder="Choose company identity…"
-                            searchPlaceholder="Search existing companies…"
-                            disabled={identityLoading}
-                            required
-                          />
-                        )}
-                        {identityError ? (
-                          <p className="form-error">{identityError}</p>
-                        ) : null}
                         {!isIncluded ? (
                           <span className="organization-not-included-message">
                             Not included
