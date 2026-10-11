@@ -141,6 +141,7 @@ describe("winner organization filtering", () => {
         categoryRank: "2",
         purchasedEvSortingFilter: "Department",
         rdPaymentType: "Paid via ACH",
+        kiaPaymentType: "Paid via Check",
       },
       {
         isWinner: "N",
@@ -181,6 +182,8 @@ describe("Zoho organization initialization", () => {
         organizationKey: "name:acme",
         sourceOrganizationId: "49",
         organizationName: "Acme",
+        rdPaymentType: "Paid via Check",
+        kiaPaymentType: "Paid via ACH",
         isWinner: "Y",
         surveysSent: 125,
       }),

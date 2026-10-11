@@ -241,6 +241,7 @@ export type HistoricalImportMetadata = {
     categoryRank?: string;
     purchasedEvSortingFilter?: string;
     rdPaymentType?: string;
+    kiaPaymentType?: string;
   }>;
   reportCatalog?: ReportProduct[];
   benchmarkCategories?: string[];
