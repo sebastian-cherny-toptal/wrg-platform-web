@@ -1025,3 +1025,18 @@ it("loads unscoped canonical organization options with verified CRM identity", a
     expect.any(Object),
   );
 });
+
+it("restores a user through the admin restore endpoint", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({ success: true, message: "User restored successfully" }),
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  await api.restoreUser("legacy/user");
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/user/restore/legacy%2Fuser"),
+    expect.objectContaining({ method: "PUT" }),
+  );
+});

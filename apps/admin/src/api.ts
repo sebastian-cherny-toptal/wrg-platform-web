@@ -1688,6 +1688,12 @@ export const api = {
     });
   },
 
+  async restoreUser(userId: string): Promise<void> {
+    await request(`/user/restore/${encodeURIComponent(userId)}`, {
+      method: "PUT",
+    });
+  },
+
   async deleteUser(userId: string): Promise<void> {
     await request(`/user/delete/${encodeURIComponent(userId)}`, {
       method: "DELETE",

@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   Pencil,
+  RotateCcw,
   Search,
   ShoppingBag,
   ShieldCheck,
@@ -3311,6 +3312,7 @@ export function UsersManagementPage() {
     temporaryPassword: string;
   } | null>(null);
   const [resetting, setResetting] = useState("");
+  const [restoring, setRestoring] = useState("");
   const [impersonating, setImpersonating] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
@@ -3409,6 +3411,23 @@ export function UsersManagementPage() {
           : "User impersonation could not be started.",
       );
       setImpersonating("");
+    }
+  };
+  const restoreUser = async (user: UserRecord) => {
+    setRestoring(user.id);
+    setNotice("");
+    try {
+      await api.restoreUser(user.id);
+      loaded.reload();
+      setNotice(`${user.fullName}'s account was restored.`);
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "User could not be restored.",
+      );
+    } finally {
+      setRestoring("");
     }
   };
   const downloadAllUsers = () => {
@@ -3633,31 +3652,43 @@ export function UsersManagementPage() {
                     >
                       <KeyRound size={16} />
                     </button>
-                    <button
-                      className="icon-button danger-text"
-                      title="Delete"
-                      aria-label={`Delete ${user.fullName}`}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Delete ${user.fullName}? This will disable their account and sign them out.`,
-                          )
-                        ) {
-                          void api
-                            .deleteUser(user.id)
-                            .then(loaded.reload)
-                            .catch((caught: unknown) =>
-                              setNotice(
-                                caught instanceof Error
-                                  ? caught.message
-                                  : "User could not be deleted.",
-                              ),
-                            );
-                        }
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {user.status === "DISABLED" ? (
+                      <button
+                        className="icon-button"
+                        title="Restore account"
+                        aria-label={`Restore ${user.fullName}`}
+                        disabled={restoring === user.id}
+                        onClick={() => void restoreUser(user)}
+                      >
+                        <RotateCcw size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        className="icon-button danger-text"
+                        title="Delete"
+                        aria-label={`Delete ${user.fullName}`}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Delete ${user.fullName}? This will disable their account and sign them out.`,
+                            )
+                          ) {
+                            void api
+                              .deleteUser(user.id)
+                              .then(loaded.reload)
+                              .catch((caught: unknown) =>
+                                setNotice(
+                                  caught instanceof Error
+                                    ? caught.message
+                                    : "User could not be deleted.",
+                                ),
+                              );
+                          }
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>,
                 ].filter((_, index) =>
                   visibleColumns.includes(userTableColumns[index]),

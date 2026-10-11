@@ -562,3 +562,54 @@ it("keeps a failed organization reassignment open and preserves the user's selec
   expect((program as HTMLInputElement).checked).toBe(true);
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
+
+it("shows disabled accounts and restores them before refreshing the status", async () => {
+  const users = vi
+    .spyOn(api, "users")
+    .mockResolvedValueOnce([{ ...user, status: "DISABLED" }])
+    .mockResolvedValue([user]);
+  const restore = vi.spyOn(api, "restoreUser").mockResolvedValue();
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  const action = await screen.findByRole("button", {
+    name: "Restore Alex Example",
+  });
+  expect(screen.getByText("DISABLED")).toBeTruthy();
+  expect(
+    screen.queryByRole("button", { name: "Delete Alex Example" }),
+  ).toBeNull();
+  fireEvent.click(action);
+  await waitFor(() => expect(restore).toHaveBeenCalledWith("user-1"));
+  await screen.findByText("ACTIVE");
+  expect(users).toHaveBeenCalledTimes(2);
+  expect(
+    screen.queryByRole("button", { name: "Restore Alex Example" }),
+  ).toBeNull();
+});
+
+it("keeps disabled users visible and shows a failed restoration error", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([{ ...user, status: "DISABLED" }]);
+  vi.spyOn(api, "restoreUser").mockRejectedValue(
+    new Error("Restoration unavailable"),
+  );
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Restore Alex Example" }),
+  );
+  await screen.findByText("Restoration unavailable");
+  expect(screen.getByText("DISABLED")).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Restore Alex Example",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(false);
+});
