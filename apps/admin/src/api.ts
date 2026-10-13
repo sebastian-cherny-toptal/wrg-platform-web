@@ -4,6 +4,7 @@ const apiBaseUrl = (
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
 const authStorageKey = "wrg-admin-auth";
+export const adminViewCountsChangedEvent = "wrg-admin-view-counts-changed";
 export const adminAuthChangedEvent = "wrg-admin-auth-changed";
 
 export type AdminIdentity = {
@@ -33,6 +34,7 @@ export type OrganizationDirectoryRecord = {
   id: string;
   displayId: string;
   name: string;
+  createdAt: string | null;
   projects: Array<{ id: string; name: string }>;
   programs: Array<{ id: string; name: string }>;
   users: Array<{
@@ -985,6 +987,7 @@ export const api = {
 
   async adminViewCounts(): Promise<{
     projects: number;
+    organizations: number;
     users: number;
     keyImpactAnalyses: number;
     orders: number;
@@ -999,6 +1002,7 @@ export const api = {
     };
     return {
       projects: count("projects"),
+      organizations: count("organizations"),
       users: count("users"),
       keyImpactAnalyses: count("keyImpactAnalyses"),
       orders: count("orders"),
@@ -1027,6 +1031,7 @@ export const api = {
     await request(`/admin/organizations/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
+    window.dispatchEvent(new Event(adminViewCountsChangedEvent));
   },
 
   async deleteProject(id: string): Promise<void> {

@@ -1,8 +1,8 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdminShell } from "./admin";
-import { api, persistAuth } from "./api";
+import { api, persistAuth, adminViewCountsChangedEvent } from "./api";
 import { AuthProvider } from "./auth";
 
 afterEach(() => {
@@ -27,6 +27,7 @@ describe("admin sidebar", () => {
     });
     vi.spyOn(api, "adminViewCounts").mockResolvedValue({
       projects: 4,
+      organizations: 7,
       users: 5,
       keyImpactAnalyses: 2,
       orders: 8,
@@ -52,6 +53,9 @@ describe("admin sidebar", () => {
       }),
     ).toBeTruthy();
     expect(
+      screen.getByRole("link", { name: "Organizations (7)" }),
+    ).toBeTruthy();
+    expect(
       screen.getByRole("link", { name: "Users Management (5)" }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: "KIA Uploads (2)" })).toBeTruthy();
@@ -64,5 +68,20 @@ describe("admin sidebar", () => {
     expect(
       screen.getByRole("link", { name: "Import Historical Project" }),
     ).toBeTruthy();
+    vi.mocked(api.adminViewCounts).mockResolvedValue({
+      projects: 4,
+      organizations: 6,
+      users: 5,
+      keyImpactAnalyses: 2,
+      orders: 8,
+      activity: 13,
+      roles: 3,
+    });
+    window.dispatchEvent(new Event(adminViewCountsChangedEvent));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "Organizations (6)" }),
+      ).toBeTruthy(),
+    );
   });
 });

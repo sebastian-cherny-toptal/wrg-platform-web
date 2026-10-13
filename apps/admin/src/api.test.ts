@@ -345,6 +345,7 @@ describe("admin API projections", () => {
         Promise.resolve({
           data: {
             projects: 4,
+            organizations: 7,
             users: 5,
             keyImpactAnalyses: 2,
             orders: 8,
@@ -357,6 +358,7 @@ describe("admin API projections", () => {
 
     await expect(api.adminViewCounts()).resolves.toEqual({
       projects: 4,
+      organizations: 7,
       users: 5,
       keyImpactAnalyses: 2,
       orders: 8,
@@ -994,23 +996,21 @@ describe("admin API projections", () => {
 });
 
 it("loads unscoped canonical organization options with verified CRM identity", async () => {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () =>
-        Promise.resolve({
-          data: [
-            {
-              id: "canonical",
-              name: "Renamed Company",
-              zohoAccountId: "account-42",
-              programIds: ["2025", "2026"],
-            },
-          ],
-        }),
-    });
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({
+        data: [
+          {
+            id: "canonical",
+            name: "Renamed Company",
+            zohoAccountId: "account-42",
+            programIds: ["2025", "2026"],
+          },
+        ],
+      }),
+  });
   vi.stubGlobal("fetch", fetchMock);
   await expect(api.organizationOptions()).resolves.toEqual([
     {

@@ -42,6 +42,7 @@ import {
 import { SearchableSelect, WorkforceLogoWhite } from "@wrg/platform-ui";
 import {
   api,
+  adminViewCountsChangedEvent,
   categoryPricingFromApi,
   field,
   formatCalendarDate,
@@ -84,7 +85,13 @@ const permissionLabels: Record<string, string> = {
 const ADMIN_TABLE_PAGE_SIZE = 10;
 
 type AdminViewCountKey =
-  "projects" | "users" | "keyImpactAnalyses" | "orders" | "activity" | "roles";
+  | "projects"
+  | "organizations"
+  | "users"
+  | "keyImpactAnalyses"
+  | "orders"
+  | "activity"
+  | "roles";
 
 const navigation: Array<{
   to: string;
@@ -107,6 +114,7 @@ const navigation: Array<{
     to: "/admin/organizations",
     label: "Organizations",
     icon: BriefcaseBusiness,
+    countKey: "organizations",
   },
   {
     to: "/admin/users",
@@ -372,6 +380,15 @@ export function AdminShell() {
     `admin-view-counts:${location.pathname}`,
     api.adminViewCounts,
   );
+  const reloadViewCounts = viewCounts.reload;
+  useEffect(() => {
+    const refresh = () => {
+      void reloadViewCounts();
+    };
+    window.addEventListener(adminViewCountsChangedEvent, refresh);
+    return () =>
+      window.removeEventListener(adminViewCountsChangedEvent, refresh);
+  }, [reloadViewCounts]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const initial = auth?.user.displayName.slice(0, 1).toUpperCase() || "A";
@@ -744,7 +761,15 @@ export function OrganizationsPage() {
       ) : (
         <>
           <DataTable
-            headers={["Name", "ID", "Projects", "Programs", "Users", "Actions"]}
+            headers={[
+              "Name",
+              "ID",
+              "Created Date",
+              "Projects",
+              "Programs",
+              "Users",
+              "Actions",
+            ]}
             rows={rows
               .slice(
                 (currentPage - 1) * ADMIN_TABLE_PAGE_SIZE,
@@ -753,6 +778,7 @@ export function OrganizationsPage() {
               .map((row) => [
                 <strong>{row.name}</strong>,
                 row.displayId,
+                formatDate(row.createdAt),
                 row.projects.map((item) => item.name).join(", ") || "—",
                 row.programs.map((item) => item.name).join(", ") || "—",
                 row.users

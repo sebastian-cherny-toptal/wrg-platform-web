@@ -12,6 +12,7 @@ import { api, type OrganizationDirectoryRecord } from "./api";
 const rows: OrganizationDirectoryRecord[] = [
   {
     id: "org-linked",
+    createdAt: "2026-10-13T12:00:00.000Z",
     displayId: "EXT-123",
     name: "Linked Organization",
     projects: [{ id: "project", name: "Alpha Project" }],
@@ -27,6 +28,7 @@ const rows: OrganizationDirectoryRecord[] = [
   },
   {
     id: "org-empty",
+    createdAt: "2026-10-13T12:00:00.000Z",
     displayId: "EMPTY-456",
     name: "Empty Organization",
     projects: [],
@@ -35,6 +37,7 @@ const rows: OrganizationDirectoryRecord[] = [
   },
   {
     id: "org-user",
+    createdAt: "2026-10-13T12:00:00.000Z",
     displayId: "USER-789",
     name: "User Only",
     projects: [],
@@ -50,6 +53,7 @@ const rows: OrganizationDirectoryRecord[] = [
   },
   {
     id: "org-program",
+    createdAt: "2026-10-13T12:00:00.000Z",
     displayId: "PROGRAM-000",
     name: "Program Only",
     projects: [],
@@ -76,6 +80,7 @@ describe("organizations table", () => {
     for (const name of [
       "Name",
       "ID",
+      "Created Date",
       "Projects",
       "Programs",
       "Users",
