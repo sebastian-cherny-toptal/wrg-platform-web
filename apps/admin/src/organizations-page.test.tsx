@@ -149,6 +149,48 @@ describe("organizations table", () => {
       expect(names()).toEqual([...descending].reverse());
     }
   });
+  it("sorts creation timestamps chronologically in both directions with missing dates last", async () => {
+    const dates = [
+      "2026-10-13T10:30:00+02:00",
+      "2026-10-13T09:00:00Z",
+      "2026-10-12T12:00:00Z",
+      null,
+    ];
+    vi.spyOn(api, "organizationDirectory").mockResolvedValue(
+      rows.map((row, index) => ({ ...row, createdAt: dates[index] ?? null })),
+    );
+    render(
+      <MemoryRouter>
+        <OrganizationsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Linked Organization");
+    const names = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.querySelector("td")?.textContent);
+    fireEvent.click(screen.getByRole("button", { name: "Sort records" }));
+    fireEvent.click(
+      screen.getByRole("option", { name: "Created Date — newest first" }),
+    );
+    expect(names()).toEqual([
+      "Empty Organization",
+      "Linked Organization",
+      "User Only",
+      "Program Only",
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Sort records" }));
+    fireEvent.click(
+      screen.getByRole("option", { name: "Created Date — oldest first" }),
+    );
+    expect(names()).toEqual([
+      "User Only",
+      "Linked Organization",
+      "Empty Organization",
+      "Program Only",
+    ]);
+  });
   it("confirms deletion and refreshes", async () => {
     await mount();
     vi.spyOn(window, "confirm").mockReturnValue(true);

@@ -671,13 +671,26 @@ export function OrganizationsPage() {
             ]),
           ].some((value) => value.toLowerCase().includes(query)),
       )
-      .sort(
-        (left, right) =>
-          (direction === "desc" ? -1 : 1) *
+      .sort((left, right) => {
+        const multiplier = direction === "desc" ? -1 : 1;
+        if (key === "createdAt") {
+          const leftDate = left.createdAt ? Date.parse(left.createdAt) : NaN;
+          const rightDate = right.createdAt ? Date.parse(right.createdAt) : NaN;
+          if (Number.isFinite(leftDate) !== Number.isFinite(rightDate))
+            return Number.isFinite(leftDate) ? -1 : 1;
+          return (
+            multiplier *
+            ((Number.isFinite(leftDate) ? leftDate - rightDate : 0) ||
+              left.id.localeCompare(right.id))
+          );
+        }
+        return (
+          multiplier *
           (sortValue(left).localeCompare(sortValue(right), "en", {
             sensitivity: "base",
-          }) || left.id.localeCompare(right.id)),
-      );
+          }) || left.id.localeCompare(right.id))
+        );
+      });
   }, [loaded.data, search, deletableOnly, sort]);
   useEffect(() => setPage(1), [search, deletableOnly, sort]);
   const currentPage = Math.min(
@@ -722,8 +735,10 @@ export function OrganizationsPage() {
         placeholder="Search organizations, IDs, projects, programs or users"
         sort={sort}
         setSort={setSort}
-        sortOptions={["name", "projects", "programs", "users"].flatMap(
-          (key) => [
+        sortOptions={[
+          { value: "createdAt:desc", label: "Created Date — newest first" },
+          { value: "createdAt:asc", label: "Created Date — oldest first" },
+          ...["name", "projects", "programs", "users"].flatMap((key) => [
             {
               value: `${key}:asc`,
               label: `${key[0].toUpperCase()}${key.slice(1)} A–Z`,
@@ -732,8 +747,8 @@ export function OrganizationsPage() {
               value: `${key}:desc`,
               label: `${key[0].toUpperCase()}${key.slice(1)} Z–A`,
             },
-          ],
-        )}
+          ]),
+        ]}
         extra={
           <label>
             <input
