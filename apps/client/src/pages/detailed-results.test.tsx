@@ -258,6 +258,143 @@ describe("Detailed Results page", () => {
     expect(card).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("shows supplementary questions as a selectable focus area with question details", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);
+    vi.spyOn(api.reports, "responseBreakdownBySection").mockResolvedValue({
+      success: true,
+      message: "success",
+      isConfidential: false,
+      data: [
+        {
+          "Supplementary Questions": [
+            {
+              ResponseCaption: "Agree",
+              numberOfResponses: 8,
+              colorCode: "#00a46a",
+              percent: 0.8,
+              percentage: 80,
+            },
+            {
+              ResponseCaption: "Neutral",
+              numberOfResponses: 1,
+              colorCode: "#ffc955",
+              percent: 0.1,
+              percentage: 10,
+            },
+            {
+              ResponseCaption: "Disagree",
+              numberOfResponses: 1,
+              colorCode: "#c00000",
+              percent: 0.1,
+              percentage: 10,
+            },
+            {
+              totalNumberOfQuestionsPerSection: 1,
+              totalNumberOfResponsePerSection: 10,
+              totalRespondents: 10,
+              questionRange: ["supplementary-1"],
+            },
+          ],
+        },
+      ],
+    });
+    vi.spyOn(api.reports, "responseBreakdown").mockResolvedValue({
+      success: true,
+      message: "success",
+      isConfidential: false,
+      data: [
+        {
+          question: "Safety is a top priority.",
+          questionId: "supplementary-1",
+          responses: [
+            {
+              ResponseCaption: "Strongly Agree",
+              numberOfResponses: 4,
+              percent: 40,
+              colorCode: "#00a46a",
+            },
+            {
+              ResponseCaption: "Agree",
+              numberOfResponses: 3,
+              percent: 30,
+              colorCode: "#70ad47",
+            },
+            {
+              ResponseCaption: "Neutral",
+              numberOfResponses: 1,
+              percent: 10,
+              colorCode: "#ffc955",
+            },
+            {
+              ResponseCaption: "Disagree",
+              numberOfResponses: 1,
+              percent: 10,
+              colorCode: "#ed7d31",
+            },
+            {
+              ResponseCaption: "Strongly Disagree",
+              numberOfResponses: 1,
+              percent: 10,
+              colorCode: "#c00000",
+            },
+          ],
+        },
+      ],
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <DetailedResultsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const categoryButtons = await screen.findAllByRole("button", {
+      name: /Supplementary Questions/u,
+    });
+    const card = categoryButtons.find((element) => element.tagName === "DIV");
+    expect(card).toBeDefined();
+    if (!card) throw new Error("Category card was not rendered");
+    fireEvent.click(card);
+    const detailPanel = await screen.findByText(
+      "Question-level response details",
+    );
+    const section = detailPanel.closest("section");
+    expect(section).not.toBeNull();
+    expect(section?.parentElement).toBe(card.parentElement);
+    expect(
+      await screen.findByText("Agreement: 70% (7 responses)"),
+    ).toBeVisible();
+    expect(screen.getByText("Neutral: 10% (1 responses)")).toBeVisible();
+    expect(screen.getByText("Disagreement: 20% (2 responses)")).toBeVisible();
+    expect(screen.queryByText(/Strongly Agree:/u)).not.toBeInTheDocument();
+
+    const distribution = screen.getByRole("img", {
+      name: "Safety is a top priority. response distribution",
+    });
+    expect(distribution.children[0]).toHaveStyle({
+      backgroundColor: "#00a46a",
+    });
+    expect(distribution.children[2]).toHaveStyle({
+      backgroundColor: "#c00000",
+    });
+
+    fireEvent.click(card);
+    expect(
+      screen.queryByText("Question-level response details"),
+    ).not.toBeInTheDocument();
+    expect(card).toHaveAttribute("aria-pressed", "false");
+    expect(api.reports.responseBreakdown).toHaveBeenCalledWith(
+      "program-2026",
+      ["supplementary-1"],
+      {},
+    );
+  });
+
   it("uses response counts for a question with two disagreement answers", async () => {
     useAppStore.getState().setSession(session);
     vi.spyOn(api.reports, "surveyFilters").mockResolvedValue([]);

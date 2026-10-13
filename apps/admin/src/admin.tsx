@@ -630,6 +630,9 @@ const organizationDeleteHint =
 
 export function OrganizationsPage() {
   const loaded = useLoad("organization-directory", api.organizationDirectory);
+  const emptyCount = (loaded.data ?? []).filter(
+    (row) => !row.programs.length && !row.users.length,
+  ).length;
   const [search, setSearch] = useState("");
   const [deletableOnly, setDeletableOnly] = useState(false);
   const [sort, setSort] = useState("name:asc");
@@ -726,6 +729,29 @@ export function OrganizationsPage() {
       setDeleting("");
     }
   };
+  const deleteEmptyOrganizations = async () => {
+    if (deletingRef.current || loaded.loading || loaded.error || !emptyCount)
+      return;
+    deletingRef.current = "bulk";
+    setDeleting("bulk");
+    setNotice("");
+    try {
+      const deletedCount = await api.deleteEmptyOrganizations();
+      setNotice(
+        `Deleted ${deletedCount} organizations without any program or user.`,
+      );
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "Organizations could not be deleted.",
+      );
+    } finally {
+      await loaded.reload();
+      deletingRef.current = "";
+      setDeleting("");
+    }
+  };
   return (
     <>
       <PageHeader title="Organizations" breadcrumb="Organizations" />
@@ -750,14 +776,30 @@ export function OrganizationsPage() {
           ]),
         ]}
         extra={
-          <label>
-            <input
-              type="checkbox"
-              checked={deletableOnly}
-              onChange={(event) => setDeletableOnly(event.target.checked)}
-            />{" "}
-            No program or user
-          </label>
+          <>
+            <label>
+              <input
+                type="checkbox"
+                checked={deletableOnly}
+                onChange={(event) => setDeletableOnly(event.target.checked)}
+              />{" "}
+              No program or user
+            </label>
+            <button
+              className="danger-text"
+              disabled={
+                Boolean(deleting) ||
+                loaded.loading ||
+                Boolean(loaded.error) ||
+                !emptyCount
+              }
+              onClick={() => void deleteEmptyOrganizations()}
+            >
+              {deleting === "bulk"
+                ? "Deleting organizations…"
+                : `Delete all (${emptyCount}) organizations without any program or user`}
+            </button>
+          </>
         }
       />
       {notice ? (

@@ -75,6 +75,78 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("organizations table", () => {
+  it("deletes all empty organizations in one click across searches and pages", async () => {
+    const emptyRows = Array.from({ length: 30 }, (_, index) => ({
+      ...rows[1],
+      id: `empty-${index}`,
+      name: `Empty ${index}`,
+    }));
+    const directory = vi
+      .spyOn(api, "organizationDirectory")
+      .mockResolvedValue([rows[0], rows[2], rows[3], ...emptyRows]);
+    let finish!: (count: number) => void;
+    const remove = vi.spyOn(api, "deleteEmptyOrganizations").mockReturnValue(
+      new Promise<number>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const confirm = vi.spyOn(window, "confirm");
+    render(
+      <MemoryRouter>
+        <OrganizationsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Empty 0");
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "Linked" },
+    });
+    const button = screen.getByRole("button", {
+      name: "Delete all (30) organizations without any program or user",
+    });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    directory.mockResolvedValue([rows[0], rows[2], rows[3]]);
+    finish(30);
+    await screen.findByText(
+      "Deleted 30 organizations without any program or user.",
+    );
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Delete all (0) organizations without any program or user",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true),
+    );
+    expect(screen.getByText("Linked Organization")).toBeTruthy();
+  });
+  it("reports bulk deletion failures and allows retry after refreshing", async () => {
+    await mount();
+    const remove = vi
+      .spyOn(api, "deleteEmptyOrganizations")
+      .mockRejectedValue(new Error("Deletion failed"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Delete all (1) organizations without any program or user",
+      }),
+    );
+    await screen.findByText("Deletion failed");
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Delete all (1) organizations without any program or user",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false),
+    );
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(api.organizationDirectory).toHaveBeenCalledTimes(2);
+  });
   it("shows columns and only enables deletion for empty organizations", async () => {
     await mount();
     for (const name of [

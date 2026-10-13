@@ -1027,6 +1027,15 @@ export const api = {
     return response.data;
   },
 
+  async deleteEmptyOrganizations(): Promise<number> {
+    const response = await request<{ data: { deletedCount: number } }>(
+      "/admin/organizations/empty",
+      { method: "DELETE" },
+    );
+    window.dispatchEvent(new Event(adminViewCountsChangedEvent));
+    return response.data.deletedCount;
+  },
+
   async deleteOrganization(id: string): Promise<void> {
     await request(`/admin/organizations/${encodeURIComponent(id)}`, {
       method: "DELETE",

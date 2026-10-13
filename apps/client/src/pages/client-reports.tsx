@@ -1063,7 +1063,7 @@ export function DetailedResultsPage() {
   return (
     <>
       <ReportHeader
-        description="Filter survey feedback by various demographics within your respondent population and dig into employee perspectives of each of the nine focus areas of the workplace."
+        description="Filter survey feedback by various demographics within your respondent population and dig into employee perspectives across workplace focus areas and supplementary questions."
         title="Detailed Results"
       />
       <div className="p-6">

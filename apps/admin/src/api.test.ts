@@ -17,6 +17,19 @@ afterEach(() => {
 });
 
 describe("admin API projections", () => {
+  it("bulk deletes empty organizations and returns the actual deleted count", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: { deletedCount: 3 } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.deleteEmptyOrganizations()).resolves.toBe(3);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/organizations/empty"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
   it("persists admin authentication across browser tabs", () => {
     const auth = {
       accessToken: "access-token",

@@ -117,13 +117,12 @@ function formatValue(
     const normalized = value.trim();
     if (!normalized) return "—";
     if (normalized.toLowerCase() === "x") return "x";
-    return normalized;
+    const numeric = Number(normalized);
+    if (!Number.isFinite(numeric)) return normalized;
+    value = numeric;
   }
   if (type === "%") return `${Math.round(value)}%`;
-  const displayed = Number.isInteger(value)
-    ? String(value)
-    : String(Math.round(value * 10) / 10);
-  return displayed;
+  return String(Math.round(value));
 }
 
 function ValueColumns({
