@@ -5,6 +5,7 @@ import {
   CustomReportUploadsPage,
   KeyImpactAnalysisUploadsPage,
   OrderLogPage,
+  OrganizationsPage,
   ProgramDetailPage,
   ProjectDetailPage,
   ProjectsPage,
@@ -52,6 +53,7 @@ export function App() {
           path="projects/:projectId/programs/:programId/edit"
           element={<Navigate replace relative="path" to=".." />}
         />
+        <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="users" element={<UsersManagementPage />} />
         <Route
           path="key-impact-analysis"

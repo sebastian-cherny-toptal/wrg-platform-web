@@ -51,6 +51,7 @@ import {
   type CustomReportTarget,
   type CustomReportUpload,
   type OrganizationRecord,
+  type OrganizationDirectoryRecord,
   type PendingKeyImpactAnalysis,
   type UploadedKeyImpactAnalysis,
   type PortalUserRecord,
@@ -101,6 +102,11 @@ const navigation: Array<{
     to: "/admin/projects/import",
     label: "Import Historical Project",
     icon: FileUp,
+  },
+  {
+    to: "/admin/organizations",
+    label: "Organizations",
+    icon: BriefcaseBusiness,
   },
   {
     to: "/admin/users",
@@ -588,6 +594,195 @@ export function ProjectsPage() {
             ])}
           />
           {notice ? <div className="notice">{notice}</div> : null}
+          <Pager
+            count={rows.length}
+            shown={ADMIN_TABLE_PAGE_SIZE}
+            page={currentPage}
+            pageSize={ADMIN_TABLE_PAGE_SIZE}
+            onPageChange={setPage}
+            wording="to"
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+const organizationDeleteHint =
+  "Remove this organization from its Project and Users before deleting it";
+
+export function OrganizationsPage() {
+  const loaded = useLoad("organization-directory", api.organizationDirectory);
+  const [search, setSearch] = useState("");
+  const [deletableOnly, setDeletableOnly] = useState(false);
+  const [sort, setSort] = useState("name:asc");
+  const [page, setPage] = useState(1);
+  const [deleting, setDeleting] = useState("");
+  const deletingRef = useRef("");
+  const [notice, setNotice] = useState("");
+  const rows = useMemo(() => {
+    const query = search.toLowerCase();
+    const [key, direction] = sort.split(":");
+    const sortValue = (row: OrganizationDirectoryRecord) => {
+      if (key === "projects" || key === "programs")
+        return row[key]
+          .map((item) => item.name)
+          .sort()
+          .join(", ");
+      if (key === "users")
+        return row.users
+          .map((user) => user.fullName || user.email)
+          .sort()
+          .join(", ");
+      return row.name;
+    };
+    return (loaded.data ?? [])
+      .filter(
+        (row) =>
+          (!deletableOnly || (!row.programs.length && !row.users.length)) &&
+          [
+            row.name,
+            row.id,
+            row.displayId,
+            ...row.projects.flatMap((item) => [item.name, item.id]),
+            ...row.programs.flatMap((item) => [item.name, item.id]),
+            ...row.users.flatMap((user) => [
+              user.id,
+              user.fullName,
+              user.email,
+              user.username ?? "",
+            ]),
+          ].some((value) => value.toLowerCase().includes(query)),
+      )
+      .sort(
+        (left, right) =>
+          (direction === "desc" ? -1 : 1) *
+          (sortValue(left).localeCompare(sortValue(right), "en", {
+            sensitivity: "base",
+          }) || left.id.localeCompare(right.id)),
+      );
+  }, [loaded.data, search, deletableOnly, sort]);
+  useEffect(() => setPage(1), [search, deletableOnly, sort]);
+  const currentPage = Math.min(
+    page,
+    Math.max(1, Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE)),
+  );
+  const deleteOrganization = async (
+    organization: OrganizationDirectoryRecord,
+  ) => {
+    if (
+      deletingRef.current ||
+      organization.programs.length ||
+      organization.users.length
+    )
+      return;
+    if (!window.confirm(`Delete ${organization.name}? This cannot be undone.`))
+      return;
+    deletingRef.current = organization.id;
+    setDeleting(organization.id);
+    setNotice("");
+    try {
+      await api.deleteOrganization(organization.id);
+      await loaded.reload();
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "Organization could not be deleted.",
+      );
+      await loaded.reload();
+    } finally {
+      deletingRef.current = "";
+      setDeleting("");
+    }
+  };
+  return (
+    <>
+      <PageHeader title="Organizations" breadcrumb="Organizations" />
+      <Toolbar
+        search={search}
+        setSearch={setSearch}
+        placeholder="Search organizations, IDs, projects, programs or users"
+        sort={sort}
+        setSort={setSort}
+        sortOptions={["name", "projects", "programs", "users"].flatMap(
+          (key) => [
+            {
+              value: `${key}:asc`,
+              label: `${key[0].toUpperCase()}${key.slice(1)} A–Z`,
+            },
+            {
+              value: `${key}:desc`,
+              label: `${key[0].toUpperCase()}${key.slice(1)} Z–A`,
+            },
+          ],
+        )}
+        extra={
+          <label>
+            <input
+              type="checkbox"
+              checked={deletableOnly}
+              onChange={(event) => setDeletableOnly(event.target.checked)}
+            />{" "}
+            No program or user
+          </label>
+        }
+      />
+      {notice ? (
+        <div className="notice" role="alert">
+          {notice}
+        </div>
+      ) : null}
+      {loaded.loading ? (
+        <State
+          loading
+          title="Loading organizations"
+          message="Retrieving administration data."
+        />
+      ) : loaded.error ? (
+        <State title="Organizations unavailable" message={loaded.error} />
+      ) : (
+        <>
+          <DataTable
+            headers={["Name", "ID", "Projects", "Programs", "Users", "Actions"]}
+            rows={rows
+              .slice(
+                (currentPage - 1) * ADMIN_TABLE_PAGE_SIZE,
+                currentPage * ADMIN_TABLE_PAGE_SIZE,
+              )
+              .map((row) => [
+                <strong>{row.name}</strong>,
+                row.displayId,
+                row.projects.map((item) => item.name).join(", ") || "—",
+                row.programs.map((item) => item.name).join(", ") || "—",
+                row.users
+                  .map((user) => `${user.fullName} (${user.email})`)
+                  .join(", ") || "—",
+                <span
+                  className="organization-delete-control"
+                  tabIndex={
+                    row.programs.length || row.users.length ? 0 : undefined
+                  }
+                  title={
+                    row.programs.length || row.users.length
+                      ? organizationDeleteHint
+                      : undefined
+                  }
+                >
+                  <button
+                    className="danger-text"
+                    aria-label={`Delete ${row.name}`}
+                    disabled={
+                      Boolean(deleting) ||
+                      Boolean(row.programs.length || row.users.length)
+                    }
+                    onClick={() => void deleteOrganization(row)}
+                  >
+                    {deleting === row.id ? "Deleting…" : "DELETE"}
+                  </button>
+                </span>,
+              ])}
+          />
           <Pager
             count={rows.length}
             shown={ADMIN_TABLE_PAGE_SIZE}

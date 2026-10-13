@@ -1967,3 +1967,13 @@ a {
     max-width: 1050px;
   }
 }
+
+.organization-delete-control {
+  position: relative;
+  display: inline-block;
+}
+.organization-delete-control button:disabled {
+  pointer-events: none;
+  opacity: 0.45;
+  cursor: not-allowed;
+}

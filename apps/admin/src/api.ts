@@ -29,6 +29,20 @@ export type ProjectRecord = {
   programs: ProgramRecord[];
 };
 
+export type OrganizationDirectoryRecord = {
+  id: string;
+  displayId: string;
+  name: string;
+  projects: Array<{ id: string; name: string }>;
+  programs: Array<{ id: string; name: string }>;
+  users: Array<{
+    id: string;
+    fullName: string;
+    email: string;
+    username: string | null;
+  }>;
+};
+
 export type ProgramRecord = {
   id: string;
   externalId?: string;
@@ -1000,6 +1014,19 @@ export const api = {
     const rows = array(object(response).data).map(project);
     if (!rows[0]) throw new ApiError("Project not found", 404);
     return rows[0];
+  },
+
+  async organizationDirectory(): Promise<OrganizationDirectoryRecord[]> {
+    const response = await request<{ data: OrganizationDirectoryRecord[] }>(
+      "/admin/organizations",
+    );
+    return response.data;
+  },
+
+  async deleteOrganization(id: string): Promise<void> {
+    await request(`/admin/organizations/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   },
 
   async deleteProject(id: string): Promise<void> {
