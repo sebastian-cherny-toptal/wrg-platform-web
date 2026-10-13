@@ -119,10 +119,11 @@ function formatValue(
     if (normalized.toLowerCase() === "x") return "x";
     return normalized;
   }
+  if (type === "%") return `${Math.round(value)}%`;
   const displayed = Number.isInteger(value)
     ? String(value)
     : String(Math.round(value * 10) / 10);
-  return type === "%" ? `${displayed}%` : displayed;
+  return displayed;
 }
 
 function ValueColumns({
