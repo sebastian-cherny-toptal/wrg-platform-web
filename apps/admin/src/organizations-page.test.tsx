@@ -115,12 +115,10 @@ describe("organizations table", () => {
     );
     await waitFor(() =>
       expect(
-        (
-          screen.getByRole("button", {
-            name: "Delete all (0) organizations without any program or user",
-          }) as HTMLButtonElement
-        ).disabled,
-      ).toBe(true),
+        screen.queryByRole("button", {
+          name: "Delete all (0) organizations without any program or user",
+        }),
+      ).toBeNull(),
     );
     expect(screen.getByText("Linked Organization")).toBeTruthy();
   });

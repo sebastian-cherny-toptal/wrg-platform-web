@@ -38,6 +38,7 @@ import {
   useLocation,
   useNavigate,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 import { SearchableSelect, WorkforceLogoWhite } from "@wrg/platform-ui";
 import {
@@ -785,20 +786,19 @@ export function OrganizationsPage() {
               />{" "}
               No program or user
             </label>
-            <button
-              className="danger-text"
-              disabled={
-                Boolean(deleting) ||
-                loaded.loading ||
-                Boolean(loaded.error) ||
-                !emptyCount
-              }
-              onClick={() => void deleteEmptyOrganizations()}
-            >
-              {deleting === "bulk"
-                ? "Deleting organizations…"
-                : `Delete all (${emptyCount}) organizations without any program or user`}
-            </button>
+            {emptyCount > 0 ? (
+              <button
+                className="danger-text"
+                disabled={
+                  Boolean(deleting) || loaded.loading || Boolean(loaded.error)
+                }
+                onClick={() => void deleteEmptyOrganizations()}
+              >
+                {deleting === "bulk"
+                  ? "Deleting organizations…"
+                  : `Delete all (${emptyCount}) organizations without any program or user`}
+              </button>
+            ) : null}
           </>
         }
       />
@@ -2985,6 +2985,7 @@ function AddUserModal({
     (program) => selectedOrganization?.programIds.includes(program.id),
   );
   const [error, setError] = useState("");
+  const [existingUsername, setExistingUsername] = useState("");
   const [saving, setSaving] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -3002,6 +3003,7 @@ function AddUserModal({
     }
     setSaving(true);
     setError("");
+    setExistingUsername("");
     try {
       await api.createUser({
         fullName: form.fullName.trim(),
@@ -3020,9 +3022,12 @@ function AddUserModal({
       onCreated();
       onClose();
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Unable to create user",
-      );
+      const message =
+        caught instanceof Error ? caught.message : "Unable to create user";
+      setError(message);
+      if (/^User already exists\b/i.test(message)) {
+        setExistingUsername(form.username.trim());
+      }
     } finally {
       setSaving(false);
     }
@@ -3203,7 +3208,19 @@ function AddUserModal({
             ))}
           </fieldset>
         ) : null}
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? (
+          <p className="form-error">
+            {error}{" "}
+            {existingUsername ? (
+              <Link
+                to={`/admin/users?username=${encodeURIComponent(existingUsername)}`}
+                onClick={onClose}
+              >
+                View user
+              </Link>
+            ) : null}
+          </p>
+        ) : null}
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>
             Cancel
@@ -3576,6 +3593,8 @@ function canImpersonateUser(user: UserRecord): boolean {
 }
 
 export function UsersManagementPage() {
+  const [searchParams] = useSearchParams();
+  const username = searchParams.get("username") ?? "";
   const loaded = useLoad("management-users", api.users);
   const [bulkCreation, setBulkCreation] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -3593,7 +3612,8 @@ export function UsersManagementPage() {
   const [restoring, setRestoring] = useState("");
   const [impersonating, setImpersonating] = useState("");
   const [notice, setNotice] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(username);
+  useEffect(() => setSearch(username), [username, searchParams]);
   const [role, setRole] = useState("all");
   const [sort, setSort] = useState("createdAt");
   const [page, setPage] = useState(1);

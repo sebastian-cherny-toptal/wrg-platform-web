@@ -38,6 +38,78 @@ const user: UserRecord = {
   lastPaymentDatetime: null,
 };
 
+it("prefills and filters users from the URL username while allowing search edits", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([
+    { ...user, username: "alex+team&ops" },
+    { ...user, id: "user-2", fullName: "Blair Example", username: "blair" },
+  ]);
+  render(
+    <MemoryRouter initialEntries={["/admin/users?username=alex%2Bteam%26ops"]}>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  const search = screen.getByPlaceholderText("Search users") as HTMLInputElement;
+  expect(search.value).toBe("alex+team&ops");
+  const table = await screen.findByRole("table");
+  expect(within(table).getByText("Alex Example")).toBeTruthy();
+  expect(within(table).queryByText("Blair Example")).toBeNull();
+  fireEvent.change(search, { target: { value: "blair" } });
+  expect(within(table).getByText("Blair Example")).toBeTruthy();
+  expect(within(table).queryByText("Alex Example")).toBeNull();
+});
+
+it.each([
+  "User already exists",
+  "User already exists: this username belongs to a disabled account. Find the user in Users Management and restore their account.",
+])("links a duplicate creation error to the existing user: %s", async (message) => {
+  vi.spyOn(api, "users").mockResolvedValue([
+    { ...user, username: "alex+team&ops" },
+    { ...user, id: "user-2", fullName: "Blair Example", username: "blair" },
+  ]);
+  vi.spyOn(api, "roles").mockResolvedValue([]);
+  vi.spyOn(api, "projects").mockResolvedValue([]);
+  vi.spyOn(api, "createUser")
+    .mockRejectedValueOnce(new Error(message))
+    .mockRejectedValueOnce(new Error("Server unavailable"));
+  render(
+    <MemoryRouter initialEntries={["/admin/users"]}>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: "+ Add User" }));
+  const dialog = screen.getByRole("dialog", { name: "Add User" });
+  fireEvent.change(within(dialog).getByLabelText("Full Name"), {
+    target: { value: "Alex Example" },
+  });
+  fireEvent.change(within(dialog).getByLabelText("Email"), {
+    target: { value: "alex@example.com" },
+  });
+  fireEvent.change(within(dialog).getByLabelText("Username"), {
+    target: { value: " alex+team&ops " },
+  });
+  fireEvent.submit(within(dialog).getByRole("button", { name: "Create User" }).closest("form")!);
+  const link = await within(dialog).findByRole("link", { name: "View user" });
+  expect(link.getAttribute("href")).toBe("/admin/users?username=alex%2Bteam%26ops");
+  expect(link.parentElement?.textContent).toContain(message);
+  // Changing the form must not change which failed username the link targets.
+  fireEvent.change(within(dialog).getByLabelText("Username"), {
+    target: { value: "someone-else" },
+  });
+  expect(link.getAttribute("href")).toBe("/admin/users?username=alex%2Bteam%26ops");
+  fireEvent.click(link);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  await waitFor(() =>
+    expect((screen.getByPlaceholderText("Search users") as HTMLInputElement).value).toBe("alex+team&ops"),
+  );
+  expect(within(screen.getByRole("table")).queryByText("Blair Example")).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "+ Add User" }));
+  fireEvent.submit(screen.getByRole("button", { name: "Create User" }).closest("form")!);
+  await screen.findByText("Server unavailable");
+  expect(screen.queryByRole("link", { name: "View user" })).toBeNull();
+});
+
 it("shows memberships and all columns by default, and toggles aligned headers and cells", async () => {
   vi.spyOn(api, "users").mockResolvedValue([user]);
   render(
