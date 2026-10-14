@@ -85,6 +85,19 @@ const permissionLabels: Record<string, string> = {
 
 const ADMIN_TABLE_PAGE_SIZE = 10;
 
+function createSearchMatcher(search: string) {
+  const terms = search
+    .toLowerCase()
+    .split("|")
+    .map((term) => term.trim())
+    .filter(Boolean);
+  return (values: string[]) =>
+    terms.length === 0 ||
+    values.some((value) =>
+      terms.some((term) => value.toLowerCase().includes(term)),
+    );
+}
+
 type AdminViewCountKey =
   | "projects"
   | "organizations"
@@ -522,9 +535,13 @@ export function ProjectsPage() {
     }
   };
   const rows = useMemo(() => {
+    const matchesSearch = createSearchMatcher(search);
     const filtered = (loaded.data ?? []).filter(
       (item) =>
-        item.name.toLowerCase().includes(search.toLowerCase()) &&
+        matchesSearch([
+          item.name,
+          ...item.programs.map((program) => program.name),
+        ]) &&
         (!date || item.createdAt?.slice(0, 10) === date),
     );
     return [...filtered].sort((left, right) => {
@@ -559,7 +576,7 @@ export function ProjectsPage() {
       <Toolbar
         search={search}
         setSearch={setSearch}
-        placeholder="Search Projects"
+        placeholder="Search projects or programs"
         date={date}
         setDate={setDate}
         sort={sort}
@@ -642,7 +659,7 @@ export function OrganizationsPage() {
   const deletingRef = useRef("");
   const [notice, setNotice] = useState("");
   const rows = useMemo(() => {
-    const query = search.toLowerCase();
+    const matchesSearch = createSearchMatcher(search);
     const [key, direction] = sort.split(":");
     const sortValue = (row: OrganizationDirectoryRecord) => {
       if (key === "projects" || key === "programs")
@@ -661,7 +678,7 @@ export function OrganizationsPage() {
       .filter(
         (row) =>
           (!deletableOnly || (!row.programs.length && !row.users.length)) &&
-          [
+          matchesSearch([
             row.name,
             row.id,
             row.displayId,
@@ -673,7 +690,7 @@ export function OrganizationsPage() {
               user.email,
               user.username ?? "",
             ]),
-          ].some((value) => value.toLowerCase().includes(query)),
+          ]),
       )
       .sort((left, right) => {
         const multiplier = direction === "desc" ? -1 : 1;
@@ -3639,13 +3656,14 @@ export function UsersManagementPage() {
     [loaded.data],
   );
   const users = useMemo(() => {
+    const matchesSearch = createSearchMatcher(search);
     const filtered = (loaded.data ?? []).filter(
       (user) =>
         (status === "all" || user.status === status) &&
         (role === "all" || user.role === role) &&
-        `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.projects.map((project) => project.name).join(" ")} ${user.role ?? ""} ${JSON.stringify(user.payments)}`
-          .toLowerCase()
-          .includes(search.toLowerCase()),
+        matchesSearch([
+          `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.projects.map((project) => project.name).join(" ")} ${user.role ?? ""} ${JSON.stringify(user.payments)}`,
+        ]),
     );
     const stringValue = (value: string | null) => value ?? "";
     const timeValue = (value: string | null) =>

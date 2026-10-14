@@ -202,6 +202,19 @@ describe("organizations table", () => {
     for (const name of ["Linked Organization", "User Only", "Program Only"])
       expect(screen.queryByText(name)).toBeNull();
   });
+  it("matches any pipe-separated term and still applies the empty organization filter", async () => {
+    await mount();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: " BETA | empty-456 | | " },
+    });
+    expect(screen.getByText("Linked Organization")).toBeTruthy();
+    expect(screen.getByText("Empty Organization")).toBeTruthy();
+    expect(screen.queryByText("User Only")).toBeNull();
+    expect(screen.queryByText("Program Only")).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "No program or user" }));
+    expect(screen.getByText("Empty Organization")).toBeTruthy();
+    expect(screen.queryByText("Linked Organization")).toBeNull();
+  });
   it("sorts by name, project, program and user in both directions", async () => {
     await mount();
     const names = () =>

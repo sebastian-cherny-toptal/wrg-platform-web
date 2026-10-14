@@ -38,6 +38,38 @@ const user: UserRecord = {
   lastPaymentDatetime: null,
 };
 
+it("matches any pipe-separated user search term", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([
+    user,
+    {
+      ...user,
+      id: "user-2",
+      fullName: "Blair Example",
+      username: "blair",
+      email: "blair@example.com",
+    },
+    {
+      ...user,
+      id: "user-3",
+      fullName: "Casey Example",
+      username: "casey",
+      email: "casey@example.com",
+    },
+  ]);
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  const table = await screen.findByRole("table");
+  fireEvent.change(screen.getByRole("searchbox"), {
+    target: { value: " ALEX | blair | | " },
+  });
+  expect(within(table).getByText("Alex Example")).toBeTruthy();
+  expect(within(table).getByText("Blair Example")).toBeTruthy();
+  expect(within(table).queryByText("Casey Example")).toBeNull();
+});
+
 it("prefills and filters users from the URL username while allowing search edits", async () => {
   vi.spyOn(api, "users").mockResolvedValue([
     { ...user, username: "alex+team&ops" },
