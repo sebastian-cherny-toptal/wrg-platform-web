@@ -646,6 +646,9 @@ it("shows disabled accounts and restores them before refreshing the status", asy
       <UsersManagementPage />
     </MemoryRouter>,
   );
+  fireEvent.change(screen.getByRole("combobox", { name: "Filter by user status" }), {
+    target: { value: "all" },
+  });
   const action = await screen.findByRole("button", {
     name: "Restore Alex Example",
   });
@@ -672,6 +675,9 @@ it("keeps disabled users visible and shows a failed restoration error", async ()
       <UsersManagementPage />
     </MemoryRouter>,
   );
+  fireEvent.change(screen.getByRole("combobox", { name: "Filter by user status" }), {
+    target: { value: "DISABLED" },
+  });
   fireEvent.click(
     await screen.findByRole("button", { name: "Restore Alex Example" }),
   );
@@ -684,4 +690,37 @@ it("keeps disabled users visible and shows a failed restoration error", async ()
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(false);
+});
+
+
+it("defaults to active users and filters disabled or all users alongside search", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([
+    user,
+    { ...user, id: "user-2", fullName: "Blair Example", status: "DISABLED" },
+  ]);
+  render(
+    <MemoryRouter>
+      <UsersManagementPage />
+    </MemoryRouter>,
+  );
+  const selector = screen.getByRole("combobox", { name: "Filter by user status" });
+  const table = await screen.findByRole("table");
+  expect((selector as HTMLSelectElement).value).toBe("ACTIVE");
+  expect(within(table).getByText("Alex Example")).toBeTruthy();
+  expect(within(table).queryByText("Blair Example")).toBeNull();
+
+  fireEvent.change(selector, { target: { value: "DISABLED" } });
+  expect(within(table).getByText("Blair Example")).toBeTruthy();
+  expect(within(table).queryByText("Alex Example")).toBeNull();
+
+  fireEvent.change(selector, { target: { value: "all" } });
+  expect(within(table).getByText("Alex Example")).toBeTruthy();
+  expect(within(table).getByText("Blair Example")).toBeTruthy();
+  fireEvent.change(screen.getByPlaceholderText("Search users"), {
+    target: { value: "Blair" },
+  });
+  expect(within(table).getByText("Blair Example")).toBeTruthy();
+  expect(within(table).queryByText("Alex Example")).toBeNull();
+  fireEvent.change(selector, { target: { value: "ACTIVE" } });
+  expect(within(table).queryByText("Blair Example")).toBeNull();
 });

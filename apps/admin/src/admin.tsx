@@ -3615,6 +3615,7 @@ export function UsersManagementPage() {
   const [search, setSearch] = useState(username);
   useEffect(() => setSearch(username), [username, searchParams]);
   const [role, setRole] = useState("all");
+  const [status, setStatus] = useState("ACTIVE");
   const [sort, setSort] = useState("createdAt");
   const [page, setPage] = useState(1);
   const roleOptions = useMemo(
@@ -3640,6 +3641,7 @@ export function UsersManagementPage() {
   const users = useMemo(() => {
     const filtered = (loaded.data ?? []).filter(
       (user) =>
+        (status === "all" || user.status === status) &&
         (role === "all" || user.role === role) &&
         `${user.fullName} ${user.email} ${user.username ?? ""} ${user.organization?.name ?? ""} ${user.projects.map((project) => project.name).join(" ")} ${user.role ?? ""} ${JSON.stringify(user.payments)}`
           .toLowerCase()
@@ -3670,7 +3672,7 @@ export function UsersManagementPage() {
         );
       return timeValue(right.createdAt) - timeValue(left.createdAt);
     });
-  }, [loaded.data, role, search, sort]);
+  }, [loaded.data, role, search, sort, status]);
   const pageCount = Math.max(
     1,
     Math.ceil(users.length / ADMIN_TABLE_PAGE_SIZE),
@@ -3680,7 +3682,7 @@ export function UsersManagementPage() {
     (currentPage - 1) * ADMIN_TABLE_PAGE_SIZE,
     currentPage * ADMIN_TABLE_PAGE_SIZE,
   );
-  useEffect(() => setPage(1), [search, role, sort]);
+  useEffect(() => setPage(1), [search, role, sort, status]);
   const resetPassword = async (user: UserRecord) => {
     setResetting(user.id);
     setNotice("");
@@ -3796,39 +3798,51 @@ export function UsersManagementPage() {
           />
         }
       />
-      <details className="user-column-selector">
-        <summary>
-          Columns to show ({visibleColumns.length}/{userTableColumns.length})
-        </summary>
-        <fieldset>
-          <legend>Visible user columns</legend>
-          <div className="user-column-options">
-            {userTableColumns.map((column) => (
-              <label key={column}>
-                <input
-                  type="checkbox"
-                  checked={visibleColumns.includes(column)}
-                  onChange={(event) =>
-                    setVisibleColumns((current) =>
-                      event.target.checked
-                        ? [...current, column]
-                        : current.filter((value) => value !== column),
-                    )
-                  }
-                />
-                {column}
-              </label>
-            ))}
-          </div>
-          <button
-            className="secondary-button compact"
-            type="button"
-            onClick={() => setVisibleColumns([...userTableColumns])}
-          >
-            Select all columns
-          </button>
-        </fieldset>
-      </details>
+      <div className="user-table-controls">
+        <details className="user-column-selector">
+          <summary>
+            Columns to show ({visibleColumns.length}/{userTableColumns.length})
+          </summary>
+          <fieldset>
+            <legend>Visible user columns</legend>
+            <div className="user-column-options">
+              {userTableColumns.map((column) => (
+                <label key={column}>
+                  <input
+                    type="checkbox"
+                    checked={visibleColumns.includes(column)}
+                    onChange={(event) =>
+                      setVisibleColumns((current) =>
+                        event.target.checked
+                          ? [...current, column]
+                          : current.filter((value) => value !== column),
+                      )
+                    }
+                  />
+                  {column}
+                </label>
+              ))}
+            </div>
+            <button
+              className="secondary-button compact"
+              type="button"
+              onClick={() => setVisibleColumns([...userTableColumns])}
+            >
+              Select all columns
+            </button>
+          </fieldset>
+        </details>
+        <select
+          aria-label="Filter by user status"
+          className="user-status-selector"
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="ACTIVE">Show only active users</option>
+          <option value="DISABLED">Show only disabled users</option>
+          <option value="all">Show all users</option>
+        </select>
+      </div>
       {notice ? <div className="notice">{notice}</div> : null}
       {loaded.loading ? (
         <State

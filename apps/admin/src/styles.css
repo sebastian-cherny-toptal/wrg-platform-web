@@ -1067,7 +1067,9 @@ a {
   font-size: 22px;
 }
 .modal:has(.bulk-user-creation) { width: min(1000px, 94vw); }
-.user-column-selector { margin: 0 0 20px; }
+.user-table-controls { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.user-column-selector { min-width: 0; max-width: 100%; }
+.user-status-selector { max-width: 100%; padding: 10px 14px; border: 1px solid #d9dee5; border-radius: 6px; background: white; }
 .user-column-selector summary { cursor: pointer; width: fit-content; padding: 10px 14px; border: 1px solid #d9dee5; border-radius: 6px; background: white; }
 .user-column-selector fieldset { margin-top: 10px; border: 1px solid #d9dee5; border-radius: 6px; padding: 16px; background: white; }
 .user-column-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
