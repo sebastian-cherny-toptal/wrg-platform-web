@@ -3893,7 +3893,7 @@ export function CustomReportsPage() {
           />
         ) : (
           <Card className="overflow-hidden shadow-none">
-            <div className="grid grid-cols-[1fr_1.4fr_130px_100px] gap-4 bg-zinc-100 p-4 text-xs font-semibold text-zinc-500">
+            <div className="grid grid-cols-[1fr_1.4fr_130px_150px] gap-4 bg-zinc-100 p-4 text-xs font-semibold text-zinc-500">
               <span>Report Name</span>
               <span>Description</span>
               <span>Upload Date</span>
@@ -3901,7 +3901,7 @@ export function CustomReportsPage() {
             </div>
             {reports.data.data.map((report) => (
               <div
-                className="grid grid-cols-[1fr_1.4fr_130px_100px] items-center gap-4 border-t border-zinc-100 p-4 text-sm first:border-t-0"
+                className="grid grid-cols-[1fr_1.4fr_130px_150px] items-center gap-4 border-t border-zinc-100 p-4 text-sm first:border-t-0"
                 key={report._id}
               >
                 <strong>{report.ReportTitle}</strong>
@@ -3920,15 +3920,15 @@ export function CustomReportsPage() {
                       format.filename ??
                       `${report.ReportTitle}-${index + 1}`;
                     return url ? (
-                      <button
-                        className="h-9 rounded bg-red-600 px-3 text-xs font-semibold text-white"
+                      <Button
+                        className="gap-2 rounded-md"
                         key={format._id ?? `${url}-${index}`}
                         onClick={() =>
                           void api.reports.downloadCustomReport(url, filename)
                         }
                       >
-                        DOWNLOAD
-                      </button>
+                        <Download className="size-4" /> DOWNLOAD
+                      </Button>
                     ) : null;
                   })}
                   {report.reportFormats.length === 0 ? (
