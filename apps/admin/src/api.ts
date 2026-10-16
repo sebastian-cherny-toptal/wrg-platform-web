@@ -345,6 +345,7 @@ export type HistoricalImportStatus = {
 
 export type OrganizationRecord = {
   id: string;
+  zohoAccountId?: string | null;
   selectionId: string;
   sourceId: string;
   sourceName: string | null;
@@ -809,6 +810,7 @@ export function organization(raw: unknown): OrganizationRecord {
   const name = sourceName && sourceName !== sourceId ? sourceName : storedName;
   return {
     id,
+    zohoAccountId: stringValue(value.zohoAccountId) || null,
     selectionId: stringValue(value.selectionId) || id,
     sourceId,
     sourceName,

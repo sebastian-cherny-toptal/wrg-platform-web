@@ -602,6 +602,7 @@ describe("admin API projections", () => {
     expect(
       organization({
         _id: "organization-uuid",
+        zohoAccountId: "9007199254740993",
         Account_Name: "Example Region Organization D6EA749C",
         sourceOrganizationId: "19",
         sourceOrganizationName: "19",
@@ -618,6 +619,7 @@ describe("admin API projections", () => {
       }),
     ).toMatchObject({
       id: "organization-uuid",
+      zohoAccountId: "9007199254740993",
       sourceId: "19",
       sourceName: "19",
       name: "Example Region Organization D6EA749C",

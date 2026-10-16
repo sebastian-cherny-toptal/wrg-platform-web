@@ -1279,6 +1279,21 @@ export function ProgramDetailPage() {
         (!date || item.createdAt?.slice(0, 10) === date),
     )
     .sort((left, right) => {
+      if (sort === "zohoAccountId:asc" || sort === "zohoAccountId:desc") {
+        const leftId = left.zohoAccountId ?? "";
+        const rightId = right.zohoAccountId ?? "";
+        // Keep unlinked organizations last in either direction. Compare strings
+        // numerically to preserve CRM IDs larger than Number.MAX_SAFE_INTEGER.
+        if (!leftId || !rightId) {
+          const missingOrder = Number(!leftId) - Number(!rightId);
+          if (missingOrder) return missingOrder;
+        }
+        const order = leftId.localeCompare(rightId, "en", { numeric: true });
+        return (
+          (sort === "zohoAccountId:desc" ? -order : order) ||
+          left.sourceId.localeCompare(right.sourceId, "en", { numeric: true })
+        );
+      }
       if (sort === "changes:first") {
         const changeOrder =
           Number(changedOrganizationIds.has(right.organizationProgramId)) -
@@ -1944,6 +1959,11 @@ export function ProgramDetailPage() {
         setSort={setSort}
         sortOptions={[
           { value: "id:asc", label: "Organization ID" },
+          { value: "zohoAccountId:asc", label: "Zoho Account ID — ascending" },
+          {
+            value: "zohoAccountId:desc",
+            label: "Zoho Account ID — descending",
+          },
           { value: "changes:first", label: "Rows being edited first" },
           { value: "name:asc", label: "Organization name" },
           { value: "surveys:desc", label: "Most surveys sent" },
@@ -2054,6 +2074,7 @@ export function ProgramDetailPage() {
       <DataTable
         headers={[
           "Organization ID",
+          "Zoho Account ID",
           "Organization Name",
           "Date Added",
           "Current Stage",
@@ -2080,6 +2101,11 @@ export function ProgramDetailPage() {
           const change = (field: ProgramZohoResyncField) => changes?.get(field);
           return [
             <strong>{item.sourceId}</strong>,
+            <ZohoResyncValue
+              value={item.zohoAccountId ?? null}
+              change={change("zohoAccountId")}
+              emptyLabel="-"
+            />,
             <ZohoResyncValue
               value={item.name}
               change={change("organizationName")}

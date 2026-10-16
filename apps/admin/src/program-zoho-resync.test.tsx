@@ -9,7 +9,12 @@ import {
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProgramDetailPage, ZohoResyncValue } from "./admin";
-import { api, persistAuth, type ProgramZohoResyncPreview } from "./api";
+import {
+  api,
+  persistAuth,
+  type OrganizationRecord,
+  type ProgramZohoResyncPreview,
+} from "./api";
 import { AuthProvider } from "./auth";
 
 afterEach(() => {
@@ -79,11 +84,12 @@ describe("program Zoho resync changes", () => {
       ],
       latestZohoSync: "2026-09-07T10:15:00.000Z",
     });
-    vi.spyOn(api, "organizations").mockResolvedValue([
+    const organizationRecords: OrganizationRecord[] = [
       {
         id: "unchanged-organization-id",
         selectionId: "unchanged-enrollment-id",
         sourceId: "1",
+        zohoAccountId: "9007199254740993",
         sourceName: "Before Company",
         name: "Before Company",
         createdAt: null,
@@ -110,6 +116,7 @@ describe("program Zoho resync changes", () => {
         id: "organization-id",
         selectionId: "enrollment-id",
         sourceId: "49",
+        zohoAccountId: "9007199254740992",
         sourceName: "Acme",
         name: "Acme",
         createdAt: null,
@@ -132,7 +139,17 @@ describe("program Zoho resync changes", () => {
         programs: [],
         users: [],
       },
-    ]);
+    ];
+    organizationRecords.push({
+      ...organizationRecords[0],
+      id: "unlinked-id",
+      sourceId: "0",
+      name: "Unlinked Company",
+      selectionId: "unlinked-enrollment",
+      organizationProgramId: "unlinked-enrollment",
+      zohoAccountId: "",
+    });
+    vi.spyOn(api, "organizations").mockResolvedValue(organizationRecords);
     const preview: ProgramZohoResyncPreview = {
       programId: "program-id",
       revision: "a".repeat(64),
@@ -142,6 +159,11 @@ describe("program Zoho resync changes", () => {
           organizationId: "49",
           organizationName: "Acme",
           changes: [
+            {
+              field: "zohoAccountId",
+              previous: "9007199254740992",
+              next: "9007199254740994",
+            },
             { field: "stage", previous: "Invited", next: "Closed" },
             {
               field: "reportCategory",
@@ -206,6 +228,24 @@ describe("program Zoho resync changes", () => {
     expect(screen.getByText(/Latest Zoho sync:/u).textContent).toContain(
       "Sep 7, 2026",
     );
+    expect(
+      screen.getByRole("columnheader", { name: "Zoho Account ID" }),
+    ).toBeTruthy();
+    for (const [direction, names] of [
+      ["ascending", ["Acme", "Before Company", "Unlinked Company"]],
+      ["descending", ["Before Company", "Acme", "Unlinked Company"]],
+    ] as const) {
+      fireEvent.click(screen.getByRole("button", { name: "Sort records" }));
+      fireEvent.click(
+        screen.getByRole("option", { name: `Zoho Account ID — ${direction}` }),
+      );
+      expect(
+        screen
+          .getAllByRole("row")
+          .slice(1)
+          .map((row) => within(row).getAllByRole("cell")[2].textContent),
+      ).toEqual(names);
+    }
     const syncPanel = screen.getByRole("region", {
       name: "Zoho deal synchronization",
     });
@@ -235,7 +275,12 @@ describe("program Zoho resync changes", () => {
     ).toHaveLength(4);
     const changedRow = screen.getByRole("row", { name: /Acme/u });
     expect(changedRow.classList.contains("zoho-resync-changed-row")).toBe(true);
-    expect(changedRow.querySelectorAll("del")).toHaveLength(5);
+    expect(changedRow.querySelectorAll("del")).toHaveLength(6);
+    const accountCell = within(changedRow).getAllByRole("cell")[1];
+    expect(accountCell.querySelector("del")?.textContent).toBe(
+      "9007199254740992",
+    );
+    expect(accountCell.textContent).toContain("9007199254740994");
     expect(changedRow.textContent).toContain("Job Level");
     expect(changedRow.textContent).toContain("Paid via ACH");
     expect(
@@ -243,7 +288,7 @@ describe("program Zoho resync changes", () => {
     ).toBe("Rows being edited first");
     const organizationRows = screen.getAllByRole("row").slice(1);
     expect(organizationRows[0]).toBe(changedRow);
-    expect(organizationRows[1].textContent).toContain("Before Company");
+    expect(organizationRows[1].textContent).toContain("Unlinked Company");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Apply all Zoho changes" }),
