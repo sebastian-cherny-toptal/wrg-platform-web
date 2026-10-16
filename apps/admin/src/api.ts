@@ -1522,6 +1522,12 @@ export const api = {
     }
   },
 
+  async deleteCustomReport(id: string): Promise<void> {
+    await request(`/admin/custom-reports/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+
   async downloadCustomReport(item: CustomReportUpload): Promise<void> {
     await downloadRequest(
       `/admin/custom-reports/${encodeURIComponent(item.id)}/download`,

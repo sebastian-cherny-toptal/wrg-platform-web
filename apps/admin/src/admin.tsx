@@ -2504,6 +2504,7 @@ function CustomReportUploadsPanel() {
   const [showUpload, setShowUpload] = useState(false);
   const [notice, setNotice] = useState("");
   const [downloadError, setDownloadError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   if (catalog.loading && !catalog.data) {
     return (
       <State
@@ -2520,8 +2521,8 @@ function CustomReportUploadsPanel() {
     <>
       <div className="page-intro report-upload-intro">
         <p>
-          Upload PPTX, CSV, XLSX, or PDF files for a program organization. Every
-          upload remains available in the history below.
+          Upload PPTX, CSV, XLSX, or PDF files for a program organization.
+          Uploaded reports appear in the history below.
         </p>
         <button
           className="primary-button compact"
@@ -2557,21 +2558,54 @@ function CustomReportUploadsPanel() {
           upload.sourceFileName,
           upload.uploadedByUsername ?? "—",
           formatDateTime(upload.uploadedAt),
-          <button
-            className="secondary-button compact"
-            onClick={() => {
-              setDownloadError("");
-              void api
-                .downloadCustomReport(upload)
-                .catch((error: unknown) =>
-                  setDownloadError(
-                    error instanceof Error ? error.message : "Download failed",
-                  ),
-                );
-            }}
-          >
-            Download <Download size={16} />
-          </button>,
+          <div className="table-actions">
+            <button
+              className="secondary-button compact"
+              onClick={() => {
+                setDownloadError("");
+                void api
+                  .downloadCustomReport(upload)
+                  .catch((error: unknown) =>
+                    setDownloadError(
+                      error instanceof Error
+                        ? error.message
+                        : "Download failed",
+                    ),
+                  );
+              }}
+            >
+              Download <Download size={16} />
+            </button>
+            <button
+              className="secondary-button compact"
+              disabled={deletingId !== null}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Permanently delete "${upload.reportName}"? This removes the uploaded file from the database and cannot be undone.`,
+                  )
+                )
+                  return;
+                setDeletingId(upload.id);
+                setDownloadError("");
+                setNotice("");
+                void api
+                  .deleteCustomReport(upload.id)
+                  .then(async () => {
+                    setNotice(`${upload.reportName} was permanently deleted.`);
+                    await catalog.reload();
+                  })
+                  .catch((error: unknown) =>
+                    setDownloadError(
+                      error instanceof Error ? error.message : "Delete failed",
+                    ),
+                  )
+                  .finally(() => setDeletingId(null));
+              }}
+            >
+              {deletingId === upload.id ? "Deleting…" : "Delete"}
+            </button>
+          </div>,
         ])}
         empty="No custom reports have been uploaded yet."
       />

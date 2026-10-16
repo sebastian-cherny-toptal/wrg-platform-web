@@ -78,6 +78,8 @@ describe("report upload pages", () => {
       targets: [target],
       uploads: [priorUpload],
     });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const remove = vi.spyOn(api, "deleteCustomReport").mockResolvedValue();
     const upload = vi.spyOn(api, "uploadCustomReport").mockResolvedValue();
     const download = vi.spyOn(api, "downloadCustomReport").mockResolvedValue();
 
@@ -86,6 +88,29 @@ describe("report upload pages", () => {
     expect(await screen.findByText("Board Summary")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Download/ }));
     await waitFor(() => expect(download).toHaveBeenCalledWith(priorUpload));
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(remove).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    remove.mockRejectedValueOnce(new Error("Delete failed"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "Delete failed",
+    );
+    expect(screen.getByText("Board Summary")).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Delete" }).hasAttribute("disabled"),
+      ).toBe(false),
+    );
+    vi.mocked(api.customReports).mockResolvedValue({
+      targets: [target],
+      uploads: [],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(priorUpload.id));
+    await waitFor(() => expect(screen.queryByText("Board Summary")).toBeNull());
 
     fireEvent.click(
       screen.getByRole("button", { name: /Upload custom report/ }),
