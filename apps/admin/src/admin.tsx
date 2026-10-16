@@ -43,6 +43,7 @@ import {
 import { SearchableSelect, WorkforceLogoWhite } from "@wrg/platform-ui";
 import {
   api,
+  ApiError,
   adminViewCountsChangedEvent,
   categoryPricingFromApi,
   field,
@@ -70,6 +71,7 @@ import { useAuth } from "./auth";
 import { CatalogEditor, MoneyInput } from "./catalog-editor";
 import { LongRunningActionOverlay } from "./long-running-action-overlay";
 import { BulkUserCreation } from "./bulk-user-creation";
+import { OrganizationReconciliation } from "./organization-reconciliation";
 import { ProgramEfsReupload } from "./program-efs-reupload";
 import { bulkUsersCsv } from "./bulk-users";
 
@@ -1227,6 +1229,8 @@ export function ProgramDetailPage() {
     useState<ProgramZohoResyncPreview | null>(null);
   const [resyncApplied, setResyncApplied] = useState(false);
   const [resyncing, setResyncing] = useState<"preview" | "apply" | null>(null);
+  const [showReconciliation, setShowReconciliation] = useState(false);
+  const [reconciliationBusy, setReconciliationBusy] = useState(false);
   const [downloadingConnections, setDownloadingConnections] = useState(false);
   const [surveyDefinitionFile, setSurveyDefinitionFile] = useState<File | null>(
     null,
@@ -1369,11 +1373,22 @@ export function ProgramDetailPage() {
           : `Zoho is already in sync.${warnings.length ? ` ${warnings.join("; ")}.` : ""}`,
       );
     } catch (caught) {
-      setSyncNotice(
-        caught instanceof Error
-          ? caught.message
-          : "Zoho changes could not be loaded.",
-      );
+      if (
+        canUploadBenefits &&
+        caught instanceof ApiError &&
+        caught.code === "ORGANIZATION_ACCOUNT_CONFLICT"
+      ) {
+        setShowReconciliation(true);
+        setSyncNotice(
+          "Zoho synchronization is blocked. Review the organization account conflict report below.",
+        );
+      } else {
+        setSyncNotice(
+          caught instanceof Error
+            ? caught.message
+            : "Zoho changes could not be loaded.",
+        );
+      }
     } finally {
       setResyncing(null);
     }
@@ -2000,11 +2015,25 @@ export function ProgramDetailPage() {
           </button>
           <button
             className="primary-button compact"
-            disabled={resyncing !== null || resyncPreview !== null}
+            disabled={
+              resyncing !== null || reconciliationBusy || resyncPreview !== null
+            }
             onClick={() => void resync()}
           >
             {resyncing === "preview" ? "Checking Zoho…" : "Re-Sync All Deals"}
           </button>
+          {canUploadBenefits ? (
+            <button
+              className="secondary-button compact"
+              disabled={resyncing !== null || reconciliationBusy}
+              aria-expanded={showReconciliation}
+              onClick={() => setShowReconciliation((shown) => !shown)}
+            >
+              {showReconciliation
+                ? "Close conflict report"
+                : "Organization account conflicts"}
+            </button>
+          ) : null}
           {resyncPreview ? (
             <button
               className="secondary-button compact"
@@ -2021,7 +2050,7 @@ export function ProgramDetailPage() {
           {resyncPreview?.changedRows.length && !resyncApplied ? (
             <button
               className="primary-button compact"
-              disabled={resyncing !== null}
+              disabled={resyncing !== null || reconciliationBusy}
               onClick={() => void applyResync()}
             >
               {resyncing === "apply" ? "Applying…" : "Apply all Zoho changes"}
@@ -2071,6 +2100,25 @@ export function ProgramDetailPage() {
           </div>
         ) : null}
       </section>
+      {canUploadBenefits && showReconciliation ? (
+        <OrganizationReconciliation
+          key={program.id}
+          programId={program.id}
+          disabled={resyncing !== null}
+          onBusyChange={setReconciliationBusy}
+          onApplied={async () => {
+            setResyncPreview(null);
+            setResyncApplied(false);
+            setSyncNotice(
+              "Organization reconciliation applied. Run Re-Sync All Deals to review the latest Zoho changes.",
+            );
+            await Promise.all([
+              organizationsLoaded.reload(),
+              programLoaded.reload(),
+            ]);
+          }}
+        />
+      ) : null}
       <DataTable
         headers={[
           "Organization ID",

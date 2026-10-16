@@ -505,10 +505,72 @@ export type ProgramZohoResyncResult = ProgramZohoResyncPreview & {
   appliedCount: number;
 };
 
+export type ReconciliationOrganization = {
+  id: string;
+  name: string;
+  zohoAccountId: string | null;
+  legacyId: string | null;
+  externalId: string | null;
+  stripeCustomerId: string | null;
+  counts: {
+    programs: number;
+    users: number;
+    respondents: number;
+    responses: number;
+    orders: number;
+    assets: number;
+    auditLogs: number;
+    impersonationGrants: number;
+    keyImpactAnalysisRows: number;
+    keyImpactAnalysisUploads: number;
+    customReportUploads: number;
+  };
+  programs: Array<{
+    enrollmentId: string;
+    programId: string;
+    programName: string;
+    year: number | null;
+    projectName: string;
+    sourceId: string;
+    sourceName: string;
+  }>;
+};
+export type OrganizationReconciliationRow = {
+  id: string;
+  organizationProgramId: string;
+  sourceOrganizationId: string;
+  sourceOrganizationName: string;
+  savedZohoAccountId: string | null;
+  sourceId: string;
+  zohoOrganizationName: string | null;
+  zohoAccountId: string;
+  matchedBy: "account" | "sourceId" | "name";
+  targetOrganizationId: string | null;
+  targetOrganizationName: string | null;
+  reasons: string[];
+  blockingReason?: string;
+  source: ReconciliationOrganization | null;
+  target: ReconciliationOrganization | null;
+  blockers: string[];
+  eligible: boolean;
+};
+export type OrganizationReconciliationReport = {
+  programId: string;
+  revision: string;
+  conflicts: OrganizationReconciliationRow[];
+};
+export type OrganizationReconciliationPreview = {
+  programId: string;
+  conflictIds: string[];
+  revision: string;
+  merges: OrganizationReconciliationRow[];
+};
+
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -649,6 +711,7 @@ async function request<T>(
         stringValue(nested.message) ||
         "Request failed",
       response.status,
+      stringValue(body.code) || stringValue(nested.code) || undefined,
     );
   }
   return payload as T;
@@ -1830,6 +1893,41 @@ export const api = {
       {
         method: "POST",
         body: JSON.stringify({ revision }),
+      },
+    );
+  },
+
+  async organizationReconciliationReport(
+    programId: string,
+  ): Promise<OrganizationReconciliationReport> {
+    return request(
+      `/admin/programs/${encodeURIComponent(programId)}/organization-reconciliation`,
+    );
+  },
+
+  async previewOrganizationReconciliation(
+    programId: string,
+    conflictIds: string[],
+  ): Promise<OrganizationReconciliationPreview> {
+    return request(
+      `/admin/programs/${encodeURIComponent(programId)}/organization-reconciliation/preview`,
+      {
+        method: "POST",
+        body: JSON.stringify({ conflictIds }),
+      },
+    );
+  },
+
+  async applyOrganizationReconciliation(
+    programId: string,
+    conflictIds: string[],
+    revision: string,
+  ): Promise<{ programId: string; appliedCount: number }> {
+    return request(
+      `/admin/programs/${encodeURIComponent(programId)}/organization-reconciliation/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ conflictIds, revision }),
       },
     );
   },

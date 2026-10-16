@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProgramDetailPage, ZohoResyncValue } from "./admin";
 import {
   api,
+  ApiError,
   persistAuth,
   type OrganizationRecord,
   type ProgramZohoResyncPreview,
@@ -298,6 +299,73 @@ describe("program Zoho resync changes", () => {
     );
     expect(
       await screen.findByText(/Applied Zoho changes to 1 organization/u),
+    ).toBeTruthy();
+  });
+
+  it("opens the conflict report automatically when resync finds account conflicts", async () => {
+    persistAuth({
+      accessToken: "token",
+      refreshToken: "refresh",
+      user: {
+        id: "admin-id",
+        displayName: "Admin",
+        email: "admin@example.com",
+        roles: ["admin"],
+        permissions: [],
+      },
+    });
+    vi.spyOn(api, "program").mockResolvedValue({
+      id: "program-id",
+      name: "Program 2026",
+      year: 2026,
+      createdAt: null,
+      organizationCount: 1,
+      winnersCount: 0,
+      categorySummaries: [],
+      latestZohoSync: null,
+    });
+    vi.spyOn(api, "organizations").mockResolvedValue([]);
+    vi.spyOn(api, "previewProgramZohoResync").mockRejectedValue(
+      new ApiError(
+        "Cannot resync: 131 organization account mapping conflicts found",
+        409,
+        "ORGANIZATION_ACCOUNT_CONFLICT",
+      ),
+    );
+    const report = vi
+      .spyOn(api, "organizationReconciliationReport")
+      .mockResolvedValue({
+        programId: "program-id",
+        revision: "a".repeat(64),
+        conflicts: [],
+      });
+    render(
+      <AuthProvider>
+        <MemoryRouter
+          initialEntries={["/admin/projects/project-id/programs/program-id"]}
+        >
+          <Routes>
+            <Route
+              path="/admin/projects/:projectId/programs/:programId"
+              element={<ProgramDetailPage />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Re-Sync All Deals" }),
+    );
+    expect(
+      await screen.findByRole("region", {
+        name: "Organization account conflict report",
+      }),
+    ).toBeTruthy();
+    await waitFor(() => expect(report).toHaveBeenCalledWith("program-id"));
+    expect(
+      await screen.findByText(
+        "No organization account conflicts were found for this program.",
+      ),
     ).toBeTruthy();
   });
 

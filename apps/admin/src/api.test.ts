@@ -459,6 +459,75 @@ describe("admin API projections", () => {
     );
   });
 
+  it("keeps the conflict report read-only and submits only selected IDs and the reviewed revision", async () => {
+    const payload = {
+      programId: "program/id",
+      revision: "a".repeat(64),
+      conflicts: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(payload),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    await api.organizationReconciliationReport("program/id");
+    await api.previewOrganizationReconciliation("program/id", ["conflict-id"]);
+    await api.applyOrganizationReconciliation(
+      "program/id",
+      ["conflict-id"],
+      payload.revision,
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(
+        "/admin/programs/program%2Fid/organization-reconciliation",
+      ),
+      expect.not.objectContaining({ body: expect.anything() }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/organization-reconciliation/preview"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ conflictIds: ["conflict-id"] }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("/organization-reconciliation/apply"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          conflictIds: ["conflict-id"],
+          revision: payload.revision,
+        }),
+      }),
+    );
+  });
+
+  it("exposes the structured resync conflict code for automatic report opening", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          ok: false,
+          status: 409,
+          json: () =>
+            Promise.resolve({
+              message: "Account mapping conflict",
+              code: "ORGANIZATION_ACCOUNT_CONFLICT",
+            }),
+        }),
+    );
+    await expect(api.previewProgramZohoResync("program")).rejects.toMatchObject(
+      { status: 409, code: "ORGANIZATION_ACCOUNT_CONFLICT" },
+    );
+  });
+
   it("downloads organization connection fields for a program", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
