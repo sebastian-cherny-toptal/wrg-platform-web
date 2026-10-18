@@ -12,7 +12,7 @@ export type WorkforceCohort = {
   kind: "winner" | "nonWinner";
 };
 
-const cohortOrder = ["all", "boutique", "small", "smallmedium", "medium", "large", "mega", "major"];
+const cohortOrder = ["all", "boutique", "small", "smallmedium", "medium", "large", "mega", "major", "super"];
 const emptyHeader: WorkforceCohortHeader = { title: "", type: "", color: "" };
 
 function normalizedSize(header: Pick<WorkforceCohortHeader, "title" | "type">) {
@@ -23,6 +23,9 @@ function normalizedSize(header: Pick<WorkforceCohortHeader, "title" | "type">) {
   const normalizedType = normalize(header.type);
   const normalizedTitle = normalize(header.title);
   const normalized = normalizedType || normalizedTitle;
+
+  // A displayed Super category is distinct from the legacy Small-Medium key.
+  if (normalizedTitle === "super") return "super";
 
   // Zoho historically calls the Small-Medium cohort "Super" in its data key.
   return normalized.includes("smallmedium") || normalized.includes("super")
