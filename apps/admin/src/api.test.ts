@@ -1124,3 +1124,17 @@ it("restores a user through the admin restore endpoint", async () => {
     expect.objectContaining({ method: "PUT" }),
   );
 });
+
+it("sends the selected users to the permanent removal endpoint", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ success: true, removedCount: 2 }),
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  expect(await api.hardRemoveDisabledUsers(["legacy/user", "user-2"])).toEqual({ success: true, removedCount: 2 });
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/user/hard-remove-disabled"),
+    expect.objectContaining({ method: "POST", body: JSON.stringify({ userIds: ["legacy/user", "user-2"] }) }),
+  );
+});

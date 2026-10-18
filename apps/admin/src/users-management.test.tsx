@@ -756,3 +756,48 @@ it("defaults to active users and filters disabled or all users alongside search"
   fireEvent.change(selector, { target: { value: "ACTIVE" } });
   expect(within(table).queryByText("Blair Example")).toBeNull();
 });
+
+it("confirms permanent removal of all matching disabled users across pages", async () => {
+  const disabled = Array.from({ length: 31 }, (_, index) => ({
+    ...user,
+    id: `disabled-${index}`,
+    fullName: `Disabled ${index}`,
+    status: "DISABLED",
+  }));
+  const load = vi.spyOn(api, "users").mockResolvedValueOnce([user, ...disabled]).mockResolvedValue([user]);
+  const remove = vi.spyOn(api, "hardRemoveDisabledUsers").mockResolvedValue({ removedCount: 31 });
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  render(<MemoryRouter><UsersManagementPage /></MemoryRouter>);
+  await screen.findByRole("table");
+  expect(screen.queryByRole("button", { name: /Hard remove/ })).toBeNull();
+  fireEvent.change(screen.getByRole("combobox", { name: "Filter by user status" }), { target: { value: "DISABLED" } });
+  const button = screen.getByRole("button", { name: "Hard remove 31 disabled users" });
+  fireEvent.click(button);
+  expect(confirm).toHaveBeenCalledWith("Are you sure? This cannot be undone.");
+  expect(remove).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true);
+  fireEvent.click(button);
+  await waitFor(() => expect(remove).toHaveBeenCalledWith(disabled.map(({ id }) => id)));
+  await screen.findByText("Permanently removed 31 disabled users.");
+  await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  expect((screen.getByRole("button", { name: "Hard remove 0 disabled users" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("counts only matching disabled users and preserves them on a failed hard removal", async () => {
+  vi.spyOn(api, "users").mockResolvedValue([
+    user,
+    { ...user, id: "disabled-1", status: "DISABLED", fullName: "Blair Example" },
+    { ...user, id: "disabled-2", status: "DISABLED", fullName: "Casey Example" },
+  ]);
+  const remove = vi.spyOn(api, "hardRemoveDisabledUsers").mockRejectedValue(new Error("Removal unavailable"));
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(<MemoryRouter><UsersManagementPage /></MemoryRouter>);
+  await screen.findByRole("table");
+  fireEvent.change(screen.getByRole("combobox", { name: "Filter by user status" }), { target: { value: "DISABLED" } });
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "Blair" } });
+  fireEvent.click(screen.getByRole("button", { name: "Hard remove 1 disabled users" }));
+  await screen.findByText("Removal unavailable");
+  expect(remove).toHaveBeenCalledWith(["disabled-1"]);
+  expect(screen.getByText("Blair Example")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Hard remove 1 disabled users" }) as HTMLButtonElement).disabled).toBe(false);
+});

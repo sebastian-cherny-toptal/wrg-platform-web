@@ -1806,6 +1806,15 @@ export const api = {
     });
   },
 
+  async hardRemoveDisabledUsers(
+    userIds: string[],
+  ): Promise<{ removedCount: number }> {
+    return request<{ removedCount: number }>("/user/hard-remove-disabled", {
+      method: "POST",
+      body: JSON.stringify({ userIds }),
+    });
+  },
+
   async deleteUser(userId: string): Promise<void> {
     await request(`/user/delete/${encodeURIComponent(userId)}`, {
       method: "DELETE",

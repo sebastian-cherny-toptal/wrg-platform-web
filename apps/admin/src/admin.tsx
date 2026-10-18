@@ -3735,6 +3735,7 @@ export function UsersManagementPage() {
   } | null>(null);
   const [resetting, setResetting] = useState("");
   const [restoring, setRestoring] = useState("");
+  const [hardRemoving, setHardRemoving] = useState(false);
   const [impersonating, setImpersonating] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState(username);
@@ -3856,6 +3857,32 @@ export function UsersManagementPage() {
       setRestoring("");
     }
   };
+  const hardRemoveDisabledUsers = async () => {
+    if (
+      hardRemoving ||
+      !users.length ||
+      !window.confirm("Are you sure? This cannot be undone.")
+    ) {
+      return;
+    }
+    setHardRemoving(true);
+    setNotice("");
+    try {
+      const { removedCount } = await api.hardRemoveDisabledUsers(
+        users.map(({ id }) => id),
+      );
+      loaded.reload();
+      setNotice(`Permanently removed ${removedCount} disabled users.`);
+    } catch (caught) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "Disabled users could not be permanently removed.",
+      );
+    } finally {
+      setHardRemoving(false);
+    }
+  };
   const downloadAllUsers = () => {
     const url = URL.createObjectURL(
       new Blob([bulkUsersCsv(loaded.data ?? [])], {
@@ -3968,6 +3995,21 @@ export function UsersManagementPage() {
           <option value="DISABLED">Show only disabled users</option>
           <option value="all">Show all users</option>
         </select>
+        {status === "DISABLED" ? (
+          <button
+            className="secondary-button compact danger-text"
+            disabled={
+              hardRemoving ||
+              loaded.loading ||
+              Boolean(loaded.error) ||
+              !users.length ||
+              Boolean(restoring)
+            }
+            onClick={() => void hardRemoveDisabledUsers()}
+          >
+            {hardRemoving ? "Removing…" : `Hard remove ${users.length} disabled users`}
+          </button>
+        ) : null}
       </div>
       {notice ? <div className="notice">{notice}</div> : null}
       {loaded.loading ? (
@@ -4095,7 +4137,7 @@ export function UsersManagementPage() {
                         className="icon-button"
                         title="Restore account"
                         aria-label={`Restore ${user.fullName}`}
-                        disabled={restoring === user.id}
+                        disabled={hardRemoving || restoring === user.id}
                         onClick={() => void restoreUser(user)}
                       >
                         <RotateCcw size={16} />
