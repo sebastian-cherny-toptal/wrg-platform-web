@@ -27,11 +27,51 @@ const session: Session = {
   impersonation: null,
 };
 
-describe("Comparison Data cohort suppression", () => {
+describe("Comparison Data cohorts", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     useAppStore.getState().setSession(null);
+  });
+
+  it("shows Super last in both Winners and Non-Winners selectors", async () => {
+    useAppStore.getState().setSession(session);
+    vi.spyOn(api.reports, "responseBreakdownBySection").mockResolvedValue({
+      success: true,
+      message: "success",
+      isConfidential: false,
+      data: [],
+    });
+    vi.spyOn(api.reports, "workforceComparison").mockResolvedValue({
+      success: true,
+      message: "success",
+      data: {
+        tableHeaders: ["All Size Categories", "Small", "Super", "Medium", "Large", "Major"]
+          .flatMap((size) => ["Yes", "No"].map((kind) => ({
+            title: size === "All Size Categories" ? size : `${size} Employers`,
+            type: `${size === "All Size Categories" ? "All" : size}_${kind}`,
+            color: "#000",
+          }))),
+        data: [],
+        surveyAverage: [],
+      },
+    });
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter><ComparisonDataPage /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findAllByRole("button", { name: "Super Employers" });
+    const expectedOrder = [
+      "All Size Categories", "Small Employers", "Medium Employers",
+      "Large Employers", "Major Employers", "Super Employers",
+    ];
+    for (const group of ["Winners", "Non-Winners"]) {
+      const section = screen.getByRole("heading", { name: group }).parentElement;
+      expect(Array.from(section?.querySelectorAll("button") ?? [], (button) => button.textContent))
+        .toEqual(expectedOrder);
+    }
   });
 
   it("shows x for a suppressed cohort and 0% for an eligible zero result", async () => {
