@@ -12,7 +12,7 @@ export type WorkforceCohort = {
   kind: "winner" | "nonWinner";
 };
 
-const cohortOrder = ["all", "boutique", "small", "smallmedium", "medium", "large", "mega", "major", "super"];
+const cohortOrder = ["all", "boutique", "tiny", "small", "smallmedium", "medium", "middle", "large", "giant", "mega", "major", "super"];
 const emptyHeader: WorkforceCohortHeader = { title: "", type: "", color: "" };
 
 function normalizedSize(header: Pick<WorkforceCohortHeader, "title" | "type">) {

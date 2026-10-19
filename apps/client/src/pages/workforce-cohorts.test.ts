@@ -1,9 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { pairedWorkforceCohorts, workforceCohorts } from "./workforce-cohorts";
+import { pairedWorkforceCohorts, sortWorkforceHeaders, workforceCohorts } from "./workforce-cohorts";
 
 const header = (title: string, type: string) => ({ title, type, color: "#000" });
 
 describe("workforce cohort ordering", () => {
+  it("orders alternate category names and pairs each category with its own values", () => {
+    const names = ["Giant", "Large", "Middle", "Medium", "Small", "Tiny"];
+    const headers = names.flatMap((name) => [
+      header(`${name} Employers`, `${name}_Yes`),
+      header(`${name} Non-Winners`, `${name}_No`),
+    ]);
+    const expected = ["Tiny", "Small", "Medium", "Middle", "Large", "Giant"];
+
+    expect(sortWorkforceHeaders(headers).map(({ type }) => type)).toEqual(
+      expected.flatMap((name) => [`${name}_Yes`, `${name}_No`]),
+    );
+    expect(workforceCohorts(headers).map(({ key }) => key)).toEqual(
+      expected.flatMap((name) => [`${name}Yes`, `${name}No`]),
+    );
+    expect(pairedWorkforceCohorts(headers)).toEqual(
+      expected.map((name) => ({
+        label: `${name} Employers`,
+        winnerIndex: names.indexOf(name) * 2,
+        nonWinnerIndex: names.indexOf(name) * 2 + 1,
+      })),
+    );
+  });
+
   it("orders Super Employers after Major and preserves benchmark value indexes", () => {
     const headers = ["All Size Categories", "Small", "Super", "Medium", "Large", "Major"]
       .flatMap((size) => {
