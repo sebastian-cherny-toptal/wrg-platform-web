@@ -1902,6 +1902,81 @@ export function SurveyDefinitionStep({
         change. Questions missing approved wording must be completed before
         continuing.
       </p>
+      <details>
+        <summary>EFS spreadsheet worksheets and columns</summary>
+        <p className="wizard-copy">
+          Keep both Questions and Answers sheets, with column headers in row 1.
+          Each Questions row defines one question; each Answers row defines one
+          answer option for a question. Required values must be filled on every
+          populated row. Enter plain values; formulas are not supported. Sheet
+          names and headers are case-insensitive; question keys and raw answer
+          values are case-sensitive.
+        </p>
+        <h4>Questions sheet</h4>
+        <ul>
+          <li>
+            <strong>question_key (required):</strong> exact column name from the
+            EFS export, including any organization-specific suffix. Each key
+            must be unique. Use the same key on its Answers rows.
+          </li>
+          <li>
+            <strong>question_label (required):</strong> full question wording
+            shown in reports. Complete any blank labels in the downloaded
+            template before uploading it.
+          </li>
+          <li>
+            <strong>question_type (optional):</strong> likert, demographic,
+            choice, open-text, or text. If blank, keeps the existing question
+            type.
+          </li>
+          <li>
+            <strong>category (optional):</strong> category label stored with the
+            question. If blank, keeps the existing category.
+          </li>
+          <li>
+            <strong>display_order (optional):</strong> positive whole number
+            controlling question presentation. If blank, keeps the existing
+            question order.
+          </li>
+        </ul>
+        <h4>Answers sheet</h4>
+        <ul>
+          <li>
+            <strong>question_key (required):</strong> links to an existing row
+            in the Questions sheet.
+          </li>
+          <li>
+            <strong>raw_answer (required):</strong> exact exported answer value
+            or code. Must be unique within its question. Preserve codes when
+            changing display wording.
+          </li>
+          <li>
+            <strong>answer_label (required):</strong> answer text shown in
+            reports.
+          </li>
+          <li>
+            <strong>display_order (optional):</strong> positive whole number
+            ordering answers within a question. If blank, defaults to that
+            answer's row position within its question.
+          </li>
+          <li>
+            <strong>score (optional):</strong> Likert scoring value when the raw
+            answer code differs from the standard scale. Use whole numbers
+            1–5 for scored answers or 6 for N/A. If blank, standard raw codes
+            1–5, 6, and 99 keep their default meaning; other Likert codes need an
+            explicit score. Non-Likert questions do not need scores.
+          </li>
+        </ul>
+        <p className="wizard-copy">
+          When editing an answer list, include every nonblank answer value
+          recorded for that question. The uploaded list replaces that question's
+          previous answer list. To change only question labels, keep the Answers
+          sheet with its headers and no data rows. Open-text responses do not
+          need answer rows. Unlisted questions and questions without an uploaded
+          answer list keep their current definitions or defaults. EFS category
+          and order columns remain optional.
+        </p>
+      </details>
       <h3>Benefits &amp; Best Practices labels</h3>
       <p className="wizard-copy">
         The EA definition is optional. Without it, Benefits &amp; Best Practices
@@ -1983,15 +2058,15 @@ export function SurveyDefinitionStep({
             in the report.
           </li>
           <li>
-            <strong>question_type (optional):</strong> present in the UK
-            template; may be blank for EA. Accepted values: likert, demographic,
+            <strong>question_type (optional):</strong> may be blank or omitted
+            for EA. Accepted values: likert, demographic,
             choice, open-text, or text.
           </li>
           <li>
-            <strong>category (optional):</strong> report section heading.
+            <strong>category (required):</strong> report section heading. Blank cells are rejected.
           </li>
           <li>
-            <strong>display_order (optional):</strong> positive whole number
+            <strong>display_order (required):</strong> positive whole number
             controlling question presentation, not answer codes or calculations.
           </li>
         </ul>
@@ -2011,13 +2086,8 @@ export function SurveyDefinitionStep({
             report.
           </li>
           <li>
-            <strong>display_order (optional):</strong> positive whole number
-            ordering answers within a question; defaults to row order.
-          </li>
-          <li>
-            <strong>score (optional):</strong> present in the UK template, but
-            not used for EA calculations. Leave blank; if supplied, it must be a
-            whole number from 1 to 6.
+            <strong>display_order (required):</strong> positive whole number
+            ordering answers within a question. Blank cells are rejected.
           </li>
         </ul>
         <h4>Calculation columns for custom EA questions</h4>
