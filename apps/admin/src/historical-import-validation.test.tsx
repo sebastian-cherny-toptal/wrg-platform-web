@@ -20,6 +20,51 @@ const draft = {
   metadata: { programName: "Program 2026" },
 };
 
+it("offers standard and UK Campaign EA downloads with custom question guidance for an existing program", async () => {
+  const standard = vi
+    .spyOn(api, "downloadProgramEmployerAssessmentDefinition")
+    .mockResolvedValue();
+  const templates = vi
+    .spyOn(api, "downloadDefaultEmployerAssessmentDefinition")
+    .mockResolvedValue();
+  render(
+    <SurveyDefinitionStep
+      draft={{ metadata: { ...draft.metadata, programId: "campaign" } }}
+      onComplete={vi.fn()}
+      onBack={vi.fn()}
+      onRestart={vi.fn()}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Download EA labels template" }),
+  );
+  await waitFor(() =>
+    expect(standard).toHaveBeenCalledWith(
+      "campaign",
+      "EA_Definition_Default_Template.xlsx",
+    ),
+  );
+  const uk = screen.getByRole("button", {
+    name: "Download UK Campaign EA template",
+  });
+  await waitFor(() => expect(uk.hasAttribute("disabled")).toBe(false));
+  fireEvent.click(uk);
+  await waitFor(() => expect(templates).toHaveBeenCalledWith("uk-campaign"));
+  expect(
+    screen.getByText(/For custom questions, download either EA template/u),
+  ).toBeTruthy();
+  fireEvent.click(
+    screen.getByText("EA spreadsheet columns and custom question instructions"),
+  );
+  expect(screen.getByText("question_label (required):")).toBeTruthy();
+  expect(screen.getByText("raw_answer (required):")).toBeTruthy();
+  expect(
+    screen.getByText(
+      "output_format (required for custom definitions, Questions):",
+    ),
+  ).toBeTruthy();
+});
+
 const preparedResponse = (
   metadata: HistoricalImportMetadata = draft.metadata,
   kind: "EA" | "EFS" = "EA",

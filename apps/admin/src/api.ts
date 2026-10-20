@@ -1160,10 +1160,16 @@ export const api = {
     );
   },
 
-  async downloadDefaultEmployerAssessmentDefinition(): Promise<void> {
+  async downloadDefaultEmployerAssessmentDefinition(
+    template: "default" | "uk-campaign" = "default",
+  ): Promise<void> {
     const auth = readAuth();
+    const endpoint =
+      template === "uk-campaign"
+        ? "uk-employer-assessment-definition.xlsx"
+        : "default-employer-assessment-definition.xlsx";
     const response = await fetch(
-      `${apiBaseUrl}/admin/historicalImports/default-employer-assessment-definition.xlsx`,
+      `${apiBaseUrl}/admin/historicalImports/${endpoint}`,
       {
         method: "POST",
         headers: {
@@ -1183,7 +1189,10 @@ export const api = {
     const url = URL.createObjectURL(await response.blob());
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "EA_Definition_Default_Template.xlsx";
+    anchor.download =
+      template === "uk-campaign"
+        ? "UK_EA_Questions_and_Answers.xlsx"
+        : "EA_Definition_Default_Template.xlsx";
     document.body.append(anchor);
     anchor.click();
     anchor.remove();

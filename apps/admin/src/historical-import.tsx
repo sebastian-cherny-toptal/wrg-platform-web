@@ -1777,11 +1777,15 @@ export function SurveyDefinitionStep({
     }
   };
 
-  const downloadEaDefault = async () => {
+  const downloadEaDefault = async (
+    template: "default" | "uk-campaign" = "default",
+  ) => {
     setDownloading(true);
     setError("");
     try {
-      if (draft.metadata.programId) {
+      if (template === "uk-campaign") {
+        await api.downloadDefaultEmployerAssessmentDefinition("uk-campaign");
+      } else if (draft.metadata.programId) {
         await api.downloadProgramEmployerAssessmentDefinition(
           draft.metadata.programId,
           "EA_Definition_Default_Template.xlsx",
@@ -1913,6 +1917,25 @@ export function SurveyDefinitionStep({
         <FileSpreadsheet size={16} />
         {downloading ? "Preparing template…" : "Download EA labels template"}
       </button>
+      <p className="wizard-copy">
+        Standard EA: includes the reusable standard and Ad Age question catalog,
+        or this program’s saved labels when editing an existing program.
+      </p>
+      <button
+        type="button"
+        className="secondary-button"
+        disabled={working || downloading}
+        onClick={() => void downloadEaDefault("uk-campaign")}
+      >
+        <FileSpreadsheet size={16} /> Download UK Campaign EA template
+      </button>
+      <p className="wizard-copy">
+        UK Campaign EA: includes 25 questions and 160 answer rows with UK
+        wording and benefit options. For custom questions, download either EA
+        template, add questions to Questions and their answers to Answers, then
+        upload the edited workbook here with its matching EA export. Keep both
+        sheet names and the column headers.
+      </p>
       <label className="upload-card">
         <FileSpreadsheet size={28} />
         <strong>EA Definition (optional)</strong>
@@ -1940,13 +1963,128 @@ export function SurveyDefinitionStep({
           Use built-in EA labels
         </button>
       ) : null}
-      <p className="wizard-copy">
-        Keep raw_answer as the exported answer code and answer_label as the
-        display text. display_order controls presentation only. Holiday checkbox
-        columns use 1 for selected; matrix columns use their actual ordinal
-        codes. Custom definitions also include calculation and source_column
-        mappings. Upload the definition with its matching EA export.
-      </p>
+      <details>
+        <summary>
+          EA spreadsheet columns and custom question instructions
+        </summary>
+        <p className="wizard-copy">
+          Each Questions row defines one question; each Answers row belongs to a
+          question. Required values must be filled on every populated row. Enter
+          plain values; formulas are not supported.
+        </p>
+        <h4>Questions sheet</h4>
+        <ul>
+          <li>
+            <strong>question_key (required):</strong> unique question identifier
+            matching the EA export. Use the same key on its Answers rows.
+          </li>
+          <li>
+            <strong>question_label (required):</strong> full question text shown
+            in the report.
+          </li>
+          <li>
+            <strong>question_type (optional):</strong> present in the UK
+            template; may be blank for EA. Accepted values: likert, demographic,
+            choice, open-text, or text.
+          </li>
+          <li>
+            <strong>category (optional):</strong> report section heading.
+          </li>
+          <li>
+            <strong>display_order (optional):</strong> positive whole number
+            controlling question presentation, not answer codes or calculations.
+          </li>
+        </ul>
+        <h4>Answers sheet</h4>
+        <ul>
+          <li>
+            <strong>question_key (required):</strong> links to an existing
+            Questions row.
+          </li>
+          <li>
+            <strong>raw_answer (required):</strong> exported answer value or
+            code; must be unique within its question. Preserve codes when
+            changing display wording.
+          </li>
+          <li>
+            <strong>answer_label (required):</strong> answer text shown in the
+            report.
+          </li>
+          <li>
+            <strong>display_order (optional):</strong> positive whole number
+            ordering answers within a question; defaults to row order.
+          </li>
+          <li>
+            <strong>score (optional):</strong> present in the UK template, but
+            not used for EA calculations. Leave blank; if supplied, it must be a
+            whole number from 1 to 6.
+          </li>
+        </ul>
+        <h4>Calculation columns for custom EA questions</h4>
+        <p className="wizard-copy">
+          When adding new custom questions, supply explicit mappings for every
+          Questions row in the workbook. The standard template includes these
+          columns; add them to the UK template if needed. Include Answers rows
+          for every answer option you want reported; a numeric mean can have no
+          Answers rows.
+        </p>
+        <ul>
+          <li>
+            <strong>
+              calculation (required for custom definitions, Questions):
+            </strong>{" "}
+            yesNo for yes/no percentages, choice for single-choice percentages,
+            multi for checkbox percentages, or mean for numeric averages.
+          </li>
+          <li>
+            <strong>
+              source_column (required for custom definitions, Questions):
+            </strong>{" "}
+            exact source column in the EA export.
+          </li>
+          <li>
+            <strong>
+              output_format (required for custom definitions, Questions):
+            </strong>{" "}
+            number or percent.
+          </li>
+          <li>
+            <strong>source_column (Answers):</strong> required on every answer
+            row for multi or mean calculations; identifies that option’s exact
+            EA export column. Optional for yesNo and choice.
+          </li>
+          <li>
+            <strong>group_key (optional, Questions):</strong> shared identifier
+            combining related question rows into one report question, such as a
+            benefits matrix.
+          </li>
+          <li>
+            <strong>group_label (optional, Questions):</strong> label for an
+            item within that group.
+          </li>
+          <li>
+            <strong>eligible_question (optional, Questions):</strong> EA source
+            column used to restrict which organisations are counted.
+          </li>
+          <li>
+            <strong>
+              eligible_value (required when eligible_question is set,
+              Questions):
+            </strong>{" "}
+            raw value that makes an organisation eligible.
+          </li>
+          <li>
+            <strong>missing_source (optional, Questions):</strong> error (or
+            blank) requires the source column; skip omits unavailable questions
+            or options for reusable templates.
+          </li>
+        </ul>
+        <p className="wizard-copy">
+          Holiday checkbox columns use 1 for selected. Matrix columns use their
+          actual exported ordinal codes. Match raw_answer to these codes rather
+          than using display_order as the code.
+        </p>
+      </details>
       {validation ? <IssueList issues={validation.issues} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
       {actions("bottom")}
