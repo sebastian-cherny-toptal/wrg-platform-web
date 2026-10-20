@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HistoricalImportMetadata } from "./api";
@@ -53,16 +54,28 @@ it("offers standard and UK Campaign EA downloads with custom question guidance f
   expect(
     screen.getByText(/For custom questions, download either EA template/u),
   ).toBeTruthy();
-  fireEvent.click(
-    screen.getByText("EA spreadsheet columns and custom question instructions"),
+  const eaSummary = screen.getByText(
+    "EA spreadsheet columns and custom question instructions",
   );
-  expect(screen.getByText("question_label (required):")).toBeTruthy();
-  expect(screen.getByText("raw_answer (required):")).toBeTruthy();
+  fireEvent.click(eaSummary);
+  const eaGuide = within(eaSummary.closest("details")!);
+  expect(eaGuide.getByText("question_label (required):")).toBeTruthy();
+  expect(eaGuide.getByText("raw_answer (required):")).toBeTruthy();
   expect(
-    screen.getByText(
+    eaGuide.getByText(
       "output_format (required for custom definitions, Questions):",
     ),
   ).toBeTruthy();
+  expect(eaGuide.queryByText("score (optional):")).toBeNull();
+
+  const efsSummary = screen.getByText("EFS spreadsheet worksheets and columns");
+  fireEvent.click(efsSummary);
+  const efsGuide = within(efsSummary.closest("details")!);
+  expect(efsGuide.getByText("Questions sheet")).toBeTruthy();
+  expect(efsGuide.getByText("Answers sheet")).toBeTruthy();
+  expect(efsGuide.getByText("question_label (required):")).toBeTruthy();
+  expect(efsGuide.getByText("raw_answer (required):")).toBeTruthy();
+  expect(efsGuide.getByText("score (optional):")).toBeTruthy();
 });
 
 const preparedResponse = (
