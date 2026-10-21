@@ -930,6 +930,15 @@ export function MetadataStep({
     event.preventDefault();
     setError("");
     const payload: HistoricalImportMetadata = {
+      surveyDefinitionVersion: draft.metadata?.surveyDefinitionVersion,
+      employerAssessmentDefinitionVersion:
+        draft.metadata?.employerAssessmentDefinitionVersion,
+      surveyDefinitionFile: draft.metadata?.surveyDefinitionFile,
+      employerAssessmentDefinitionFile:
+        draft.metadata?.employerAssessmentDefinitionFile,
+      useDefaultSurveyDefinition: draft.metadata?.useDefaultSurveyDefinition,
+      useDefaultEmployerAssessmentDefinition:
+        draft.metadata?.useDefaultEmployerAssessmentDefinition,
       ...(editing
         ? form.projectId
           ? { projectId: form.projectId }
@@ -1615,6 +1624,26 @@ export function UploadStep({
   );
 }
 
+function selectedDefinitionLabel(
+  metadata: HistoricalImportMetadata,
+  kind: "EFS" | "EA",
+): string {
+  const useDefault =
+    kind === "EFS"
+      ? metadata.useDefaultSurveyDefinition
+      : metadata.useDefaultEmployerAssessmentDefinition;
+  const savedFile =
+    kind === "EFS"
+      ? metadata.surveyDefinitionFile
+      : metadata.employerAssessmentDefinitionFile;
+  const version =
+    kind === "EFS"
+      ? metadata.surveyDefinitionVersion
+      : metadata.employerAssessmentDefinitionVersion;
+  if (!useDefault && savedFile?.fileName) return savedFile.fileName;
+  return `Default template ${useDefault ? "v1" : (version ?? "v1")}`;
+}
+
 export function SurveyDefinitionStep({
   draft,
   onComplete,
@@ -1651,6 +1680,10 @@ export function SurveyDefinitionStep({
     setWorking(true);
     const next = {
       ...draft,
+      metadata: {
+        ...draft.metadata,
+        useDefaultSurveyDefinition: nextFile === null,
+      },
       surveyDefinitionFile: nextFile ?? undefined,
       surveyDefinitionConfigured: false,
     };
@@ -1661,7 +1694,7 @@ export function SurveyDefinitionStep({
         onDraftChange?.({ ...next, validation: undefined });
         return;
       }
-      const prepared = await api.prepareHistoricalImport(draft.metadata, {
+      const prepared = await api.prepareHistoricalImport(next.metadata, {
         ...(draft.efsFile ? { efsFile: draft.efsFile } : {}),
         ...(nextFile ? { surveyDefinitionFile: nextFile } : {}),
       });
@@ -1705,6 +1738,10 @@ export function SurveyDefinitionStep({
     const next = {
       ...draft,
       surveyDefinitionFile: file ?? undefined,
+      metadata: {
+        ...draft.metadata,
+        useDefaultEmployerAssessmentDefinition: nextFile === null,
+      },
       employerAssessmentDefinitionFile: nextFile ?? undefined,
       surveyDefinitionConfigured: false,
     };
@@ -1715,7 +1752,7 @@ export function SurveyDefinitionStep({
         onDraftChange?.({ ...next, validation: undefined });
         return;
       }
-      const prepared = await api.prepareHistoricalImport(draft.metadata, {
+      const prepared = await api.prepareHistoricalImport(next.metadata, {
         ...(draft.eaFile ? { eaFile: draft.eaFile } : {}),
 
         ...(nextFile ? { employerAssessmentDefinitionFile: nextFile } : {}),
@@ -1760,11 +1797,16 @@ export function SurveyDefinitionStep({
           draft.metadata,
           draft.efsFile,
         );
-      } else if (draft.metadata.programId) {
+      } else if (
+        draft.metadata.programId &&
+        !draft.metadata.useDefaultSurveyDefinition
+      ) {
         await api.downloadProgramSurveyDefinition(
           draft.metadata.programId,
-          "Survey_Definition_Default_Template.xlsx",
+          "EFS_Definition.xlsx",
         );
+      } else {
+        await api.downloadDefaultSurveyDefinition(draft.metadata);
       }
     } catch (caught) {
       setError(
@@ -1785,10 +1827,13 @@ export function SurveyDefinitionStep({
     try {
       if (template === "uk-campaign") {
         await api.downloadDefaultEmployerAssessmentDefinition("uk-campaign");
-      } else if (draft.metadata.programId) {
+      } else if (
+        draft.metadata.programId &&
+        !draft.metadata.useDefaultEmployerAssessmentDefinition
+      ) {
         await api.downloadProgramEmployerAssessmentDefinition(
           draft.metadata.programId,
-          "EA_Definition_Default_Template.xlsx",
+          "EA_Definition.xlsx",
         );
       } else {
         await api.downloadDefaultEmployerAssessmentDefinition();
@@ -1849,30 +1894,33 @@ export function SurveyDefinitionStep({
     <div className="wizard-panel">
       {actions("top")}
       <p className="wizard-copy">
-        {draft.efsFile
-          ? "The default template contains the questions and answer options used for this EFS when no survey definition is uploaded."
-          : "The default template contains this program’s current EFS questions and answer options."}{" "}
-        Download it to review or customize them, then upload the edited workbook
-        here. This step is optional when the defaults are correct.
+        Every program must have an EFS Survey Definition and an EA Definition.
+        Upload a complete workbook for each, or use the default template v1.
+        Without an upload, a new program automatically uses default v1. The
+        selected files or template versions are saved with the program; future
+        template releases do not change them.
       </p>
       <h3>Employee Feedback Survey labels</h3>
       <button
         type="button"
         className="secondary-button"
-        disabled={
-          working ||
-          downloading ||
-          (!draft.efsFile && !draft.metadata.programId)
-        }
+        disabled={working || downloading}
         onClick={() => void downloadDefault()}
       >
         <FileSpreadsheet size={16} />
-        {downloading ? "Preparing template…" : "Download default template"}
+        {downloading
+          ? "Preparing template…"
+          : draft.metadata.programId &&
+              !draft.metadata.useDefaultSurveyDefinition
+            ? "Download saved EFS definition"
+            : "Download EFS template v1"}
       </button>
       <label className="upload-card">
         <FileSpreadsheet size={28} />
-        <strong>Survey Definition (optional, EFS)</strong>
-        <span>{file?.name ?? "Use current defaults"}</span>
+        <strong>EFS Survey Definition</strong>
+        <span>
+          {file?.name ?? selectedDefinitionLabel(draft.metadata, "EFS")}
+        </span>
         <input
           ref={fileInput}
           type="file"
@@ -1883,7 +1931,7 @@ export function SurveyDefinitionStep({
           }
         />
       </label>
-      {file ? (
+      {file || draft.metadata.surveyDefinitionFile ? (
         <button
           type="button"
           className="secondary-button compact"
@@ -1893,7 +1941,7 @@ export function SurveyDefinitionStep({
             void definitionChanged(null);
           }}
         >
-          Use defaults
+          Use default EFS template v1
         </button>
       ) : null}
       <p className="wizard-copy">
@@ -1925,18 +1973,18 @@ export function SurveyDefinitionStep({
             template before uploading it.
           </li>
           <li>
-            <strong>question_type (optional):</strong> likert, demographic,
-            choice, open-text, or text. If blank, keeps the existing question
-            type.
+            <strong>question_type (required):</strong> likert, demographic,
+            choice, open-text, or text. Every question must have a value. Blank
+            cells are rejected; types are never inherited from earlier imports.
           </li>
           <li>
             <strong>category (optional):</strong> category label stored with the
-            question. If blank, keeps the existing category.
+            question. Leave blank for no category.
           </li>
           <li>
             <strong>display_order (optional):</strong> positive whole number
-            controlling question presentation. If blank, keeps the existing
-            question order.
+            controlling question presentation. If blank, uses the order of the
+            rows in this file.
           </li>
         </ul>
         <h4>Answers sheet</h4>
@@ -1961,27 +2009,27 @@ export function SurveyDefinitionStep({
           </li>
           <li>
             <strong>score (optional):</strong> Likert scoring value when the raw
-            answer code differs from the standard scale. Use whole numbers
-            1–5 for scored answers or 6 for N/A. If blank, standard raw codes
-            1–5, 6, and 99 keep their default meaning; other Likert codes need an
+            answer code differs from the standard scale. Use whole numbers 1–5
+            for scored answers or 6 for N/A. If blank, standard raw codes 1–5,
+            6, and 99 keep their default meaning; other Likert codes need an
             explicit score. Non-Likert questions do not need scores.
           </li>
         </ul>
         <p className="wizard-copy">
           When editing an answer list, include every nonblank answer value
           recorded for that question. The uploaded list replaces that question's
-          previous answer list. To change only question labels, keep the Answers
-          sheet with its headers and no data rows. Open-text responses do not
-          need answer rows. Unlisted questions and questions without an uploaded
-          answer list keep their current definitions or defaults. EFS category
-          and order columns remain optional.
+          previous answer list. Upload the complete definition, including every
+          imported EFS question and its answer mappings. Open-text responses do
+          not need answer rows. The file replaces the previous definition. EFS
+          category and order columns remain optional.
         </p>
       </details>
       <h3>Benefits &amp; Best Practices labels</h3>
       <p className="wizard-copy">
-        The EA definition is optional. Without it, Benefits &amp; Best Practices
-        uses the standard report. A custom definition supplies the report
-        questions, answers, groups, and calculation mappings for this program.
+        Without an uploaded EA Definition, a new program uses default template
+        v1 for Benefits &amp; Best Practices. An uploaded file supplies the
+        complete report questions, answers, groups, and calculation mappings for
+        this program.
       </p>
       <button
         type="button"
@@ -1990,7 +2038,12 @@ export function SurveyDefinitionStep({
         onClick={() => void downloadEaDefault()}
       >
         <FileSpreadsheet size={16} />
-        {downloading ? "Preparing template…" : "Download EA labels template"}
+        {downloading
+          ? "Preparing template…"
+          : draft.metadata.programId &&
+              !draft.metadata.useDefaultEmployerAssessmentDefinition
+            ? "Download saved EA definition"
+            : "Download EA template v1"}
       </button>
       <p className="wizard-copy">
         Standard EA: includes the reusable standard and Ad Age question catalog,
@@ -2002,7 +2055,7 @@ export function SurveyDefinitionStep({
         disabled={working || downloading}
         onClick={() => void downloadEaDefault("uk-campaign")}
       >
-        <FileSpreadsheet size={16} /> Download UK Campaign EA template
+        <FileSpreadsheet size={16} /> Download UK Campaign EA template v1
       </button>
       <p className="wizard-copy">
         UK Campaign EA: includes 25 questions and 160 answer rows with UK
@@ -2013,8 +2066,10 @@ export function SurveyDefinitionStep({
       </p>
       <label className="upload-card">
         <FileSpreadsheet size={28} />
-        <strong>EA Definition (optional)</strong>
-        <span>{eaFile?.name ?? "Use built-in report labels"}</span>
+        <strong>EA Definition</strong>
+        <span>
+          {eaFile?.name ?? selectedDefinitionLabel(draft.metadata, "EA")}
+        </span>
         <input
           ref={eaFileInput}
           type="file"
@@ -2025,7 +2080,7 @@ export function SurveyDefinitionStep({
           }
         />
       </label>
-      {eaFile ? (
+      {eaFile || draft.metadata.employerAssessmentDefinitionFile ? (
         <button
           type="button"
           className="secondary-button compact"
@@ -2035,7 +2090,7 @@ export function SurveyDefinitionStep({
             void eaDefinitionChanged(null);
           }}
         >
-          Use built-in EA labels
+          Use default EA template v1
         </button>
       ) : null}
       <details>
@@ -2059,11 +2114,12 @@ export function SurveyDefinitionStep({
           </li>
           <li>
             <strong>question_type (optional):</strong> may be blank or omitted
-            for EA. Accepted values: likert, demographic,
-            choice, open-text, or text.
+            for EA. Accepted values: likert, demographic, choice, open-text, or
+            text.
           </li>
           <li>
-            <strong>category (required):</strong> report section heading. Blank cells are rejected.
+            <strong>category (required):</strong> report section heading. Blank
+            cells are rejected.
           </li>
           <li>
             <strong>display_order (required):</strong> positive whole number
@@ -2653,14 +2709,14 @@ export function ReviewStep({
           <span>Survey definition</span>
           <strong>
             {draft.surveyDefinitionFile?.name ??
-              "Current definition / defaults"}
+              selectedDefinitionLabel(draft.metadata, "EFS")}
           </strong>
         </div>
         <div className="review-card">
           <span>EA report labels</span>
           <strong>
             {draft.employerAssessmentDefinitionFile?.name ??
-              "Current definition / built-in defaults"}
+              selectedDefinitionLabel(draft.metadata, "EA")}
           </strong>
         </div>
         <div className="review-card">
@@ -2802,6 +2858,14 @@ export function HistoricalImportPage() {
           ]);
           if (!active) return;
           const details = program.details ?? {};
+          const fileSummary = (value: unknown) => {
+            if (!value || typeof value !== "object" || !("fileName" in value))
+              return undefined;
+            return {
+              fileName: String(value.fileName),
+              sha256: "sha256" in value ? String(value.sha256) : "",
+            };
+          };
           const datePart = (value: unknown, fallback: string) =>
             typeof value === "string" && value ? value.slice(0, 10) : fallback;
           const selectedProjectId = program.projectId ?? routeProjectId;
@@ -2814,6 +2878,18 @@ export function HistoricalImportPage() {
               projectName: selectedProject?.name,
               programId: program.id,
               programName: program.name,
+              surveyDefinitionVersion:
+                typeof details.surveyDefinitionVersion === "string"
+                  ? details.surveyDefinitionVersion
+                  : null,
+              employerAssessmentDefinitionVersion:
+                typeof details.employerAssessmentDefinitionVersion === "string"
+                  ? details.employerAssessmentDefinitionVersion
+                  : null,
+              surveyDefinitionFile: fileSummary(details.surveyDefinitionFile),
+              employerAssessmentDefinitionFile: fileSummary(
+                details.employerAssessmentDefinitionFile,
+              ),
               programYear: program.year ?? undefined,
               currency:
                 typeof details.currency === "string"

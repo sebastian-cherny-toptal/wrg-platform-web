@@ -465,13 +465,11 @@ describe("admin API projections", () => {
       revision: "a".repeat(64),
       conflicts: [],
     };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve(payload),
-      });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(payload),
+    });
     vi.stubGlobal("fetch", fetchMock);
     await api.organizationReconciliationReport("program/id");
     await api.previewOrganizationReconciliation("program/id", ["conflict-id"]);
@@ -511,22 +509,75 @@ describe("admin API projections", () => {
   it("exposes the structured resync conflict code for automatic report opening", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          status: 409,
-          json: () =>
-            Promise.resolve({
-              message: "Account mapping conflict",
-              code: "ORGANIZATION_ACCOUNT_CONFLICT",
-            }),
-        }),
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            message: "Account mapping conflict",
+            code: "ORGANIZATION_ACCOUNT_CONFLICT",
+          }),
+      }),
     );
     await expect(api.previewProgramZohoResync("program")).rejects.toMatchObject(
       { status: 409, code: "ORGANIZATION_ACCOUNT_CONFLICT" },
     );
   });
+
+  for (const [kind, fileName] of [
+    ["EFS", "My définition.xlsx"],
+    ["EA", "EA_Definition_v1.xlsx"],
+  ] as const) {
+    it(`downloads the current ${kind} definition with the server-provided filename`, async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+        }),
+        blob: () => Promise.resolve(new Blob(["current workbook"])),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const originalCreate = URL.createObjectURL;
+      const originalRevoke = URL.revokeObjectURL;
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        value: () => "blob:current",
+      });
+      const revoke = vi.fn();
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        value: revoke,
+      });
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, "click")
+        .mockImplementation(function (this: HTMLAnchorElement) {
+          expect(this.download).toBe(fileName);
+          expect(this.href).toBe("blob:current");
+        });
+      try {
+        await api.downloadCurrentProgramDefinition("program/id", kind);
+        expect(fetchMock).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `/admin/programs/program%2Fid/definitions/${kind}/current.xlsx`,
+          ),
+          expect.any(Object),
+        );
+        expect(click).toHaveBeenCalledOnce();
+        expect(revoke).toHaveBeenCalledWith("blob:current");
+      } finally {
+        click.mockRestore();
+        Object.defineProperty(URL, "createObjectURL", {
+          configurable: true,
+          value: originalCreate,
+        });
+        Object.defineProperty(URL, "revokeObjectURL", {
+          configurable: true,
+          value: originalRevoke,
+        });
+      }
+    });
+  }
 
   it("downloads organization connection fields for a program", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
@@ -1132,9 +1183,15 @@ it("sends the selected users to the permanent removal endpoint", async () => {
     json: () => Promise.resolve({ success: true, removedCount: 2 }),
   });
   vi.stubGlobal("fetch", fetchMock);
-  expect(await api.hardRemoveDisabledUsers(["legacy/user", "user-2"])).toEqual({ success: true, removedCount: 2 });
+  expect(await api.hardRemoveDisabledUsers(["legacy/user", "user-2"])).toEqual({
+    success: true,
+    removedCount: 2,
+  });
   expect(fetchMock).toHaveBeenCalledWith(
     expect.stringContaining("/user/hard-remove-disabled"),
-    expect.objectContaining({ method: "POST", body: JSON.stringify({ userIds: ["legacy/user", "user-2"] }) }),
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ userIds: ["legacy/user", "user-2"] }),
+    }),
   );
 });

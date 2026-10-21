@@ -1236,14 +1236,14 @@ export function ProgramDetailPage() {
     null,
   );
   const [surveyDefinitionAction, setSurveyDefinitionAction] = useState<
-    "download" | "upload" | null
+    "download" | "current" | "upload" | null
   >(null);
   const [surveyDefinitionNotice, setSurveyDefinitionNotice] = useState("");
   const [surveyDefinitionError, setSurveyDefinitionError] = useState("");
   const surveyDefinitionInput = useRef<HTMLInputElement>(null);
   const [eaDefinitionFile, setEaDefinitionFile] = useState<File | null>(null);
   const [eaDefinitionAction, setEaDefinitionAction] = useState<
-    "download" | "upload" | null
+    "download" | "current" | "upload" | null
   >(null);
   const [eaDefinitionNotice, setEaDefinitionNotice] = useState("");
   const [eaDefinitionError, setEaDefinitionError] = useState("");
@@ -1442,6 +1442,25 @@ export function ProgramDetailPage() {
       );
     } finally {
       setDownloadingConnections(false);
+    }
+  };
+  const downloadCurrentDefinition = async (kind: "EFS" | "EA") => {
+    const setAction =
+      kind === "EFS" ? setSurveyDefinitionAction : setEaDefinitionAction;
+    const setError =
+      kind === "EFS" ? setSurveyDefinitionError : setEaDefinitionError;
+    setAction("current");
+    setError("");
+    try {
+      await api.downloadCurrentProgramDefinition(program.id, kind);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The current definition file could not be downloaded.",
+      );
+    } finally {
+      setAction(null);
     }
   };
   const downloadSurveyDefinition = async () => {
@@ -1817,9 +1836,9 @@ export function ProgramDetailPage() {
               </h3>
               <p>
                 Download this program's current EFS labels, edit the Questions
-                and Answers sheets, then upload the XLSX. Only listed questions
-                in this program are updated. Include every answer value for each
-                answer list you change.
+                and Answers sheets, then upload a complete replacement XLSX.
+                Every EFS question requires question_type. The program retains
+                its uploaded file or pinned default template version.
               </p>
             </div>
           </div>
@@ -1868,6 +1887,18 @@ export function ProgramDetailPage() {
                   </button>
                 </>
               ) : null}
+              <button
+                className="secondary-button compact action-link"
+                type="button"
+                aria-label="Download current EFS definition file"
+                disabled={surveyDefinitionAction !== null}
+                onClick={() => void downloadCurrentDefinition("EFS")}
+              >
+                <Download size={16} />{" "}
+                {surveyDefinitionAction === "current"
+                  ? "Downloading…"
+                  : "Download current file"}
+              </button>
             </div>
             {surveyDefinitionError ? (
               <p
@@ -1888,8 +1919,9 @@ export function ProgramDetailPage() {
             <div>
               <h4>Benefits &amp; Best Practices definition (EA)</h4>
               <p>
-                Optional. Download the current EA definition to edit labels or
-                upload a custom report definition with source columns and
+                Every program uses an uploaded EA definition or a pinned default
+                template version. Download the saved definition to edit labels
+                or upload a custom report definition with source columns and
                 calculation mappings. raw_answer is the exported code;
                 answer_label is the display text. Custom definitions replace the
                 previous custom report rows.
@@ -1937,6 +1969,18 @@ export function ProgramDetailPage() {
                   </button>
                 </>
               ) : null}
+              <button
+                className="secondary-button compact action-link"
+                type="button"
+                aria-label="Download current EA definition file"
+                disabled={eaDefinitionAction !== null}
+                onClick={() => void downloadCurrentDefinition("EA")}
+              >
+                <Download size={16} />{" "}
+                {eaDefinitionAction === "current"
+                  ? "Downloading…"
+                  : "Download current file"}
+              </button>
             </div>
             {eaDefinitionError ? (
               <p className="form-error" role="alert">
@@ -4007,7 +4051,9 @@ export function UsersManagementPage() {
             }
             onClick={() => void hardRemoveDisabledUsers()}
           >
-            {hardRemoving ? "Removing…" : `Hard remove ${users.length} disabled users`}
+            {hardRemoving
+              ? "Removing…"
+              : `Hard remove ${users.length} disabled users`}
           </button>
         ) : null}
       </div>

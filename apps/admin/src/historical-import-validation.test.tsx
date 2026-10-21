@@ -37,16 +37,13 @@ it("offers standard and UK Campaign EA downloads with custom question guidance f
     />,
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Download EA labels template" }),
+    screen.getByRole("button", { name: "Download saved EA definition" }),
   );
   await waitFor(() =>
-    expect(standard).toHaveBeenCalledWith(
-      "campaign",
-      "EA_Definition_Default_Template.xlsx",
-    ),
+    expect(standard).toHaveBeenCalledWith("campaign", "EA_Definition.xlsx"),
   );
   const uk = screen.getByRole("button", {
-    name: "Download UK Campaign EA template",
+    name: "Download UK Campaign EA template v1",
   });
   await waitFor(() => expect(uk.hasAttribute("disabled")).toBe(false));
   fireEvent.click(uk);
@@ -74,6 +71,7 @@ it("offers standard and UK Campaign EA downloads with custom question guidance f
   expect(efsGuide.getByText("Questions sheet")).toBeTruthy();
   expect(efsGuide.getByText("Answers sheet")).toBeTruthy();
   expect(efsGuide.getByText("question_label (required):")).toBeTruthy();
+  expect(efsGuide.getByText("question_type (required):")).toBeTruthy();
   expect(efsGuide.getByText("raw_answer (required):")).toBeTruthy();
   expect(efsGuide.getByText("score (optional):")).toBeTruthy();
 });
@@ -148,10 +146,13 @@ describe("local workbook selection", () => {
       target: { files: [definition] },
     });
     await waitFor(() =>
-      expect(prepare).toHaveBeenCalledWith(draft.metadata, {
-        eaFile,
-        employerAssessmentDefinitionFile: definition,
-      }),
+      expect(prepare).toHaveBeenCalledWith(
+        { ...draft.metadata, useDefaultEmployerAssessmentDefinition: false },
+        {
+          eaFile,
+          employerAssessmentDefinitionFile: definition,
+        },
+      ),
     );
     await screen.findByText("Missing EA source column");
     fireEvent.click(screen.getAllByRole("button", { name: /Continue/u })[0]!);
@@ -247,7 +248,7 @@ describe("local workbook selection", () => {
       />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Download default template" }),
+      screen.getByRole("button", { name: "Download EFS template v1" }),
     );
     await waitFor(() =>
       expect(download).toHaveBeenCalledWith(draft.metadata, efsFile),
@@ -297,10 +298,13 @@ describe("local workbook selection", () => {
       target: { files: [definitionFile] },
     });
     await waitFor(() =>
-      expect(prepare).toHaveBeenCalledWith(draft.metadata, {
-        efsFile,
-        surveyDefinitionFile: definitionFile,
-      }),
+      expect(prepare).toHaveBeenCalledWith(
+        { ...draft.metadata, useDefaultSurveyDefinition: false },
+        {
+          efsFile,
+          surveyDefinitionFile: definitionFile,
+        },
+      ),
     );
     await waitFor(() =>
       expect(
@@ -578,4 +582,22 @@ describe("local workbook selection", () => {
       ),
     );
   });
+});
+
+it("names both default v1 selections explicitly for a new program", () => {
+  render(
+    <SurveyDefinitionStep
+      draft={draft}
+      onComplete={vi.fn()}
+      onBack={vi.fn()}
+      onRestart={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByText("Default template v1")).toHaveLength(2);
+  expect(
+    screen.getByText(
+      /Without an upload, a new program automatically uses default v1/u,
+    ),
+  ).toBeTruthy();
+  expect(screen.getByText("question_type (required):")).toBeTruthy();
 });

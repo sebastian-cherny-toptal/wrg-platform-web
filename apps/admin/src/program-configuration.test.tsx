@@ -78,6 +78,9 @@ describe("program configuration", () => {
     vi.spyOn(api, "reportProductTemplates").mockResolvedValue([]);
     vi.spyOn(api, "programCatalog").mockResolvedValue([]);
 
+    const downloadCurrent = vi
+      .spyOn(api, "downloadCurrentProgramDefinition")
+      .mockResolvedValue();
     render(
       <AuthProvider>
         <MemoryRouter
@@ -112,6 +115,22 @@ describe("program configuration", () => {
     expect(
       screen.getByRole("button", { name: "Upload and review EFS" }),
     ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Download current EFS definition file",
+      }),
+    );
+    await waitFor(() =>
+      expect(downloadCurrent).toHaveBeenCalledWith("program-id", "EFS"),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Download current EA definition file",
+      }),
+    );
+    await waitFor(() =>
+      expect(downloadCurrent).toHaveBeenCalledWith("program-id", "EA"),
+    );
     fireEvent.click(screen.getByRole("tab", { name: "Program Details" }));
     expect(await detail("Total # Organizations")).toBe(
       "Total # Organizations:3",

@@ -224,6 +224,12 @@ export type UserRecord = {
 };
 
 export type HistoricalImportMetadata = {
+  useDefaultSurveyDefinition?: boolean;
+  useDefaultEmployerAssessmentDefinition?: boolean;
+  surveyDefinitionVersion?: string | null;
+  employerAssessmentDefinitionVersion?: string | null;
+  surveyDefinitionFile?: { fileName: string; sha256: string };
+  employerAssessmentDefinitionFile?: { fileName: string; sha256: string };
   projectId?: string | null;
   zohoProjectId?: string;
   projectName?: string;
@@ -719,7 +725,7 @@ async function request<T>(
 
 async function downloadRequest(
   path: string,
-  filename: string,
+  filename: string | undefined,
   allowRefresh = true,
 ): Promise<void> {
   const auth = readAuth();
@@ -745,7 +751,14 @@ async function downloadRequest(
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = filename;
+  const serverFilename = /filename\*=UTF-8''([^;]+)/iu.exec(
+    filename === undefined
+      ? (response.headers.get("content-disposition") ?? "")
+      : "",
+  )?.[1];
+  anchor.download =
+    filename ??
+    (serverFilename ? decodeURIComponent(serverFilename) : "Definition.xlsx");
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
@@ -1140,6 +1153,16 @@ export const api = {
     );
   },
 
+  async downloadCurrentProgramDefinition(
+    id: string,
+    kind: "EFS" | "EA",
+  ): Promise<void> {
+    await downloadRequest(
+      `/admin/programs/${encodeURIComponent(id)}/definitions/${kind}/current.xlsx`,
+      undefined,
+    );
+  },
+
   async downloadProgramSurveyDefinition(
     id: string,
     filename = "Questions_and_Answers.xlsx",
@@ -1191,8 +1214,8 @@ export const api = {
     anchor.href = url;
     anchor.download =
       template === "uk-campaign"
-        ? "UK_EA_Questions_and_Answers.xlsx"
-        : "EA_Definition_Default_Template.xlsx";
+        ? "UK_EA_Definition_v1.xlsx"
+        : "EA_Definition_Default_v1.xlsx";
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
@@ -1201,23 +1224,23 @@ export const api = {
 
   async downloadDefaultSurveyDefinition(
     metadata: HistoricalImportMetadata,
-    efsFile: File,
+    efsFile?: File,
   ): Promise<void> {
     const formData = new FormData();
     formData.append("metadata", JSON.stringify(metadata));
-    formData.append("efsFile", efsFile);
+    if (efsFile) formData.append("efsFile", efsFile);
     const download = async (allowRefresh: boolean): Promise<Response> => {
       const auth = readAuth();
       const response = await fetch(
         `${apiBaseUrl}/admin/historicalImports/default-survey-definition.xlsx`,
         {
-          method: "POST",
+          method: efsFile ? "POST" : "GET",
           headers: {
             Accept:
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             ...authHeaders(auth?.accessToken),
           },
-          body: formData,
+          ...(efsFile ? { body: formData } : {}),
         },
       );
       if (response.status === 401 && auth?.accessToken && allowRefresh) {
@@ -1238,7 +1261,7 @@ export const api = {
     const url = URL.createObjectURL(await response.blob());
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "Survey_Definition_Default_Template.xlsx";
+    anchor.download = "EFS_Definition_Default_v1.xlsx";
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
